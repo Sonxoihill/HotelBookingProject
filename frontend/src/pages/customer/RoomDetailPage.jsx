@@ -387,7 +387,7 @@ export const RoomDetailPage = () => {
                 {/* 2. Thuế & dịch vụ */}
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1">
-                    <span>Thuế GTGT & Phí dịch vụ (10%):</span>
+                    <span>Thuế GTGT & Phí dịch vụ:</span>
                   </span>
                   <span className="font-bold text-slate-900">
                     {formatVND(taxAndServiceFee)}

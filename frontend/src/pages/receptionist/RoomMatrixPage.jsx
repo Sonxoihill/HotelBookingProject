@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import RoomMatrixGrid from '../../components/receptionist/RoomMatrixGrid';
 import CleaningStatusModal from '../../components/receptionist/CleaningStatusModal';
-import { ROOM_STATUS } from '../../utils/constants';
-import { Sparkles, RefreshCw, Filter, Layers } from 'lucide-react';
+import { RefreshCw, Layers, Building2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 
 export const RoomMatrixPage = () => {
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [selectedFloor, setSelectedFloor] = useState('ALL');
   const [selectedRoomForCleaning, setSelectedRoomForCleaning] = useState(null);
   const [isCleaningModalOpen, setIsCleaningModalOpen] = useState(false);
 
@@ -21,6 +21,9 @@ export const RoomMatrixPage = () => {
     { id: 202, roomNumber: '202', type: 'Deluxe Suite', status: 'AVAILABLE', floor: 2 },
     { id: 203, roomNumber: '203', type: 'Premier King', status: 'CLEANING', floor: 2 },
     { id: 204, roomNumber: '204', type: 'President Suite', status: 'OCCUPIED', guestName: 'David Lee', floor: 2 },
+    { id: 301, roomNumber: '301', type: 'Royal Penthouse', status: 'AVAILABLE', floor: 3 },
+    { id: 302, roomNumber: '302', type: 'President Suite', status: 'RESERVED', guestName: 'Hoàng Long', floor: 3 },
+    { id: 303, roomNumber: '303', type: 'Executive Suite', status: 'AVAILABLE', floor: 3 },
   ]);
 
   const handleOpenCleaningModal = (room) => {
@@ -34,10 +37,25 @@ export const RoomMatrixPage = () => {
     );
   };
 
-  const filteredRooms =
-    filterStatus === 'ALL'
-      ? rooms
-      : rooms.filter((r) => r.status === filterStatus);
+  // Get list of distinct floors (first digit of roomNumber)
+  const availableFloors = useMemo(() => {
+    const set = new Set();
+    rooms.forEach((r) => {
+      const f = String(r.roomNumber || '').charAt(0) || String(r.floor || '1');
+      set.add(f);
+    });
+    return Array.from(set).sort((a, b) => Number(a) - Number(b));
+  }, [rooms]);
+
+  // Combined filter: status + floor
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((r) => {
+      const matchesStatus = filterStatus === 'ALL' || r.status === filterStatus;
+      const roomFloor = String(r.roomNumber || '').charAt(0) || String(r.floor || '1');
+      const matchesFloor = selectedFloor === 'ALL' || roomFloor === selectedFloor;
+      return matchesStatus && matchesFloor;
+    });
+  }, [rooms, filterStatus, selectedFloor]);
 
   // Statistics
   const total = rooms.length;
@@ -101,13 +119,45 @@ export const RoomMatrixPage = () => {
         </div>
       </div>
 
-      {/* Action Bar */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-2">
-          <Layers size={18} className="text-blue-600" />
-          <span className="text-sm font-bold text-slate-800">
-            Sơ đồ phòng trực quan - Đang lọc: {filterStatus}
-          </span>
+      {/* Action Bar & Floor Selector */}
+      <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Layers size={18} className="text-blue-600" />
+            <span className="text-sm font-bold text-slate-800">
+              Sơ đồ phòng theo tầng
+            </span>
+          </div>
+
+          {/* Quick Floor Tabs */}
+          <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+            <button
+              type="button"
+              onClick={() => setSelectedFloor('ALL')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedFloor === 'ALL'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Tất cả tầng
+            </button>
+            {availableFloors.map((fl) => (
+              <button
+                key={fl}
+                type="button"
+                onClick={() => setSelectedFloor(fl)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                  selectedFloor === fl
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Building2 size={12} />
+                <span>Tầng {fl}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -115,22 +165,22 @@ export const RoomMatrixPage = () => {
             variant="outline"
             size="sm"
             onClick={() => setRooms([...rooms])}
-            className="gap-1.5"
+            className="gap-1.5 text-xs"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
             <span>Làm mới</span>
           </Button>
         </div>
       </div>
 
-      {/* Room Matrix Grid */}
+      {/* Room Matrix Grid Grouped by Floor */}
       <RoomMatrixGrid
         rooms={filteredRooms}
         onSelectRoom={handleOpenCleaningModal}
         onUpdateCleaning={handleOpenCleaningModal}
       />
 
-      {/* Housekeeping Cleaning Status Modal ( extend ) */}
+      {/* Housekeeping Cleaning Status Modal */}
       <CleaningStatusModal
         isOpen={isCleaningModalOpen}
         onClose={() => setIsCleaningModalOpen(false)}

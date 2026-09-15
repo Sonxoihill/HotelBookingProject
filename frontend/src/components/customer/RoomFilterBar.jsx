@@ -59,10 +59,10 @@ export const RoomFilterBar = ({ onSearch, className = '' }) => {
           onChange={(e) => setGuests(e.target.value)}
           className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
         >
-          <option value="1">1 Người lớn</option>
-          <option value="2">2 Người lớn</option>
-          <option value="3">3 Người lớn</option>
-          <option value="4">4+ Người (Gia đình)</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4+</option>
         </select>
       </div>
 

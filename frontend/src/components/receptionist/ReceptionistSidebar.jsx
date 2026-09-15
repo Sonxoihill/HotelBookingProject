@@ -1,11 +1,16 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutGrid, CalendarRange, Hotel, ExternalLink, LogOut, Sparkles } from 'lucide-react';
+import { LayoutGrid, CalendarRange, Hotel, ExternalLink, LogOut, Users, Clock } from 'lucide-react';
 import { tokenStorage } from '../../utils/tokenStorage';
 
 export const ReceptionistSidebar = () => {
   const navigate = useNavigate();
   const user = tokenStorage.getUser();
+
+  // Danh sách nhân viên lễ tân phân công trực ca hiện tại (hỗ trợ hiển thị 1 hoặc 2 người)
+  const onDutyStaff = user?.fullName
+    ? [user.fullName, 'Nguyễn Quang Huy']
+    : ['Lê Thu Hà', 'Nguyễn Quang Huy'];
 
   const handleLogout = () => {
     tokenStorage.clearAuth();
@@ -46,13 +51,49 @@ export const ReceptionistSidebar = () => {
       </div>
 
       {/* Receptionist Shift Info */}
-      <div className="mx-4 my-4 p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-xs">
-        <div className="flex items-center justify-between text-slate-400 mb-1">
-          <span>Nhân viên trực</span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <div className="mx-4 my-4 p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-xs space-y-2">
+        <div className="flex items-center justify-between text-slate-400">
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-300">
+            <Users size={13} className="text-cyan-400" />
+            <span>Nhân viên trực ca</span>
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Đang trực</span>
+          </span>
         </div>
-        <p className="font-semibold text-white truncate">{user?.fullName || 'Lễ tân ca 1'}</p>
-        <span className="text-[10px] text-cyan-400">Ca sáng (06:00 - 14:00)</span>
+
+        {/* Danh sách tên lễ tân trực ca */}
+        <div className="space-y-1.5">
+          {onDutyStaff.map((staffName, idx) => (
+            <div
+              key={idx}
+              className="flex items-center justify-between bg-slate-900/60 rounded-lg px-2.5 py-1.5 border border-slate-700/40"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 shadow-xs">
+                  {staffName.trim().split(' ').pop()?.[0] || 'L'}
+                </div>
+                <span className="font-semibold text-white truncate text-xs">
+                  {staffName}
+                </span>
+              </div>
+              <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-800/40 shrink-0">
+                {onDutyStaff.length > 1 ? `Lễ tân ${idx + 1}` : 'Lễ tân'}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-1 border-t border-slate-700/40 flex items-center justify-between text-[10px] text-cyan-400">
+          <span className="flex items-center gap-1">
+            <Clock size={11} />
+            <span>Ca sáng (06:00 - 14:00)</span>
+          </span>
+          <span className="text-slate-400 font-mono">
+            {onDutyStaff.length} người
+          </span>
+        </div>
       </div>
 
       {/* Nav Menu */}

@@ -44,7 +44,7 @@ export const RoomDetailPage = () => {
     rating: 4.9,
     reviewsCount: 52,
     description:
-      'Phòng Deluxe Ocean View tại LuxeStay mang đến tầm nhìn toàn cảnh biển Sơn Trà thơ mộng. Thiết kế sang trọng pha trộn phong cách nhiệt đới hiện đại, sàn gỗ tự nhiên cao cấp, bồn tắm nằm nhìn ra đại dương cùng các trang thiết bị tiện nghi bậc nhất.',
+      'Phòng Deluxe Ocean View tại L\'Étoile Luxury Resort mang đến tầm nhìn toàn cảnh biển Sơn Trà thơ mộng. Thiết kế sang trọng pha trộn phong cách nhiệt đới hiện đại, sàn gỗ tự nhiên cao cấp, bồn tắm nằm nhìn ra đại dương cùng các trang thiết bị tiện nghi bậc nhất.',
     images: [
       'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1600&q=85',
       'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1600&q=85',

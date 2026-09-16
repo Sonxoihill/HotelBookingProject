@@ -6,24 +6,26 @@ import AdminNavbar from '../components/admin/AdminNavbar';
 export const AdminLayout = () => {
   const location = useLocation();
 
-  const getTitle = () => {
-    if (location.pathname.includes('/rooms')) return 'Quản lý Loại phòng & Phòng';
-    if (location.pathname.includes('/services')) return 'Quản lý Danh mục Dịch vụ';
-    if (location.pathname.includes('/pricing')) return 'Cài đặt Giá linh hoạt';
-    if (location.pathname.includes('/staff')) return 'Quản lý Nhân sự Lễ tân & Buồng phòng';
-    return 'Báo cáo & Thống kê Doanh thu';
+  const getBreadcrumb = () => {
+    if (location.pathname.includes('/rooms')) return 'Bàn Quản Trị Trung Tâm';
+    if (location.pathname.includes('/services')) return 'Bàn Quản Trị Trung Tâm';
+    if (location.pathname.includes('/pricing')) return 'Bàn Quản Trị Trung Tâm';
+    if (location.pathname.includes('/staff')) return 'Bàn Quản Trị Trung Tâm';
+    return 'Bàn Quản Trị Trung Tâm';
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#F8F9FA] text-stone-800 overflow-hidden font-sans">
       {/* Sidebar riêng của Admin */}
       <AdminSidebar />
 
       {/* Vùng quản trị chính */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <AdminNavbar title={getTitle()} />
-        <main className="flex-1 p-6 overflow-y-auto">
-          <Outlet />
+        <AdminNavbar breadcrumbSub={getBreadcrumb()} />
+        <main className="flex-1 p-6 sm:p-8 overflow-y-auto">
+          <div className="max-w-[1440px] mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

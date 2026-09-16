@@ -10,6 +10,7 @@ import AdminLayout from './layouts/AdminLayout';
 import HomePage from './pages/customer/HomePage';
 import RoomsPage from './pages/customer/RoomsPage';
 import RoomDetailPage from './pages/customer/RoomDetailPage';
+import ExperiencesPage from './pages/customer/ExperiencesPage';
 import BookingPaymentPage from './pages/customer/BookingPaymentPage';
 import BookingHistoryPage from './pages/customer/BookingHistoryPage';
 import ProfilePage from './pages/customer/ProfilePage';
@@ -19,6 +20,8 @@ import RegisterPage from './pages/customer/RegisterPage';
 // Receptionist Pages
 import RoomMatrixPage from './pages/receptionist/RoomMatrixPage';
 import ReceptionistBookingsPage from './pages/receptionist/ReceptionistBookingsPage';
+import ReceptionistServicesPage from './pages/receptionist/ReceptionistServicesPage';
+import HousekeepingManagementPage from './pages/receptionist/HousekeepingManagementPage';
 
 // Admin Pages
 import ReportStatisticsPage from './pages/admin/ReportStatisticsPage';
@@ -44,6 +47,9 @@ export function App() {
 
           {/* Danh sách phòng & Bộ lọc */}
           <Route path="rooms" element={<RoomsPage />} />
+
+          {/* Trải nghiệm dịch vụ */}
+          <Route path="experiences" element={<ExperiencesPage />} />
 
           {/* Xem chi tiết phòng */}
           <Route path="rooms/:id" element={<RoomDetailPage />} />
@@ -73,6 +79,12 @@ export function App() {
 
           {/* Quản lý Đơn đặt phòng & : Quản lý Dịch vụ phát sinh */}
           <Route path="bookings" element={<ReceptionistBookingsPage />} />
+
+          {/* Dịch vụ & Minibar */}
+          <Route path="services" element={<ReceptionistServicesPage />} />
+
+          {/* Quản lý Buồng phòng */}
+          <Route path="housekeeping" element={<HousekeepingManagementPage />} />
         </Route>
 
         {/* =================================================================== */}

@@ -1,32 +1,61 @@
 import React from 'react';
-import { Bell, ShieldCheck, User } from 'lucide-react';
-import { tokenStorage } from '../../utils/tokenStorage';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  Hotel,
+  Clock,
+  Bell,
+  HelpCircle,
+  ExternalLink,
+} from 'lucide-react';
 
-export const AdminNavbar = ({ title = 'Quản trị hệ thống khách sạn' }) => {
-  const user = tokenStorage.getUser();
+export const AdminNavbar = ({ breadcrumbSub = 'Bàn Quản Trị Trung Tâm' }) => {
+  const navigate = useNavigate();
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
-      <div>
-        <h1 className="text-base font-bold text-slate-900">{title}</h1>
-        <p className="text-xs text-slate-500">Khu vực quản lý chiến lược & thiết lập hệ sinh thái</p>
+    <header className="h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
+      {/* 1. Left Breadcrumb */}
+      <div className="flex items-center gap-2 text-xs font-medium text-stone-600">
+        <div className="flex items-center gap-1.5 text-stone-700 font-semibold">
+          <Hotel size={15} className="text-stone-500" />
+          <span>L'Étoile Resort & Spa</span>
+        </div>
+        <span className="text-stone-300">/</span>
+        <span className="text-stone-900 font-semibold">{breadcrumbSub}</span>
       </div>
 
-      <div className="flex items-center gap-4">
-        <button className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
-          <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full"></span>
+      {/* 2. Right Quick Actions */}
+      <div className="flex items-center gap-3">
+        {/* Time pill */}
+        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-100 text-stone-700 text-xs font-medium border border-stone-200/60">
+          <Clock size={13} className="text-stone-500" />
+          <span>Hôm nay • GMT+7</span>
+        </div>
+
+        {/* Notifications */}
+        <button
+          title="Thông báo hệ thống"
+          className="relative w-8 h-8 rounded-full hover:bg-stone-100 text-stone-600 flex items-center justify-center transition-colors cursor-pointer"
+        >
+          <Bell size={16} />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
         </button>
 
-        <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs">
-            {user?.fullName ? user.fullName[0].toUpperCase() : 'A'}
-          </div>
-          <div className="text-xs">
-            <p className="font-bold text-slate-800 leading-none">{user?.fullName || 'Administrator'}</p>
-            <span className="text-[10px] text-amber-600 font-semibold">Super Admin</span>
-          </div>
-        </div>
+        {/* Help */}
+        <button
+          title="Trợ giúp & Tài liệu PMS"
+          className="w-8 h-8 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center transition-colors cursor-pointer"
+        >
+          <HelpCircle size={16} />
+        </button>
+
+        {/* Switch to Receptionist PMS */}
+        <button
+          onClick={() => navigate('/receptionist')}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0E1524] hover:bg-stone-800 text-white text-xs font-semibold tracking-wide shadow-xs transition-colors cursor-pointer ml-1"
+        >
+          <ExternalLink size={13} />
+          <span>LỄ TÂN PMS</span>
+        </button>
       </div>
     </header>
   );

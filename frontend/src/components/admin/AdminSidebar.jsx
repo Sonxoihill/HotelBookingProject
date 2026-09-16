@@ -6,31 +6,22 @@ import {
   ConciergeBell,
   BadgePercent,
   Users,
-  Hotel,
-  ExternalLink,
-  LogOut,
-  ShieldAlert,
+  Settings,
+  Server,
 } from 'lucide-react';
-import { tokenStorage } from '../../utils/tokenStorage';
 
 export const AdminSidebar = () => {
   const navigate = useNavigate();
-  const user = tokenStorage.getUser();
-
-  const handleLogout = () => {
-    tokenStorage.clearAuth();
-    navigate('/login');
-  };
 
   const navItems = [
     {
-      name: 'Báo cáo & Thống kê',
+      name: 'Tổng quan & Thống kê',
       path: '/admin',
       icon: BarChart3,
       exact: true,
     },
     {
-      name: 'Loại phòng & Phòng',
+      name: 'Phòng & Loại phòng',
       path: '/admin/rooms',
       icon: DoorOpen,
     },
@@ -45,45 +36,38 @@ export const AdminSidebar = () => {
       icon: BadgePercent,
     },
     {
-      name: 'Quản lý Nhân sự',
+      name: 'Nhân sự & Phân quyền',
       path: '/admin/staff',
       icon: Users,
+    },
+    {
+      name: 'Cài đặt Hệ thống',
+      path: '/admin/settings',
+      icon: Settings,
     },
   ];
 
   return (
-    <aside className="w-64 bg-slate-950 text-slate-300 flex flex-col shrink-0 min-h-screen border-r border-slate-800">
-      {/* Brand Header */}
-      <div className="p-5 border-b border-slate-800/80">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-white shadow-md shadow-amber-500/20">
-            <Hotel size={22} />
-          </div>
-          <div>
-            <span className="text-base font-bold text-white block leading-tight font-serif">
-              LuxeStay
-            </span>
-            <span className="text-[10px] font-semibold tracking-wider text-amber-400 uppercase bg-amber-950/60 border border-amber-800/50 px-1.5 py-0.5 rounded">
-              Admin Portal
-            </span>
-          </div>
+    <aside className="w-64 bg-white text-stone-700 flex flex-col shrink-0 min-h-screen border-r border-stone-200/90 shadow-2xs select-none">
+      {/* 1. Brand Header */}
+      <div className="p-5 border-b border-stone-100 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-[#0E1524] text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs">
+          É
+        </div>
+        <div className="flex flex-col">
+          <span className="font-serif text-lg font-bold tracking-tight text-stone-900 leading-tight">
+            L'Étoile
+          </span>
+          <span className="text-[9px] tracking-[0.22em] text-stone-400 uppercase font-semibold">
+            HOSPITALITY PMS
+          </span>
         </div>
       </div>
 
-      {/* Admin Profile */}
-      <div className="mx-4 my-4 p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
-        <div className="flex items-center justify-between text-slate-400 mb-1">
-          <span>Quyền quản trị</span>
-          <ShieldAlert size={14} className="text-amber-400" />
-        </div>
-        <p className="font-semibold text-white truncate">{user?.fullName || 'Tổng Quản Lý'}</p>
-        <span className="text-[10px] text-amber-400">Toàn quyền hệ thống</span>
-      </div>
-
-      {/* Navigation Menu */}
-      <div className="flex-1 px-3 py-2 space-y-1">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 py-2">
-          Quản trị chiến lược
+      {/* 2. Navigation Menu */}
+      <div className="flex-1 p-3.5 space-y-1.5">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 px-3 py-1.5">
+          QUẢN TRỊ HỆ THỐNG
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -93,43 +77,49 @@ export const AdminSidebar = () => {
               to={item.path}
               end={item.exact}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                   isActive
-                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/25'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    ? 'bg-[#0E1524] text-white shadow-xs font-medium'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/70'
                 }`
               }
             >
-              <Icon size={18} />
-              <span>{item.name}</span>
+              <Icon size={17} className="shrink-0" />
+              <span className="truncate">{item.name}</span>
             </NavLink>
           );
         })}
       </div>
 
-      {/* Quick Portal Switch & Logout */}
-      <div className="p-3 border-t border-slate-800 space-y-1">
-        <button
-          onClick={() => navigate('/receptionist')}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30 transition-colors cursor-pointer"
-        >
-          <ExternalLink size={16} />
-          <span>Chuyển sang Quầy Lễ Tân</span>
-        </button>
-        <button
-          onClick={() => navigate('/')}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-        >
-          <ExternalLink size={16} />
-          <span>Xem Trang Khách hàng</span>
-        </button>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-colors cursor-pointer"
-        >
-          <LogOut size={16} />
-          <span>Đăng xuất Admin</span>
-        </button>
+      {/* 3. Bottom Admin Profile Card */}
+      <div className="p-3.5 border-t border-stone-100">
+        <div className="bg-[#F8F9FA] border border-stone-200/80 rounded-2xl p-3 flex flex-col gap-2 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <img
+              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
+              alt="Lê Hoàng Phúc"
+              className="w-8 h-8 rounded-full object-cover ring-1 ring-stone-200 shadow-2xs shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-stone-900 truncate">
+                  Lê Hoàng Phúc
+                </span>
+              </div>
+              <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 leading-none mt-0.5">
+                QUẢN TRỊ VIÊN
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-stone-200/60 text-[11px] text-stone-500">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+              Máy chủ: Đang kết nối
+            </span>
+            <Server size={13} className="text-stone-400" />
+          </div>
+        </div>
       </div>
     </aside>
   );

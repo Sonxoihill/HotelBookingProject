@@ -1,10 +1,24 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { tokenStorage } from '../../utils/tokenStorage';
+import { authService } from '../../services/authService';
 
 export const CustomerHeader = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    setCurrentUser(tokenStorage.getUser());
+  }, [location]);
+
+  const handleLogout = async () => {
+    await authService.logout();
+    setCurrentUser(null);
+    navigate('/login');
+  };
 
   const navLinks = [
     { name: 'Trang chủ', path: '/' },
@@ -57,19 +71,44 @@ export const CustomerHeader = () => {
             })}
           </nav>
 
-          {/* Right: User Profile Avatar */}
+          {/* Right: User Profile or Auth Action Buttons */}
           <div className="flex items-center gap-3">
-            <Link
-              to="/my-bookings"
-              title="Tài khoản cá nhân"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-stone-300 hover:border-stone-500 transition-transform hover:scale-105 shadow-xs flex items-center justify-center bg-stone-100"
-            >
-              <img
-                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=120&q=80"
-                alt="Avatar"
-                className="w-full h-full object-cover"
-              />
-            </Link>
+            {currentUser ? (
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/profile"
+                  title="Hồ sơ cá nhân"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-100 hover:bg-stone-200 transition-colors text-xs font-semibold text-stone-800"
+                >
+                  <div className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold text-[10px]">
+                    {currentUser.fullName ? currentUser.fullName[0].toUpperCase() : 'U'}
+                  </div>
+                  <span className="hidden sm:inline max-w-[120px] truncate">{currentUser.fullName}</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  title="Đăng xuất"
+                  className="p-2 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
+                >
+                  <LogOut size={18} />
+                </button>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-2">
+                <Link
+                  to="/login"
+                  className="px-4 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-900 transition-colors"
+                >
+                  Đăng Nhập
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-full bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors"
+                >
+                  Đăng Ký
+                </Link>
+              </div>
+            )}
 
             {/* Mobile menu button */}
             <button
@@ -103,6 +142,46 @@ export const CustomerHeader = () => {
               </Link>
             );
           })}
+
+          <div className="pt-2 border-t border-stone-100 mt-2">
+            {currentUser ? (
+              <div className="space-y-1">
+                <Link
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-sm px-4 py-2 text-stone-800 font-medium hover:bg-stone-50 rounded-xl"
+                >
+                  Hồ sơ: {currentUser.fullName}
+                </Link>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="w-full text-left text-sm px-4 py-2 text-rose-600 hover:bg-rose-50 rounded-xl font-medium"
+                >
+                  Đăng xuất
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center text-sm py-2 px-3 border border-stone-300 rounded-xl font-medium text-stone-700"
+                >
+                  Đăng nhập
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center text-sm py-2 px-3 bg-amber-600 text-white rounded-xl font-medium"
+                >
+                  Đăng ký
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </header>

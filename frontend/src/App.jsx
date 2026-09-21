@@ -16,6 +16,7 @@ import BookingHistoryPage from './pages/customer/BookingHistoryPage';
 import ProfilePage from './pages/customer/ProfilePage';
 import LoginPage from './pages/customer/LoginPage';
 import RegisterPage from './pages/customer/RegisterPage';
+import ProtectedRoute from './components/common/ProtectedRoute';
 
 // Receptionist Pages
 import RoomMatrixPage from './pages/receptionist/RoomMatrixPage';
@@ -60,8 +61,15 @@ export function App() {
           {/* Lịch sử đặt phòng & : Đánh giá & Phản hồi */}
           <Route path="my-bookings" element={<BookingHistoryPage />} />
 
-          {/* Quản lý hồ sơ cá nhân */}
-          <Route path="profile" element={<ProfilePage />} />
+          {/* Quản lý hồ sơ cá nhân (Được bảo vệ bởi ProtectedRoute) */}
+          <Route
+            path="profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Đăng nhập */}
           <Route path="login" element={<LoginPage />} />

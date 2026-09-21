@@ -6,7 +6,7 @@ import { tokenStorage } from '../utils/tokenStorage';
  * Đọc baseURL từ biến môi trường VITE_API_BASE_URL (mặc định: http://localhost:5000/api)
  */
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
@@ -44,9 +44,12 @@ axiosInstance.interceptors.response.use(
       const { status, data } = error.response;
 
       if (status === 401) {
-        // Token hết hạn hoặc không hợp lệ -> xóa token
-        console.warn('Phiên đăng nhập đã hết hạn hoặc không hợp lệ (401).');
+        // Token hết hạn hoặc không hợp lệ -> tự động xóa token và chuyển về trang login
+        console.warn('Phiên đăng nhập đã hết hạn hoặc không hợp lệ (401). Tự động xóa token và chuyển về đăng nhập.');
         tokenStorage.clearAuth();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.href = '/login?expired=true';
+        }
       }
 
       const errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';

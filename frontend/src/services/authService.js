@@ -13,11 +13,14 @@ export const authService = {
   // Đăng nhập
   login: async (credentials) => {
     const response = await axiosInstance.post('/auth/login', credentials);
-    if (response?.token) {
-      tokenStorage.setToken(response.token);
+    const token = response?.data?.token || response?.token;
+    const user = response?.data?.user || response?.user;
+
+    if (token) {
+      tokenStorage.setToken(token);
     }
-    if (response?.user) {
-      tokenStorage.setUser(response.user);
+    if (user) {
+      tokenStorage.setUser(user);
     }
     return response;
   },

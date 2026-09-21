@@ -1,85 +1,104 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Maximize2, Wifi, Coffee, Star } from 'lucide-react';
+import { Users, BedDouble, Star, CheckCircle, Sparkles } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 
+/**
+ * Component RoomCard.jsx
+ * Hiển thị thẻ phòng gồm: Ảnh, Tên loại phòng, Giá tiền và các thông số tiện ích.
+ */
 export const RoomCard = ({ room }) => {
-  const {
-    id = 1,
-    name = 'Deluxe Ocean View Room',
-    roomType = 'Deluxe',
-    pricePerNight = 1250000,
-    maxGuests = 2,
-    sizeSqM = 35,
-    rating = 4.9,
-    reviewsCount = 48,
-    imageUrl = 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=800&q=80',
-    amenities = ['Wi-Fi tốc độ cao', 'Bữa sáng miễn phí', 'Ban công view biển'],
-    isAvailable = true,
-  } = room || {};
+  if (!room) return null;
+
+  // Hỗ trợ cả RoomPublicDto từ backend và mock object
+  const id = room.id || 1;
+  const roomNumber = room.roomNumber || '';
+  const roomType = room.categoryName || room.name || room.roomType || 'Phòng Cao Cấp';
+  const price = room.basePrice || room.pricePerNight || room.price || 500000;
+  const capacity = room.capacity || room.maxGuests || 2;
+  const bedType = room.bedType || '1 Giường King';
+  const imageUrl = room.imageUrl || room.image || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+  const description = room.description || 'Không gian nghỉ dưỡng sang trọng, tiện nghi và ấm cúng.';
+  const isAvailable = room.status ? room.status === 'AVAILABLE' : true;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group">
-      {/* Image & Badges */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
+    <div className="bg-white rounded-3xl border border-stone-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col group">
+      {/* 1. ẢNH PHÒNG */}
+      <div className="relative aspect-[16/10] overflow-hidden bg-stone-100">
         <img
           src={imageUrl}
-          alt={name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          alt={roomType}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
           loading="lazy"
         />
-        <div className="absolute top-3 left-3 flex gap-2">
-          <Badge variant="amber">{roomType}</Badge>
-          {!isAvailable && <Badge variant="rose">Hết phòng</Badge>}
+
+        {/* Badge Số phòng & Trạng thái */}
+        <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+          {roomNumber && (
+            <span className="bg-stone-950/80 backdrop-blur-xs text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-xs">
+              Phòng {roomNumber}
+            </span>
+          )}
+          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-xs backdrop-blur-xs ${
+            isAvailable ? 'bg-emerald-600/90 text-white' : 'bg-rose-600/90 text-white'
+          }`}>
+            {isAvailable ? 'Có sẵn' : 'Đã đặt'}
+          </span>
         </div>
-        <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-xs font-bold text-slate-800 flex items-center gap-1 shadow-xs">
+
+        {/* Rating badge */}
+        <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-xs text-stone-900 text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
           <Star size={13} className="text-amber-500 fill-amber-500" />
-          <span>{rating}</span>
-          <span className="text-slate-400 font-normal">({reviewsCount})</span>
+          <span>4.9</span>
+          <span className="text-stone-400 font-normal text-[10px]">(98)</span>
         </div>
       </div>
 
-      {/* Details */}
-      <div className="p-5 flex-1 flex flex-col justify-between">
-        <div>
-          <h3 className="font-bold text-lg text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-1">
-            {name}
-          </h3>
-
-          <div className="flex items-center gap-4 mt-2.5 text-xs text-slate-500">
-            <span className="flex items-center gap-1">
-              <Users size={14} className="text-slate-400" /> {maxGuests} Khách
-            </span>
-            <span className="flex items-center gap-1">
-              <Maximize2 size={14} className="text-slate-400" /> {sizeSqM} m²
-            </span>
+      {/* 2. CHI TIẾT & TÊN LOẠI PHÒNG */}
+      <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+        <div className="space-y-2">
+          {/* Tên loại phòng */}
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-serif text-xl font-bold text-stone-900 group-hover:text-amber-600 transition-colors line-clamp-1">
+              {roomType}
+            </h3>
           </div>
 
-          {/* Amenities tags */}
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {amenities.slice(0, 3).map((item, idx) => (
-              <span
-                key={idx}
-                className="text-[11px] px-2 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-100"
-              >
-                {item}
-              </span>
-            ))}
+          <p className="text-xs text-stone-500 line-clamp-2 leading-relaxed font-light">
+            {description}
+          </p>
+
+          {/* Tiện nghi cơ bản */}
+          <div className="flex items-center gap-4 text-xs text-stone-600 pt-2 border-t border-stone-100">
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <Users size={14} className="text-amber-600 shrink-0" />
+              {capacity} Khách
+            </span>
+            <span>•</span>
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <BedDouble size={14} className="text-amber-600 shrink-0" />
+              {bedType}
+            </span>
           </div>
         </div>
 
-        {/* Pricing & CTA */}
-        <div className="pt-5 mt-4 border-t border-slate-100 flex items-center justify-between">
+        {/* 3. GIÁ TIỀN & HÀNH ĐỘNG */}
+        <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
           <div>
-            <span className="text-xs text-slate-400 block">Giá mỗi đêm từ</span>
-            <span className="text-lg font-bold text-amber-600">{formatVND(pricePerNight)}</span>
+            <span className="text-[10px] tracking-wider text-stone-400 uppercase font-bold block">
+              Giá mỗi đêm
+            </span>
+            <span className="text-lg sm:text-xl font-extrabold text-stone-950 font-serif">
+              {formatVND(price)}
+            </span>
           </div>
+
           <Link to={`/rooms/${id}`}>
-            <Button variant="primary" size="sm">
-              Xem phòng
-            </Button>
+            <button className="bg-[#422C1A] hover:bg-[#2A1B10] text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-all shadow-sm hover:shadow-md cursor-pointer inline-flex items-center gap-1.5">
+              <span>Xem & Đặt</span>
+            </button>
           </Link>
         </div>
       </div>

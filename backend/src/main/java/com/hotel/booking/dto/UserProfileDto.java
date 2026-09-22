@@ -18,6 +18,7 @@ public class UserProfileDto {
     private String fullName;
     private String email;
     private String phone;
+    private String avatarUrl;
     private UserRole role;
     private UserStatus status;
     private LocalDateTime createdAt;

@@ -49,6 +49,7 @@ public class AuthController {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
+                .avatarUrl(user.getAvatarUrl())
                 .role(user.getRole())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())

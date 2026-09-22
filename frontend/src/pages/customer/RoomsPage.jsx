@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SlidersHorizontal,
   Check,
@@ -87,17 +87,43 @@ const ALL_ROOMS = [
 
 export const RoomsPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const categoryParam = searchParams.get('category');
+  const guestsParam = searchParams.get('guests');
 
   // Filter States
-  const [selectedTypes, setSelectedTypes] = useState(['Suite Hướng Biển']);
-  const [maxPrice, setMaxPrice] = useState(25000000);
+  const [selectedTypes, setSelectedTypes] = useState(() => {
+    if (categoryParam) return [categoryParam];
+    return ['Tất cả loại phòng'];
+  });
+  const [maxPrice, setMaxPrice] = useState(35000000);
   const [selectedAmenities, setSelectedAmenities] = useState([
     'Hồ bơi vô cực riêng',
     'Quản gia riêng 24/7',
   ]);
-  const [capacityFilter, setCapacityFilter] = useState('3-4');
+  const [capacityFilter, setCapacityFilter] = useState(() => {
+    if (guestsParam && guestsParam !== 'ALL') {
+      const g = parseInt(guestsParam, 10);
+      if (g <= 2) return '1-2';
+      if (g <= 4) return '3-4';
+      return '5+';
+    }
+    return '1-2';
+  });
   const [sortBy, setSortBy] = useState('DEFAULT');
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    if (categoryParam) {
+      setSelectedTypes([categoryParam]);
+    }
+    if (guestsParam && guestsParam !== 'ALL') {
+      const g = parseInt(guestsParam, 10);
+      if (g <= 2) setCapacityFilter('1-2');
+      else if (g <= 4) setCapacityFilter('3-4');
+      else setCapacityFilter('5+');
+    }
+  }, [categoryParam, guestsParam]);
 
   const roomTypes = [
     'Tất cả loại phòng',

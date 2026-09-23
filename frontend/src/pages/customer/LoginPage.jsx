@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { tokenStorage } from '../../utils/tokenStorage';
@@ -8,6 +8,7 @@ import { Hotel, Mail, Lock, LogIn, AlertCircle, CheckCircle2 } from 'lucide-reac
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
@@ -20,8 +21,8 @@ export const LoginPage = () => {
 
     if (!email.trim()) {
       nextErrors.email = 'Vui lòng nhập địa chỉ email';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      nextErrors.email = 'Email không đúng định dạng (ví dụ: user@example.com)';
+    } else if (!/^[a-zA-Z0-9.]+@gmail\.com$/i.test(email.trim())) {
+      nextErrors.email = 'Email không đúng định dạng, Ví dụ Abc.123@gmail.com';
     }
 
     if (!password) {
@@ -68,12 +69,19 @@ export const LoginPage = () => {
 
       setTimeout(() => {
         const role = authData?.role;
-        if (role === 'ADMIN') {
-          navigate('/admin');
+        const redirectFrom = location.state?.from?.pathname;
+        if (redirectFrom && (
+          (role === 'ADMIN') ||
+          (role === 'RECEPTIONIST' && !redirectFrom.startsWith('/admin')) ||
+          (!redirectFrom.startsWith('/admin') && !redirectFrom.startsWith('/receptionist'))
+        )) {
+          navigate(redirectFrom, { replace: true });
+        } else if (role === 'ADMIN') {
+          navigate('/admin', { replace: true });
         } else if (role === 'RECEPTIONIST') {
-          navigate('/receptionist');
+          navigate('/receptionist', { replace: true });
         } else {
-          navigate('/');
+          navigate('/', { replace: true });
         }
       }, 700);
     } catch (err) {
@@ -120,7 +128,7 @@ export const LoginPage = () => {
             label="Địa chỉ Email *"
             type="email"
             icon={Mail}
-            placeholder="example@domain.com"
+            placeholder="example@gmail.com"
             value={email}
             error={errors.email}
             onChange={(e) => {

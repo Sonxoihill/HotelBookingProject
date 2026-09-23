@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { registerApi } from '../../services/authService';
-import { Hotel, Mail, Lock, User, Phone, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Hotel, Mail, Lock, User, Phone, UserPlus, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
@@ -19,18 +19,39 @@ export const RegisterPage = () => {
   const [apiError, setApiError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'error') => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  };
 
   const validateForm = () => {
     const nextErrors = {};
 
     if (!formData.fullName.trim()) {
       nextErrors.fullName = 'Vui lòng nhập họ và tên';
+    } else if (!/^[\p{L}\s]+$/u.test(formData.fullName.trim())) {
+      nextErrors.fullName = 'Họ và tên không đúng định dạng ';
     }
 
     if (!formData.email.trim()) {
       nextErrors.email = 'Vui lòng nhập địa chỉ email';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      nextErrors.email = 'Email không đúng định dạng (ví dụ: user@example.com)';
+    } else if (!/^[a-zA-Z0-9.]+@gmail\.com$/i.test(formData.email.trim())) {
+      nextErrors.email = 'Email không đúng định dạng';
+    }
+
+    const cleanedPhone = formData.phone.trim().replace(/\s+/g, '');
+    if (!cleanedPhone) {
+      nextErrors.phone = 'Vui lòng nhập số điện thoại';
+    } else if (!/^(0|\+84)[35789]\d{8}$/.test(cleanedPhone)) {
+      nextErrors.phone = 'Số điện thoại không đúng định dạng ';
     }
 
     if (!formData.password) {
@@ -46,7 +67,7 @@ export const RegisterPage = () => {
     }
 
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return nextErrors;
   };
 
   const handleChange = (field, value) => {
@@ -61,7 +82,10 @@ export const RegisterPage = () => {
     setApiError('');
     setSuccessMsg('');
 
-    if (!validateForm()) {
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      const firstErrorMsg = Object.values(validationErrors)[0];
+      showToast(firstErrorMsg, 'error');
       return;
     }
 
@@ -71,24 +95,71 @@ export const RegisterPage = () => {
       await registerApi({
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
-        phone: formData.phone.trim() || undefined,
+        phone: formData.phone.trim().replace(/\s+/g, ''),
         password: formData.password,
       });
 
       setSuccessMsg('Đăng ký tài khoản thành công! Đang chuyển hướng sang trang đăng nhập...');
+      showToast('Đăng ký tài khoản thành công! Đang chuyển hướng...', 'success');
 
       setTimeout(() => {
         navigate('/login');
       }, 1200);
     } catch (err) {
-      setApiError(err.message || 'Đăng ký tài khoản không thành công. Vui lòng thử lại.');
+      const msg = err.message || 'Đăng ký tài khoản không thành công. Vui lòng thử lại.';
+
+      // Map danh sách lỗi chi tiết từ backend (HTTP 400 Validation Error)
+      if (err.errors && typeof err.errors === 'object') {
+        setErrors((prev) => ({ ...prev, ...err.errors }));
+      }
+
+      if (msg.includes('Số điện thoại') || msg.toLowerCase().includes('phone')) {
+        setErrors((prev) => ({ ...prev, phone: msg }));
+      } else if (msg.includes('Email') || msg.toLowerCase().includes('email')) {
+        setErrors((prev) => ({ ...prev, email: msg }));
+      }
+      setApiError(msg);
+      showToast(msg, 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
+    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 relative">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border text-sm transition-all duration-300 animate-in fade-in slide-in-from-top-4 ${
+            toast.type === 'error'
+              ? 'bg-rose-950/95 text-rose-100 border-rose-700/60 shadow-rose-950/40 backdrop-blur-md'
+              : 'bg-emerald-950/95 text-emerald-100 border-emerald-700/60 shadow-emerald-950/40 backdrop-blur-md'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle size={20} className="text-rose-400 shrink-0" />
+          ) : (
+            <CheckCircle2 size={20} className="text-emerald-400 shrink-0" />
+          )}
+          <div className="flex flex-col">
+            <span className={`font-bold text-[11px] uppercase tracking-wider ${toast.type === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
+              {toast.type === 'error' ? 'Cảnh báo lỗi' : 'Thành công'}
+            </span>
+            <span className="text-xs text-white/95 font-medium">{toast.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-3 p-1 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white"
+            aria-label="Đóng thông báo"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
       <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 p-8 shadow-xl space-y-6">
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center mx-auto shadow-md shadow-amber-600/20">
@@ -133,7 +204,7 @@ export const RegisterPage = () => {
             label="Địa chỉ Email *"
             type="email"
             icon={Mail}
-            placeholder="example@domain.com"
+            placeholder="example@gmail.com"
             value={formData.email}
             error={errors.email}
             onChange={(e) => handleChange('email', e.target.value)}
@@ -142,13 +213,14 @@ export const RegisterPage = () => {
 
           <Input
             id="register-phone"
-            label="Số điện thoại"
+            label="Số điện thoại *"
             type="tel"
             icon={Phone}
             placeholder="0901234567"
             value={formData.phone}
             error={errors.phone}
             onChange={(e) => handleChange('phone', e.target.value)}
+            required
           />
 
           <Input

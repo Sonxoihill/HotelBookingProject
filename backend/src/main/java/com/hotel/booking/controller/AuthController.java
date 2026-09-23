@@ -33,4 +33,16 @@ public class AuthController {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công", response));
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/me")
+    public ResponseEntity<ApiResponse<AuthResponse>> getCurrentUser(
+            org.springframework.security.core.Authentication authentication
+    ) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new com.hotel.booking.common.exception.UnauthorizedException("Chưa xác thực hoặc phiên đăng nhập đã hết hạn");
+        }
+        String email = authentication.getName();
+        AuthResponse response = authService.getCurrentUser(email);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin người dùng thành công", response));
+    }
 }

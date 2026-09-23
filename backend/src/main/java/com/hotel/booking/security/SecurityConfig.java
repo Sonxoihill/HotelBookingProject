@@ -101,16 +101,37 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Các API công khai không yêu cầu token
                         .requestMatchers(
-                                "/auth/**",
+                                "/auth/register",
+                                "/auth/login",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/login",
                                 "/health/**",
                                 "/error",
-                                "/api/v1/auth/**",
                                 "/api/v1/health/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
+                        // API công khai xem thông tin phòng và dịch vụ
+                        .requestMatchers(HttpMethod.GET,
+                                "/rooms/**",
+                                "/services/**",
+                                "/api/v1/rooms/**",
+                                "/api/v1/services/**"
+                        ).permitAll()
+                        // Chặn nghiêm ngặt các API quản trị chỉ dành cho ADMIN
+                        .requestMatchers(
+                                "/admin/**",
+                                "/api/v1/admin/**"
+                        ).hasRole("ADMIN")
+                        // Chặn nghiêm ngặt các API quầy lễ tân (chỉ RECEPTIONIST và ADMIN)
+                        .requestMatchers(
+                                "/receptionist/**",
+                                "/api/v1/receptionist/**"
+                        ).hasAnyRole("RECEPTIONIST", "ADMIN")
+                        // Mọi API còn lại bắt buộc phải xác thực hợp lệ
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

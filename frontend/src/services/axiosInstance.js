@@ -49,8 +49,16 @@ axiosInstance.interceptors.response.use(
         tokenStorage.clearAuth();
       }
 
+      if (status === 403) {
+        console.warn('Truy cập bị từ chối: Tài khoản không có quyền hạn cần thiết (403 Forbidden).');
+      }
+
       const errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
-      return Promise.reject(new Error(errorMessage));
+      const customError = new Error(errorMessage);
+      customError.status = status;
+      customError.errors = data?.errors;
+      customError.data = data;
+      return Promise.reject(customError);
     }
 
     return Promise.reject(error);

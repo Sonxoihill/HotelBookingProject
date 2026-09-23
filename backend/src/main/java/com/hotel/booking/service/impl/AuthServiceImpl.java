@@ -37,11 +37,19 @@ public class AuthServiceImpl implements AuthService {
             throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email đã được sử dụng");
         }
 
+        String phone = normalizePhone(request.getPhone());
+        if (phone != null && !phone.isEmpty()) {
+            if (userRepository.existsByPhone(phone)) {
+                log.warn("Registration failed: Phone {} already exists", phone);
+                throw new ConflictException(ErrorCode.PHONE_ALREADY_EXISTS, "Số điện thoại đã được sử dụng");
+            }
+        }
+
         User user = User.builder()
                 .fullName(request.getFullName().trim())
                 .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
-                .phone(request.getPhone() != null ? request.getPhone().trim() : null)
+                .phone(phone)
                 .role(UserRole.CUSTOMER)
                 .status(UserStatus.ACTIVE)
                 .build();
@@ -93,5 +101,39 @@ public class AuthServiceImpl implements AuthService {
                 .fullName(user.getFullName())
                 .role(user.getRole().name())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AuthResponse getCurrentUser(String email) {
+        if (email == null || email.isBlank()) {
+            throw new UnauthorizedException("Chưa xác thực hoặc phiên đăng nhập đã hết hạn");
+        }
+
+        User user = userRepository.findByEmail(email.trim().toLowerCase())
+                .orElseThrow(() -> new UnauthorizedException("Người dùng không tồn tại hoặc đã bị xóa"));
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new UnauthorizedException("Tài khoản đã bị tạm khóa hoặc ngừng kích hoạt");
+        }
+
+        return AuthResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .role(user.getRole().name())
+                .type("Bearer")
+                .build();
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) return null;
+        String p = phone.trim().replaceAll("\\s+", "");
+        if (p.startsWith("+84")) {
+            p = "0" + p.substring(3);
+        } else if (p.startsWith("84") && p.length() == 11) {
+            p = "0" + p.substring(2);
+        }
+        return p;
     }
 }

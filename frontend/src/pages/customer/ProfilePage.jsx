@@ -13,7 +13,6 @@ export const ProfilePage = () => {
     fullName: '',
     email: '',
     phone: '',
-    avatarUrl: '',
     role: '',
     status: '',
   });
@@ -56,7 +55,6 @@ export const ProfilePage = () => {
             fullName: profile.fullName || '',
             email: profile.email || '',
             phone: profile.phone || '',
-            avatarUrl: profile.avatarUrl || '',
             role: profile.role || 'GUEST',
             status: profile.status || 'ACTIVE',
           });
@@ -249,17 +247,9 @@ export const ProfilePage = () => {
         {/* Left card avatar (Chế độ chỉ đọc - Read-only, không có nút đổi avatar) */}
         <div className="bg-white rounded-3xl border border-stone-200 p-6 flex flex-col items-center text-center space-y-4 shadow-xs">
           <div className="relative">
-            {formData.avatarUrl ? (
-              <img
-                src={formData.avatarUrl}
-                alt="Avatar"
-                className="w-24 h-24 rounded-full object-cover border-2 border-stone-200 shadow-inner"
-              />
-            ) : (
-              <div className="w-24 h-24 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-3xl font-black shadow-inner border border-amber-200">
-                {formData.fullName ? formData.fullName.trim()[0].toUpperCase() : 'U'}
-              </div>
-            )}
+            <div className="w-24 h-24 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-3xl font-black shadow-inner border border-amber-200">
+              {formData.fullName ? formData.fullName.trim()[0].toUpperCase() : 'U'}
+            </div>
           </div>
 
           <div>

@@ -74,11 +74,6 @@ public class UserServiceImpl implements UserService {
             user.setPhone(newPhone);
         }
 
-        // 3. Cập nhật avatarUrl nếu có
-        if (request.getAvatarUrl() != null && !request.getAvatarUrl().trim().isEmpty()) {
-            user.setAvatarUrl(request.getAvatarUrl().trim());
-        }
-
         // Lưu thông qua JPA (PreparedStatement) an toàn chống SQLi
         User savedUser = userRepository.save(user);
         log.info("Cập nhật thông tin cá nhân thành công cho user {}: fullName='{}', phone='{}'",

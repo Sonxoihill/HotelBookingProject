@@ -96,15 +96,7 @@ export const CustomerHeader = () => {
                   title={currentUser?.fullName ? `Hồ sơ cá nhân: ${currentUser.fullName}` : 'Hồ sơ cá nhân'}
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-stone-300 hover:border-amber-500 transition-all hover:scale-105 shadow-xs flex items-center justify-center bg-stone-100 shrink-0"
                 >
-                  {currentUser?.avatarUrl ? (
-                    <img
-                      src={currentUser.avatarUrl}
-                      alt={currentUser.fullName || 'Avatar'}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <User size={18} className="text-stone-700" />
-                  )}
+                  <User size={18} className="text-stone-700" />
                 </Link>
 
                 {/* Nút đăng xuất bên cạnh nút hồ sơ cá nhân ở góc trong cùng bên phải */}

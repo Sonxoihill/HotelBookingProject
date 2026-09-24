@@ -21,6 +21,4 @@ public class UpdateProfileRequest {
         message = "Số điện thoại không hợp lệ! Bắt buộc phải là 10 số (bắt đầu bằng 0 và 9 số sau từ 0-9) hoặc bắt đầu bằng +84 và 9 số sau (0-9)."
     )
     private String phone;
-
-    private String avatarUrl;
 }

@@ -18,7 +18,6 @@ public class UserProfileResponse {
     private String email;
     private String fullName;
     private String phone;
-    private String avatarUrl;
     private UserRole role;
     private UserStatus status;
     private LocalDateTime createdAt;
@@ -30,7 +29,6 @@ public class UserProfileResponse {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .phone(user.getPhone())
-                .avatarUrl(user.getAvatarUrl())
                 .role(user.getRole())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())

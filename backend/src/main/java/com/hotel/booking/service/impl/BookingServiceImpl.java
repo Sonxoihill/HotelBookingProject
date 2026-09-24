@@ -101,7 +101,6 @@ public class BookingServiceImpl implements BookingService {
         }
 
         booking.setStatus(BookingStatus.CANCELLED);
-        booking.setCancellationReason(request.getReason());
         Booking saved = bookingRepository.save(booking);
         log.info("Đơn đặt phòng #{} đã được hủy thành công. Lý do: {}", bookingId, request.getReason());
         return saved;

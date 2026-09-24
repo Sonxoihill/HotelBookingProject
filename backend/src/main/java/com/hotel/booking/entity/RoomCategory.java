@@ -32,13 +32,5 @@ public class RoomCategory extends BaseEntity {
 
     @Column(name = "image_url", length = 500)
     private String imageUrl;
-
-    @Column(name = "area")
-    private Integer area;
-
-    @Column(name = "amenities", columnDefinition = "TEXT")
-    private String amenities;
-
-    @Column(name = "images", columnDefinition = "TEXT")
-    private String images;
 }
+

@@ -38,7 +38,5 @@ public class Booking extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
-
-    @Column(name = "cancellation_reason", length = 500)
-    private String cancellationReason;
 }
+

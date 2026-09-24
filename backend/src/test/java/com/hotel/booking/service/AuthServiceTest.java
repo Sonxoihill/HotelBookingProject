@@ -65,6 +65,7 @@ class AuthServiceTest {
                 .fullName("Nguyễn Khách")
                 .email("guest@gmail.com")
                 .password("123456")
+                .confirmPassword("123456")
                 .phone("0901234567")
                 .build();
 
@@ -85,12 +86,30 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Đăng ký thất bại khi mật khẩu xác nhận không trùng khớp")
+    void testRegisterPasswordMismatch() {
+        RegisterRequest request = RegisterRequest.builder()
+                .fullName("Nguyễn Khách")
+                .email("guest@gmail.com")
+                .password("123456")
+                .confirmPassword("654321")
+                .phone("0901234567")
+                .build();
+
+        com.hotel.booking.common.exception.BadRequestException ex =
+                assertThrows(com.hotel.booking.common.exception.BadRequestException.class, () -> authService.register(request));
+        assertEquals("Mật khẩu xác nhận không trùng khớp", ex.getMessage());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     @DisplayName("Đăng ký thất bại khi email đã tồn tại")
     void testRegisterDuplicateEmail() {
         RegisterRequest request = RegisterRequest.builder()
                 .fullName("Trùng Email")
                 .email("guest@gmail.com")
                 .password("123456")
+                .confirmPassword("123456")
                 .build();
 
         when(userRepository.existsByEmail("guest@gmail.com")).thenReturn(true);
@@ -106,6 +125,7 @@ class AuthServiceTest {
                 .fullName("Trùng Số Điện Thoại")
                 .email("guest@gmail.com")
                 .password("123456")
+                .confirmPassword("123456")
                 .phone("0901234567")
                 .build();
 

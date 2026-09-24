@@ -1,5 +1,6 @@
 package com.hotel.booking.service.impl;
 
+import com.hotel.booking.common.exception.BadRequestException;
 import com.hotel.booking.common.exception.ConflictException;
 import com.hotel.booking.common.exception.ErrorCode;
 import com.hotel.booking.common.exception.UnauthorizedException;
@@ -30,6 +31,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        if (request.getConfirmPassword() == null || !request.getConfirmPassword().equals(request.getPassword())) {
+            log.warn("Registration failed: Password confirmation does not match");
+            throw new BadRequestException("Mật khẩu xác nhận không trùng khớp");
+        }
+
         String email = request.getEmail().trim().toLowerCase();
 
         if (userRepository.existsByEmail(email)) {

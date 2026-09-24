@@ -53,6 +53,7 @@ class AuthControllerTest {
                                 .fullName("Nguyễn Khách")
                                 .email("guest@gmail.com")
                                 .password("123456")
+                                .confirmPassword("123456")
                                 .phone("0901234567")
                                 .build();
 
@@ -84,6 +85,7 @@ class AuthControllerTest {
                                 .fullName("") // Blank
                                 .email("invalid-email@other.com") // Not gmail
                                 .password("123") // Less than 6 chars
+                                .confirmPassword("") // Blank
                                 .build();
 
                 mockMvc.perform(post("/auth/register")
@@ -93,7 +95,49 @@ class AuthControllerTest {
                                 .andExpect(jsonPath("$.success").value(false))
                                 .andExpect(jsonPath("$.errors.fullName").exists())
                                 .andExpect(jsonPath("$.errors.email").exists())
-                                .andExpect(jsonPath("$.errors.password").exists());
+                                .andExpect(jsonPath("$.errors.password").exists())
+                                .andExpect(jsonPath("$.errors.confirmPassword").exists());
+        }
+
+        @Test
+        @DisplayName("POST /auth/register - Lỗi validation khi xác nhận mật khẩu để trống")
+        void testRegisterBlankConfirmPassword() throws Exception {
+                RegisterRequest invalidRequest = RegisterRequest.builder()
+                                .fullName("Nguyễn Văn An")
+                                .email("test@gmail.com")
+                                .password("123456")
+                                .confirmPassword("")
+                                .phone("0901234567")
+                                .build();
+
+                mockMvc.perform(post("/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(invalidRequest)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.errors.confirmPassword").exists());
+        }
+
+        @Test
+        @DisplayName("POST /auth/register - Lỗi khi mật khẩu xác nhận không trùng khớp")
+        void testRegisterMismatchConfirmPassword() throws Exception {
+                RegisterRequest request = RegisterRequest.builder()
+                                .fullName("Nguyễn Văn An")
+                                .email("test@gmail.com")
+                                .password("123456")
+                                .confirmPassword("654321")
+                                .phone("0901234567")
+                                .build();
+
+                when(authService.register(any(RegisterRequest.class)))
+                                .thenThrow(new com.hotel.booking.common.exception.BadRequestException("Mật khẩu xác nhận không trùng khớp"));
+
+                mockMvc.perform(post("/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.message").value("Mật khẩu xác nhận không trùng khớp"));
         }
 
         @Test
@@ -103,6 +147,7 @@ class AuthControllerTest {
                                 .fullName("Nguyễn Văn @#") // Contains special characters
                                 .email("test@gmail.com")
                                 .password("123456")
+                                .confirmPassword("123456")
                                 .phone("0901234567")
                                 .build();
 
@@ -121,6 +166,7 @@ class AuthControllerTest {
                                 .fullName("Nguyễn Văn An")
                                 .email("user-test+1@gmail.com") // Contains - and +
                                 .password("123456")
+                                .confirmPassword("123456")
                                 .phone("0901234567")
                                 .build();
 
@@ -139,6 +185,7 @@ class AuthControllerTest {
                                 .fullName("Nguyễn Văn An")
                                 .email("valid@gmail.com")
                                 .password("123456")
+                                .confirmPassword("123456")
                                 .phone("0123456789") // Invalid prefix 01
                                 .build();
 
@@ -157,6 +204,7 @@ class AuthControllerTest {
                                 .fullName("Nguyễn Văn An")
                                 .email("valid@gmail.com")
                                 .password("123456")
+                                .confirmPassword("123456")
                                 .phone("")
                                 .build();
 
@@ -175,6 +223,7 @@ class AuthControllerTest {
                                 .fullName("Nguyễn Khách")
                                 .email("exists@gmail.com")
                                 .password("123456")
+                                .confirmPassword("123456")
                                 .phone("0901234567")
                                 .build();
 
@@ -197,6 +246,7 @@ class AuthControllerTest {
                                 .fullName("Nguyễn Khách")
                                 .email("guest@gmail.com")
                                 .password("123456")
+                                .confirmPassword("123456")
                                 .phone("0901234567")
                                 .build();
 

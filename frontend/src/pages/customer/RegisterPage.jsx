@@ -97,6 +97,7 @@ export const RegisterPage = () => {
         email: formData.email.trim(),
         phone: formData.phone.trim().replace(/\s+/g, ''),
         password: formData.password,
+        confirmPassword: formData.confirmPassword,
       });
 
       setSuccessMsg('Đăng ký tài khoản thành công! Đang chuyển hướng sang trang đăng nhập...');

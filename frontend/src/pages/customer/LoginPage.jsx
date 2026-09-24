@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { tokenStorage } from '../../utils/tokenStorage';
+import { authService } from '../../services/authService';
 import { Hotel, Mail, Lock, LogIn } from 'lucide-react';
 
 export const LoginPage = () => {
@@ -11,36 +12,18 @@ export const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMsg('');
 
-    setTimeout(() => {
-      setIsLoading(false);
-      // Giả lập đăng nhập thành công với JWT token
-      const mockToken = 'mock-jwt-token-hotel-booking-' + Date.now();
-      
-      // Tự động phân quyền dựa trên email người dùng nhập
-      let role = 'CUSTOMER';
-      let fullName = 'Nguyễn Khách Hàng';
-      if (email.includes('admin')) {
-        role = 'ADMIN';
-        fullName = 'Trần Quản Lý (Admin)';
-      } else if (email.includes('reception') || email.includes('letan')) {
-        role = 'RECEPTIONIST';
-        fullName = 'Lê Lễ Tân (Ca Trực)';
-      }
+    try {
+      const response = await authService.login({ email, password });
+      const user = response?.user || tokenStorage.getUser();
+      const role = user?.role;
 
-      const mockUser = {
-        email,
-        fullName,
-        role,
-      };
-
-      tokenStorage.setToken(mockToken);
-      tokenStorage.setUser(mockUser);
-
-      // Điều hướng theo Role
       if (role === 'ADMIN') {
         navigate('/admin');
       } else if (role === 'RECEPTIONIST') {
@@ -48,7 +31,12 @@ export const LoginPage = () => {
       } else {
         navigate('/');
       }
-    }, 600);
+    } catch (err) {
+      console.error('Login error:', err);
+      setErrorMsg(err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại email/mật khẩu!');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -67,6 +55,11 @@ export const LoginPage = () => {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold">
+              {errorMsg}
+            </div>
+          )}
           <Input
             label="Địa chỉ Email"
             type="email"

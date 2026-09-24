@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   Users,
   Maximize2,
@@ -21,9 +21,12 @@ import {
   ChevronRight,
   X,
   ZoomIn,
+  MessageSquare,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import { tokenStorage } from '../../utils/tokenStorage';
+import { roomService } from '../../services/roomService';
+import { reviewService } from '../../services/reviewService';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import Input from '../../components/common/Input';
@@ -33,31 +36,144 @@ export const RoomDetailPage = () => {
   const navigate = useNavigate();
   const currentUser = tokenStorage.getUser();
 
+  const [roomData, setRoomData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+
+  // Tải thông tin phòng từ cơ sở dữ liệu
+  useEffect(() => {
+    const fetchRoom = async () => {
+      setIsLoading(true);
+      setFetchError(null);
+      try {
+        const res = await roomService.getRoomById(id);
+        const data = res?.data || res;
+        setRoomData(data);
+      } catch (err) {
+        console.error('Lỗi tải chi tiết phòng:', err);
+        setFetchError('Không tìm thấy thông tin phòng trong cơ sở dữ liệu.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (id) {
+      fetchRoom();
+    }
+  }, [id]);
+
+  const [searchParams] = useSearchParams();
+  const queryCheckIn = searchParams.get('checkIn');
+  const queryCheckOut = searchParams.get('checkOut');
+  const queryPhone = searchParams.get('phone');
+
+  // Khởi tạo ngày động theo ngày thực tế (không dùng ngày cứng)
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const nextThreeDays = new Date(today);
+  nextThreeDays.setDate(nextThreeDays.getDate() + 3);
+
+  const defaultCheckIn = tomorrow.toISOString().split('T')[0];
+  const defaultCheckOut = nextThreeDays.toISOString().split('T')[0];
+
+  const category = roomData?.category || {};
+  const roomName = category.name
+    ? (roomData?.roomNumber ? `${category.name} (Phòng ${roomData.roomNumber})` : category.name)
+    : (roomData?.roomNumber ? `Phòng ${roomData.roomNumber}` : `Phòng #${id}`);
+  const basePrice = category.basePrice || roomData?.basePrice || 0;
+  const capacity = category.capacity || roomData?.capacity || 0;
+  const bedType = category.bedType || roomData?.bedType || '';
+  const description = category.description || roomData?.description || '';
+  // Diện tích từ cột area trong CSDL
+  const size = category.area || roomData?.area || 0;
+
+  // Ảnh phòng lấy 100% từ CSDL (cột images hoặc image_url)
+  const dbImages = category.images
+    ? category.images.split(',').map((u) => u.trim()).filter(Boolean)
+    : [];
+  const mainImage = category.imageUrl || roomData?.imageUrl || '';
+  const images = dbImages.length > 0 ? dbImages : (mainImage ? [mainImage] : []);
+
+  // Danh sách tiện nghi lấy 100% từ CSDL (cột amenities)
+  const parseAmenities = () => {
+    if (category.amenities) {
+      return category.amenities
+        .split(',')
+        .map((a) => a.trim())
+        .filter(Boolean)
+        .map((name) => {
+          let Icon = Sparkles;
+          const lower = name.toLowerCase();
+          if (lower.includes('wi-fi') || lower.includes('wifi')) Icon = Wifi;
+          else if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('cà phê')) Icon = Coffee;
+          else if (lower.includes('tv') || lower.includes('tivi')) Icon = Tv;
+          else if (lower.includes('bồn tắm') || lower.includes('tắm') || lower.includes('jacuzzi')) Icon = Bath;
+          else if (lower.includes('điều hòa') || lower.includes('khí')) Icon = Wind;
+          else if (lower.includes('két') || lower.includes('bảo mật')) Icon = ShieldCheck;
+          return { name, icon: Icon };
+        });
+    }
+    return [];
+  };
+
+  const amenities = parseAmenities();
+
+  // Đánh giá của khách hàng lấy từ CSDL bảng reviews
+  const [reviewsData, setReviewsData] = useState({
+    averageRating: 0,
+    totalReviews: 0,
+    reviews: [],
+  });
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const reviewsRef = useRef(null);
+
+  const scrollToReviews = () => {
+    if (reviewsRef.current) {
+      reviewsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Tải danh sách đánh giá của phòng từ CSDL MySQL
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!id) return;
+      setIsLoadingReviews(true);
+      try {
+        const res = await reviewService.getRoomReviews(id);
+        const data = res?.data || res;
+        if (data) {
+          setReviewsData({
+            averageRating: data.averageRating ?? 0,
+            totalReviews: data.totalReviews ?? 0,
+            reviews: data.reviews ?? [],
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải đánh giá của phòng từ CSDL:', err);
+      } finally {
+        setIsLoadingReviews(false);
+      }
+    };
+
+    fetchReviews();
+  }, [id]);
+
   const room = {
-    id: id || 101,
-    name: 'Phòng Deluxe Hướng Biển (Deluxe Ocean View)',
-    type: 'Deluxe',
-    price: 1450000,
-    size: 38,
-    maxGuests: 2,
-    bedType: '1 Giường đôi King size (2.0m x 2.0m)',
-    rating: 4.9,
-    reviewsCount: 52,
-    description:
-      'Phòng Deluxe Ocean View tại L\'Étoile Luxury Resort mang đến tầm nhìn toàn cảnh biển Sơn Trà thơ mộng. Thiết kế sang trọng pha trộn phong cách nhiệt đới hiện đại, sàn gỗ tự nhiên cao cấp, bồn tắm nằm nhìn ra đại dương cùng các trang thiết bị tiện nghi bậc nhất.',
-    images: [
-      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1600&q=85',
-      'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1600&q=85',
-      'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1600&q=85',
-      'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1600&q=85',
-    ],
-    amenities: [
-      { name: 'Wi-Fi 5G tốc độ cao', icon: Wifi },
-      { name: 'Bữa sáng Buffet miễn phí', icon: Coffee },
-      { name: 'Smart TV LED 55 inch', icon: Tv },
-      { name: 'Bồn tắm nằm view biển', icon: Bath },
-      { name: 'Điều hòa 2 chiều lọc khí', icon: Wind },
-    ],
+    id: roomData?.id || id,
+    roomNumber: roomData?.roomNumber || '',
+    floor: roomData?.floor || null,
+    status: roomData?.status || '',
+    name: roomName,
+    type: category.name || '',
+    price: basePrice,
+    size: size,
+    maxGuests: capacity,
+    bedType: bedType,
+    rating: reviewsData.averageRating,
+    reviewsCount: reviewsData.totalReviews,
+    description: description,
+    images: images,
+    amenities: amenities,
   };
 
   // State quản lý ảnh hiển thị trên trang
@@ -68,9 +184,9 @@ export const RoomDetailPage = () => {
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // State quản lý thông tin đặt phòng
-  const [checkIn, setCheckIn] = useState('2026-09-20');
-  const [checkOut, setCheckOut] = useState('2026-09-23');
-  const [phone, setPhone] = useState(currentUser?.phone || '0912345678');
+  const [checkIn, setCheckIn] = useState(queryCheckIn || defaultCheckIn);
+  const [checkOut, setCheckOut] = useState(queryCheckOut || defaultCheckOut);
+  const [phone, setPhone] = useState(queryPhone || currentUser?.phone || '');
 
   // Mở Lightbox phóng to
   const handleOpenLightbox = (index) => {
@@ -134,6 +250,29 @@ export const RoomDetailPage = () => {
     );
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+        <div className="w-8 h-8 border-3 border-amber-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-stone-500 font-medium">Đang tải thông tin chi tiết phòng từ CSDL...</span>
+      </div>
+    );
+  }
+
+  if (fetchError || !roomData) {
+    return (
+      <div className="max-w-md mx-auto my-20 p-8 bg-white rounded-3xl border border-stone-200 text-center space-y-4">
+        <p className="text-sm text-stone-700 font-medium">{fetchError || 'Không tìm thấy thông tin phòng nghỉ trong CSDL.'}</p>
+        <button
+          onClick={() => navigate('/rooms')}
+          className="px-5 py-2 rounded-full bg-stone-900 text-white text-xs font-semibold cursor-pointer"
+        >
+          Quay lại danh sách phòng
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Nút quay lại */}
@@ -153,52 +292,61 @@ export const RoomDetailPage = () => {
         <div className="space-y-6">
           {/* Khung ảnh chính (Nhấp để phóng to toàn màn hình) */}
           <div className="space-y-3">
-            <div
-              onClick={() => handleOpenLightbox(activeImageIndex)}
-              className="relative aspect-[16/11] rounded-3xl overflow-hidden bg-slate-100 border border-slate-200 shadow-md cursor-pointer group"
-            >
-              <img
-                src={room.images[activeImageIndex]}
-                alt={room.name}
-                className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
-              />
+            {room.images && room.images.length > 0 ? (
+              <div
+                onClick={() => handleOpenLightbox(activeImageIndex)}
+                className="relative aspect-[16/11] rounded-3xl overflow-hidden bg-slate-100 border border-slate-200 shadow-md cursor-pointer group"
+              >
+                <img
+                  src={room.images[activeImageIndex]}
+                  alt={room.name}
+                  className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+                />
 
-              {/* Lớp phủ & Nút báo nhấp phóng to */}
-              <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <div className="px-4 py-2 rounded-full bg-white/95 text-slate-900 text-xs font-bold flex items-center gap-2 shadow-xl backdrop-blur-xs transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                  <ZoomIn size={16} className="text-amber-600" />
-                  <span>Nhấp để phóng to ảnh</span>
+                {/* Lớp phủ & Nút báo nhấp phóng to */}
+                <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="px-4 py-2 rounded-full bg-white/95 text-slate-900 text-xs font-bold flex items-center gap-2 shadow-xl backdrop-blur-xs transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                    <ZoomIn size={16} className="text-amber-600" />
+                    <span>Nhấp để phóng to ảnh</span>
+                  </div>
+                </div>
+
+                {/* Huy hiệu số lượng ảnh */}
+                <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-slate-900/70 text-white text-[11px] font-semibold backdrop-blur-xs">
+                  {activeImageIndex + 1} / {room.images.length}
                 </div>
               </div>
-
-              {/* Huy hiệu số lượng ảnh */}
-              <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-slate-900/70 text-white text-[11px] font-semibold backdrop-blur-xs">
-                {activeImageIndex + 1} / {room.images.length}
+            ) : (
+              <div className="aspect-[16/11] rounded-3xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-xs font-medium">
+                Chưa có hình ảnh trong cơ sở dữ liệu
               </div>
-            </div>
+            )}
 
-            {/* Dải ảnh thu nhỏ (thumbnails) */}
-            <div className="grid grid-cols-4 gap-2.5">
-              {room.images.map((img, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setActiveImageIndex(idx)}
-                  onDoubleClick={() => handleOpenLightbox(idx)}
-                  className={`aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all cursor-pointer relative group ${activeImageIndex === idx
-                    ? 'border-amber-600 ring-2 ring-amber-500/20 shadow-xs'
-                    : 'border-slate-200 opacity-70 hover:opacity-100'
+            {/* Dải ảnh thu nhỏ (thumbnails) - Chỉ hiển thị khi có từ 2 ảnh trở lên trong DB */}
+            {room.images && room.images.length > 1 && (
+              <div className="grid grid-cols-4 gap-2.5">
+                {room.images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveImageIndex(idx)}
+                    onDoubleClick={() => handleOpenLightbox(idx)}
+                    className={`aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all cursor-pointer relative group ${
+                      activeImageIndex === idx
+                        ? 'border-amber-600 ring-2 ring-amber-500/20 shadow-xs'
+                        : 'border-slate-200 opacity-70 hover:opacity-100'
                     }`}
-                >
-                  <img
-                    src={img}
-                    alt={`Thumbnail ${idx + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))}
-            </div>
+                  >
+                    <img
+                      src={img}
+                      alt={`Ảnh ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Mô tả chi tiết & Tiện nghi phòng */}
@@ -215,20 +363,26 @@ export const RoomDetailPage = () => {
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
                 Tiện nghi phòng nghỉ
               </h4>
-              <div className="grid grid-cols-2 gap-2.5">
-                {room.amenities.map((item, idx) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100 text-slate-700 text-xs font-medium"
-                    >
-                      <Icon size={15} className="text-amber-600 shrink-0" />
-                      <span className="truncate">{item.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
+              {room.amenities && room.amenities.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2.5">
+                  {room.amenities.map((item, idx) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100 text-slate-700 text-xs font-medium"
+                      >
+                        <Icon size={15} className="text-amber-600 shrink-0" />
+                        <span className="truncate">{item.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 italic">
+                  Chưa có thông tin tiện nghi trong cơ sở dữ liệu.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -239,23 +393,48 @@ export const RoomDetailPage = () => {
         <div className="space-y-6">
           {/* KHỐI 1: THÔNG TIN PHÒNG (DIỆN TÍCH, SỨC CHỨA, GIƯỜNG) */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-5">
-            <div>
-              <div className="flex items-center gap-2.5 mb-2">
-                <Badge variant="amber">{room.type}</Badge>
-                <div className="flex items-center gap-1 text-xs font-bold text-slate-800">
-                  <Star size={14} className="text-amber-500 fill-amber-500" />
-                  <span>{room.rating}</span>
-                  <span className="text-slate-400 font-normal">
-                    ({room.reviewsCount} đánh giá từ khách)
-                  </span>
+            {/* Header thông tin phòng & Nút Xem đánh giá góc trên bên phải theo ảnh yêu cầu */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5 mb-2">
+                  {room.type && <Badge variant="amber">{room.type}</Badge>}
+                  {room.reviewsCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={scrollToReviews}
+                      className="flex items-center gap-1 text-xs font-bold text-slate-800 hover:text-amber-700 transition-colors cursor-pointer"
+                      title="Xem các đánh giá từ khách hàng"
+                    >
+                      <Star size={14} className="text-amber-500 fill-amber-500" />
+                      <span>{room.rating}</span>
+                      <span className="text-slate-400 font-normal">
+                        ({room.reviewsCount} đánh giá từ khách)
+                      </span>
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400 font-normal">
+                      (Chưa có đánh giá)
+                    </span>
+                  )}
                 </div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif leading-snug">
+                  {room.name}
+                </h1>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif leading-snug">
-                {room.name}
-              </h1>
+
+              {/* NÚT XEM ĐÁNH GIÁ (GÓC TRÊN BÊN PHẢI) */}
+              <button
+                type="button"
+                onClick={scrollToReviews}
+                className="px-3.5 py-2 rounded-2xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/90 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95 group"
+                title="Xem đánh giá của khách hàng từ cơ sở dữ liệu"
+              >
+                <MessageSquare size={14} className="text-amber-600 group-hover:scale-110 transition-transform" />
+                <span>Xem đánh giá</span>
+              </button>
             </div>
 
-            {/* 3 Thông số cốt lõi: Diện tích, Sức chứa, Giường */}
+            {/* 3 Thông số cốt lõi: Diện tích, Sức chứa, Giường (từ CSDL) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
               {/* 1. Diện tích */}
               <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/60 flex items-center gap-3">
@@ -267,7 +446,7 @@ export const RoomDetailPage = () => {
                     Diện tích
                   </span>
                   <span className="text-base font-extrabold text-slate-900">
-                    {room.size} m²
+                    {room.size > 0 ? `${room.size} m²` : '---'}
                   </span>
                 </div>
               </div>
@@ -282,7 +461,7 @@ export const RoomDetailPage = () => {
                     Sức chứa
                   </span>
                   <span className="text-base font-extrabold text-slate-900">
-                    {room.maxGuests} Người lớn
+                    {room.maxGuests > 0 ? `${room.maxGuests} người` : '---'}
                   </span>
                 </div>
               </div>
@@ -297,16 +476,37 @@ export const RoomDetailPage = () => {
                     Loại giường
                   </span>
                   <span className="text-sm font-bold text-slate-900 line-clamp-1" title={room.bedType}>
-                    King Size
+                    {room.bedType || '---'}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="text-xs text-slate-500 flex items-center gap-1.5 bg-slate-50 p-3 rounded-xl">
-              <Info size={14} className="text-slate-400 shrink-0" />
-              <span>Quy cách giường: {room.bedType}. Miễn phí cũi trẻ em dưới 2 tuổi theo yêu cầu.</span>
-            </div>
+            {/* Thông tin phòng trực tiếp từ CSDL: Vị trí tầng, Số phòng, Tình trạng phòng */}
+            {(room.floor || room.roomNumber || room.status) && (
+              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                {room.floor && (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="text-slate-400">Vị trí:</span>
+                    <span className="font-bold text-slate-800">Tầng {room.floor}</span>
+                  </span>
+                )}
+                {room.roomNumber && (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="text-slate-400">Số phòng:</span>
+                    <span className="font-bold text-slate-800">{room.roomNumber}</span>
+                  </span>
+                )}
+                {room.status && (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="text-slate-400">Tình trạng:</span>
+                    <span className={`font-bold ${room.status === 'AVAILABLE' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {room.status === 'AVAILABLE' ? 'Sẵn sàng đón khách' : room.status}
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* KHỐI 2: THÔNG TIN ĐẶT PHÒNG (CHECK-IN, CHECK-OUT, SỐ ĐIỆN THOẠI, GIÁ PHÒNG, THUẾ & DỊCH VỤ, TỔNG TIỀN) */}
@@ -426,10 +626,108 @@ export const RoomDetailPage = () => {
 
             <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400 text-center">
               <ShieldCheck size={14} className="text-emerald-600" />
-              <span>Xác nhận tức thì • Hủy miễn phí trước ngày nhận phòng 48 giờ</span>
+              <span>Thông tin phòng & giá niêm yết trực tiếp từ cơ sở dữ liệu</span>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ===================================================================== */}
+      {/* KHỐI ĐÁNH GIÁ CỦA KHÁCH HÀNG (LẤY 100% TỪ CSDL MYSQL)                  */}
+      {/* ===================================================================== */}
+      <div ref={reviewsRef} id="customer-reviews" className="mt-12 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6 scroll-mt-24">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Star size={22} className="text-amber-500 fill-amber-500" />
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 font-serif">
+                Đánh giá từ khách hàng
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500">
+              Đánh giá thực tế từ các khách hàng đã từng lưu trú tại phòng này (dữ liệu từ cơ sở dữ liệu hệ thống)
+            </p>
+          </div>
+
+          {room.reviewsCount > 0 ? (
+            <div className="flex items-center gap-3 bg-amber-50/80 border border-amber-200/70 px-4 py-2.5 rounded-2xl shrink-0">
+              <div className="text-2xl font-black text-amber-600 font-serif">
+                {room.rating}
+              </div>
+              <div className="text-xs">
+                <div className="flex items-center text-amber-500">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      size={13}
+                      className={s <= Math.round(room.rating) ? 'fill-amber-500 text-amber-500' : 'text-slate-300'}
+                    />
+                  ))}
+                </div>
+                <span className="text-slate-600 font-medium">{room.reviewsCount} lượt đánh giá</span>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-2xl shrink-0 text-xs text-slate-500 font-medium">
+              Chưa có lượt đánh giá nào
+            </div>
+          )}
+        </div>
+
+        {/* Danh sách các đánh giá từ CSDL */}
+        {isLoadingReviews ? (
+          <div className="py-12 flex flex-col items-center justify-center space-y-2">
+            <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-slate-400">Đang tải đánh giá từ CSDL...</span>
+          </div>
+        ) : reviewsData.reviews && reviewsData.reviews.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {reviewsData.reviews.map((rev) => (
+              <div
+                key={rev.id}
+                className="p-5 rounded-2xl bg-stone-50/60 border border-stone-200/70 space-y-3 hover:bg-stone-50 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-[#C59D5F]/20 text-[#8B6E38] font-bold text-xs flex items-center justify-center">
+                      {(rev.userName || 'K').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900">{rev.userName}</h4>
+                      <p className="text-[10px] text-slate-400">
+                        {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('vi-VN') : 'Gần đây'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        size={13}
+                        className={s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed font-light">
+                  "{rev.comment}"
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-10 text-center space-y-2 bg-stone-50/50 rounded-2xl border border-dashed border-stone-200">
+            <MessageSquare size={28} className="mx-auto text-stone-300" />
+            <p className="text-xs text-stone-500 font-medium">
+              Chưa có đánh giá nào cho phòng này trong cơ sở dữ liệu.
+            </p>
+            <p className="text-[11px] text-stone-400">
+              Hãy đặt phòng và trở thành vị khách đầu tiên để lại đánh giá sau kỳ nghỉ!
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ===================================================================== */}

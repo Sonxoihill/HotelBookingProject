@@ -3,10 +3,10 @@
 
 -- 1. Seed Users (ADMIN, RECEPTIONIST, GUEST)
 INSERT INTO users (id, email, password, full_name, phone, role, status) VALUES
-(1, 'admin@hotelbooking.com', '$2a$10$7R0ZqA97N.7G1pWz3iLz1.7yvI4XpGqUeQ5Wq4lRkPqVpA1kQy9.2', 'Quản Trị Viên', '0901234567', 'ADMIN', 'ACTIVE'),
-(2, 'receptionist@hotelbooking.com', '$2a$10$7R0ZqA97N.7G1pWz3iLz1.7yvI4XpGqUeQ5Wq4lRkPqVpA1kQy9.2', 'Lễ Tân Khách Sạn', '0902345678', 'RECEPTIONIST', 'ACTIVE'),
-(3, 'guest@example.com', '$2a$10$7R0ZqA97N.7G1pWz3iLz1.7yvI4XpGqUeQ5Wq4lRkPqVpA1kQy9.2', 'Nguyễn Văn Khách', '0903456789', 'GUEST', 'ACTIVE')
-ON DUPLICATE KEY UPDATE email=VALUES(email);
+(1, 'admin@gmail.com', '$2a$10$OxPPTB8GlxjW2rZNo5ngl.W8tJsEgNADGJgrN1PIrgZzY6fEdJJaC', 'Quản Trị Viên', '0901234567', 'ADMIN', 'ACTIVE'),
+(2, 'receptionist@gmail.com', '$2a$10$OxPPTB8GlxjW2rZNo5ngl.W8tJsEgNADGJgrN1PIrgZzY6fEdJJaC', 'Lễ Tân Khách Sạn', '0902345678', 'RECEPTIONIST', 'ACTIVE'),
+(3, 'guest@gmail.com', '$2a$10$OxPPTB8GlxjW2rZNo5ngl.W8tJsEgNADGJgrN1PIrgZzY6fEdJJaC', 'Nguyễn Văn Khách', '0903456789', 'GUEST', 'ACTIVE')
+ON DUPLICATE KEY UPDATE email=VALUES(email), password=VALUES(password);
 
 -- 2. Seed Room Categories
 INSERT INTO room_categories (id, name, description, base_price, capacity, bed_type, image_url) VALUES

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, User, LogOut } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { tokenStorage } from '../../utils/tokenStorage';
 import { authService } from '../../services/authService';
 
@@ -8,33 +8,16 @@ export const CustomerHeader = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState(() => tokenStorage.getUser());
-  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(tokenStorage.getToken()));
+  const [currentUser, setCurrentUser] = useState(null);
 
-  // Đồng bộ trạng thái đăng nhập khi có thay đổi trong localStorage hoặc chuyển trang
   useEffect(() => {
-    const syncAuth = () => {
-      setCurrentUser(tokenStorage.getUser());
-      setIsLoggedIn(Boolean(tokenStorage.getToken()));
-    };
-
-    syncAuth();
-    window.addEventListener('storage', syncAuth);
-    return () => window.removeEventListener('storage', syncAuth);
-  }, [location.pathname]);
+    setCurrentUser(tokenStorage.getUser());
+  }, [location]);
 
   const handleLogout = async () => {
-    try {
-      await authService.logout();
-    } catch (err) {
-      console.error('Lỗi khi đăng xuất:', err);
-    } finally {
-      tokenStorage.clearAuth();
-      setCurrentUser(null);
-      setIsLoggedIn(false);
-      window.dispatchEvent(new Event('storage'));
-      navigate('/login');
-    }
+    await authService.logout();
+    setCurrentUser(null);
+    navigate('/login');
   };
 
   const navLinks = [
@@ -86,38 +69,43 @@ export const CustomerHeader = () => {
             })}
           </nav>
 
-          {/* Right: Khi đã đăng nhập thì có Nút hồ sơ cá nhân và Nút đăng xuất góc trong cùng bên phải; khi đăng xuất thì chuyển thành Nút đăng nhập */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {isLoggedIn ? (
-              <>
-                {/* Nút hồ sơ cá nhân */}
+          {/* Right: User Profile or Auth Action Buttons */}
+          <div className="flex items-center gap-3">
+            {currentUser ? (
+              <div className="flex items-center gap-3">
                 <Link
                   to="/profile"
-                  title={currentUser?.fullName ? `Hồ sơ cá nhân: ${currentUser.fullName}` : 'Hồ sơ cá nhân'}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-stone-300 hover:border-amber-500 transition-all hover:scale-105 shadow-xs flex items-center justify-center bg-stone-100 shrink-0"
+                  title="Hồ sơ cá nhân"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-100 hover:bg-stone-200 transition-colors text-xs font-semibold text-stone-800"
                 >
-                  <User size={18} className="text-stone-700" />
+                  <div className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold text-[10px]">
+                    {currentUser.fullName ? currentUser.fullName[0].toUpperCase() : 'U'}
+                  </div>
+                  <span className="hidden sm:inline max-w-[120px] truncate">{currentUser.fullName}</span>
                 </Link>
-
-                {/* Nút đăng xuất bên cạnh nút hồ sơ cá nhân ở góc trong cùng bên phải */}
                 <button
-                  type="button"
                   onClick={handleLogout}
-                  title="Đăng xuất khỏi hệ thống"
-                  className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold text-stone-700 hover:text-rose-600 bg-stone-100 hover:bg-rose-50 border border-stone-300 hover:border-rose-200 transition-all cursor-pointer shadow-2xs group"
+                  title="Đăng xuất"
+                  className="p-2 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
                 >
-                  <LogOut size={15} className="text-stone-500 group-hover:text-rose-600 transition-colors" />
-                  <span>Đăng xuất</span>
+                  <LogOut size={18} />
                 </button>
-              </>
+              </div>
             ) : (
-              /* Nút đăng nhập hiển thị khi chưa đăng nhập hoặc khi đã ấn đăng xuất */
-              <Link
-                to="/login"
-                className="px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-stone-900 bg-[#F7DFBC] hover:bg-[#ebd0a7] transition-all shadow-2xs hover:shadow-xs"
-              >
-                Đăng nhập
-              </Link>
+              <div className="hidden sm:flex items-center gap-2">
+                <Link
+                  to="/login"
+                  className="px-4 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-900 transition-colors"
+                >
+                  Đăng Nhập
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-full bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors"
+                >
+                  Đăng Ký
+                </Link>
+              </div>
             )}
 
             {/* Mobile menu button */}
@@ -152,37 +140,43 @@ export const CustomerHeader = () => {
             );
           })}
 
-          <div className="pt-2 border-t border-stone-100">
-            {isLoggedIn ? (
+          <div className="pt-2 border-t border-stone-100 mt-2">
+            {currentUser ? (
               <div className="space-y-1">
                 <Link
                   to="/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2.5 text-sm px-4 py-2.5 rounded-xl text-stone-700 hover:bg-stone-50 font-medium"
+                  className="block text-sm px-4 py-2 text-stone-800 font-medium hover:bg-stone-50 rounded-xl"
                 >
-                  <User size={16} />
-                  <span>Hồ sơ cá nhân ({currentUser?.fullName || 'Khách hàng'})</span>
+                  Hồ sơ: {currentUser.fullName}
                 </Link>
                 <button
-                  type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
                     handleLogout();
                   }}
-                  className="w-full flex items-center gap-2.5 text-sm px-4 py-2.5 rounded-xl text-rose-600 hover:bg-rose-50 text-left cursor-pointer font-medium"
+                  className="w-full text-left text-sm px-4 py-2 text-rose-600 hover:bg-rose-50 rounded-xl font-medium"
                 >
-                  <LogOut size={16} />
-                  <span>Đăng xuất</span>
+                  Đăng xuất
                 </button>
               </div>
             ) : (
-              <Link
-                to="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="block text-center text-sm px-4 py-2.5 rounded-xl font-semibold bg-[#F7DFBC] text-stone-900"
-              >
-                Đăng nhập
-              </Link>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center text-sm py-2 px-3 border border-stone-300 rounded-xl font-medium text-stone-700"
+                >
+                  Đăng nhập
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center text-sm py-2 px-3 bg-amber-600 text-white rounded-xl font-medium"
+                >
+                  Đăng ký
+                </Link>
+              </div>
             )}
           </div>
         </div>

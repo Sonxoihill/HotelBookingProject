@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     context-path: /api/v1
 
@@ -8,9 +8,9 @@ spring:
     name: hotel-booking-backend
 
   datasource:
-    url: jdbc:mysql://localhost:3308/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
-    username: root
-    password: 123456
+    url: ${DB_URL:jdbc:mysql://localhost:3308/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

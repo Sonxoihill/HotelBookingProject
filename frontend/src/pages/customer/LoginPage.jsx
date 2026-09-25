@@ -45,6 +45,7 @@ export const LoginPage = () => {
     }
 
     setIsLoading(true);
+    setErrorMsg('');
 
     try {
       const response = await loginApi({

@@ -23,7 +23,6 @@ export const CustomerHeader = () => {
   const navLinks = [
     { name: 'Trang chủ', path: '/' },
     { name: 'Danh sách phòng', path: '/rooms' },
-    { name: 'Trải nghiệm dịch vụ', path: '/experiences' },
     { name: 'Đặt phòng của tôi', path: '/my-bookings' },
   ];
 
@@ -59,11 +58,10 @@ export const CustomerHeader = () => {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`px-4 lg:px-5 py-1.5 rounded-full transition-all duration-200 font-medium ${
-                    isActive
+                  className={`px-4 lg:px-5 py-1.5 rounded-full transition-all duration-200 font-medium ${isActive
                       ? 'bg-[#F7DFBC] text-[#2C1E11] font-semibold shadow-2xs'
                       : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/70'
-                  }`}
+                    }`}
                 >
                   {link.name}
                 </Link>
@@ -113,7 +111,7 @@ export const CustomerHeader = () => {
             {/* Mobile menu button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-stone-600 hover:bg-stone-100 rounded-xl md:hidden"
+              className="p-2 text-stone-600 hover:bg-stone-100 rounded-xl md:hidden ml-1"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -132,11 +130,10 @@ export const CustomerHeader = () => {
                 key={link.path}
                 to={link.path}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block text-sm px-4 py-2.5 rounded-xl transition-colors ${
-                  isActive
+                className={`block text-sm px-4 py-2.5 rounded-xl transition-colors ${isActive
                     ? 'bg-[#F7DFBC] text-[#2C1E11] font-semibold'
                     : 'text-stone-700 hover:bg-stone-50'
-                }`}
+                  }`}
               >
                 {link.name}
               </Link>

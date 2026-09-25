@@ -35,6 +35,8 @@ import NotFoundPage from './pages/common/NotFoundPage';
 import ForbiddenPage from './pages/common/ForbiddenPage';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
+import ProtectedRoute from './components/common/ProtectedRoute';
+
 export function App() {
   return (
     <BrowserRouter>

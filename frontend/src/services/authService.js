@@ -39,7 +39,7 @@ export const authService = {
         role: authData.role,
       });
     }
-    return response;
+    return loginData;
   },
 
   // Đăng xuất

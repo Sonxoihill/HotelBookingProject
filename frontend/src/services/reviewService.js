@@ -1,17 +1,27 @@
 import axiosInstance from './axiosInstance';
 
 /**
- * Service xử lý : Đánh giá & Phản hồi
+ * Service quản lý Đánh giá & Phản hồi của khách hàng (lưu & lấy từ Database MySQL)
  */
 export const reviewService = {
-  // Gửi đánh giá cho một đơn đặt phòng sau khi trả phòng
-  createReview: async (reviewData) => {
-    return await axiosInstance.post('/reviews', reviewData);
+  // Lấy danh sách đánh giá của một phòng kèm điểm trung bình từ CSDL
+  getRoomReviews: async (roomId) => {
+    return await axiosInstance.get(`/reviews/room/${roomId}`);
   },
 
-  // Lấy danh sách đánh giá của một phòng cụ thể
-  getRoomReviews: async (roomId, params) => {
-    return await axiosInstance.get(`/rooms/${roomId}/reviews`, { params });
+  // Khách hàng gửi đánh giá mới (lưu trực tiếp vào bảng reviews trong MySQL)
+  createReview: async ({ bookingId, roomId, rating, comment }) => {
+    return await axiosInstance.post('/reviews', {
+      bookingId,
+      roomId,
+      rating,
+      comment,
+    });
+  },
+
+  // Lấy các đánh giá của chính người dùng hiện tại
+  getMyReviews: async () => {
+    return await axiosInstance.get('/reviews/my-reviews');
   },
 };
 

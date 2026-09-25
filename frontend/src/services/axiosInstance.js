@@ -49,7 +49,13 @@ axiosInstance.interceptors.response.use(
         tokenStorage.clearAuth();
       }
 
-      const errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      let errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      if (data?.errors && typeof data.errors === 'object') {
+        const errorList = Object.values(data.errors);
+        if (errorList.length > 0) {
+          errorMessage = errorList.join(', ');
+        }
+      }
       return Promise.reject(new Error(errorMessage));
     }
 

@@ -1,54 +1,82 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { tokenStorage } from '../../utils/tokenStorage';
-import { Hotel, Mail, Lock, LogIn } from 'lucide-react';
+import { authService } from '../../services/authService';
+import { Hotel, Mail, Lock, LogIn, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const validateForm = () => {
+    const nextErrors = {};
+
+    if (!email.trim()) {
+      nextErrors.email = 'Vui lòng nhập địa chỉ email';
+    } else if (!/^[a-zA-Z0-9.]+@gmail\.com$/i.test(email.trim())) {
+      nextErrors.email = 'Email không đúng định dạng, Ví dụ Abc.123@gmail.com';
+    }
+
+    if (!password) {
+      nextErrors.password = 'Vui lòng nhập mật khẩu';
+    } else if (password.length < 6) {
+      nextErrors.password = 'Mật khẩu phải chứa ít nhất 6 ký tự';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setApiError('');
+    setSuccessMsg('');
+
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      // authService.login() tự động lưu token + user vào tokenStorage
+      const authData = await authService.login({
+        email: email.trim(),
+        password: password,
+      });
+
+      setSuccessMsg('Đăng nhập thành công! Đang chuyển hướng...');
+
+      setTimeout(() => {
+        const role = authData?.role;
+        const redirectFrom = location.state?.from?.pathname;
+        if (redirectFrom && (
+          (role === 'ADMIN') ||
+          (role === 'RECEPTIONIST' && !redirectFrom.startsWith('/admin')) ||
+          (!redirectFrom.startsWith('/admin') && !redirectFrom.startsWith('/receptionist'))
+        )) {
+          navigate(redirectFrom, { replace: true });
+        } else if (role === 'ADMIN') {
+          navigate('/admin', { replace: true });
+        } else if (role === 'RECEPTIONIST') {
+          navigate('/receptionist', { replace: true });
+        } else {
+          navigate('/', { replace: true });
+        }
+      }, 700);
+    } catch (err) {
+      setApiError(err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.');
+    } finally {
       setIsLoading(false);
-      // Giả lập đăng nhập thành công với JWT token
-      const mockToken = 'mock-jwt-token-hotel-booking-' + Date.now();
-      
-      // Tự động phân quyền dựa trên email người dùng nhập
-      let role = 'CUSTOMER';
-      let fullName = 'Nguyễn Khách Hàng';
-      if (email.includes('admin')) {
-        role = 'ADMIN';
-        fullName = 'Trần Quản Lý (Admin)';
-      } else if (email.includes('reception') || email.includes('letan')) {
-        role = 'RECEPTIONIST';
-        fullName = 'Lê Lễ Tân (Ca Trực)';
-      }
-
-      const mockUser = {
-        email,
-        fullName,
-        role,
-      };
-
-      tokenStorage.setToken(mockToken);
-      tokenStorage.setUser(mockUser);
-
-      // Điều hướng theo Role
-      if (role === 'ADMIN') {
-        navigate('/admin');
-      } else if (role === 'RECEPTIONIST') {
-        navigate('/receptionist');
-      } else {
-        navigate('/');
-      }
-    }, 600);
+    }
   };
 
   return (
@@ -65,25 +93,51 @@ export const LoginPage = () => {
           </p>
         </div>
 
+        {/* Global Error Banner */}
+        {apiError && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2.5 animate-in fade-in duration-200">
+            <AlertCircle size={16} className="shrink-0 text-rose-500" />
+            <span>{apiError}</span>
+          </div>
+        )}
+
+        {/* Success Banner */}
+        {successMsg && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2.5 animate-in fade-in duration-200">
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Input
-            label="Địa chỉ Email"
+            id="login-email"
+            label="Địa chỉ Email *"
             type="email"
             icon={Mail}
-            placeholder="example@domain.com"
+            placeholder="example@gmail.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            error={errors.email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors((prev) => ({ ...prev, email: '' }));
+            }}
             required
           />
 
           <Input
-            label="Mật khẩu"
+            id="login-password"
+            label="Mật khẩu *"
             type="password"
             icon={Lock}
             placeholder="••••••••"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            error={errors.password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password) setErrors((prev) => ({ ...prev, password: '' }));
+            }}
             required
           />
 
@@ -99,7 +153,7 @@ export const LoginPage = () => {
             type="submit"
             variant="primary"
             isLoading={isLoading}
-            className="w-full py-2.5 text-sm font-bold gap-2"
+            className="w-full py-2.5 text-sm font-bold gap-2 mt-2"
           >
             <LogIn size={16} />
             <span>Đăng Nhập</span>

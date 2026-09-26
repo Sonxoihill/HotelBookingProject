@@ -25,7 +25,37 @@ public class Room extends BaseEntity {
     @Builder.Default
     private RoomStatus status = RoomStatus.AVAILABLE;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id", nullable = false)
     private RoomCategory category;
+
+    @Transient
+    public String getImageUrl() {
+        return category != null ? category.getImageUrl() : null;
+    }
+
+    @Transient
+    public String getCategoryName() {
+        return category != null ? category.getName() : null;
+    }
+
+    @Transient
+    public java.math.BigDecimal getBasePrice() {
+        return category != null ? category.getBasePrice() : null;
+    }
+
+    @Transient
+    public Integer getCapacity() {
+        return category != null ? category.getCapacity() : null;
+    }
+
+    @Transient
+    public String getBedType() {
+        return category != null ? category.getBedType() : null;
+    }
+
+    @Transient
+    public String getDescription() {
+        return category != null ? category.getDescription() : null;
+    }
 }

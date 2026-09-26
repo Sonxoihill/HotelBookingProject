@@ -9,6 +9,11 @@ import axiosInstance from './axiosInstance';
  * - Quản lý Loại phòng & Phòng (Admin)
  */
 export const roomService = {
+  // Lấy danh sách phòng công khai có phân trang (Trang chủ / Danh sách phòng)
+  getPublicRooms: async (params) => {
+    return await axiosInstance.get('/rooms/public', { params });
+  },
+
   // Lấy danh sách phòng có bộ lọc (ngày check-in, check-out, số người, hạng phòng, khoảng giá)
   getRooms: async (params) => {
     return await axiosInstance.get('/rooms', { params });

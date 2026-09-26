@@ -7,7 +7,7 @@ import { User, Mail, Phone, MapPin, ShieldCheck, Lock } from 'lucide-react';
 export const ProfilePage = () => {
   const user = tokenStorage.getUser() || {
     fullName: 'Nguyễn Văn An',
-    email: 'an.nguyen@gmail.com',
+    email: 'an.nguyen@example.com',
     phone: '0912345678',
     address: 'Hải Châu, Đà Nẵng',
   };

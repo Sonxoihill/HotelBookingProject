@@ -2,42 +2,22 @@ import axiosInstance from './axiosInstance';
 import { tokenStorage } from '../utils/tokenStorage';
 
 /**
- * Service xử lý Xác thực (Đăng ký, Đăng nhập, Đăng xuất)
+ * Service xử lý  (Đăng ký) và  (Đăng nhập / Đăng xuất)
  */
-
-// Hàm API đăng nhập (SCRUM-36)
-export const loginApi = async (data) => {
-  return await axiosInstance.post('/auth/login', data);
-};
-
-// Hàm API đăng ký (SCRUM-36)
-export const registerApi = async (data) => {
-  return await axiosInstance.post('/auth/register', data);
-};
-
 export const authService = {
-  loginApi,
-  registerApi,
-
   // Đăng ký tài khoản khách hàng mới
   register: async (userData) => {
-    return await registerApi(userData);
+    return await axiosInstance.post('/auth/register', userData);
   },
 
-  // Đăng nhập và tự động lưu session vào tokenStorage
+  // Đăng nhập
   login: async (credentials) => {
-    const response = await loginApi(credentials);
-    const authData = response?.data || response;
-    if (authData?.token) {
-      tokenStorage.setToken(authData.token);
+    const response = await axiosInstance.post('/auth/login', credentials);
+    if (response?.token) {
+      tokenStorage.setToken(response.token);
     }
-    if (authData?.email) {
-      tokenStorage.setUser({
-        id: authData.id,
-        email: authData.email,
-        fullName: authData.fullName,
-        role: authData.role,
-      });
+    if (response?.user) {
+      tokenStorage.setUser(response.user);
     }
     return response;
   },

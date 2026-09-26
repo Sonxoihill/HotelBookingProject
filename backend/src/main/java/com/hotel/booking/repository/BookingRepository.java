@@ -12,7 +12,4 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByUserId(Long userId);
     List<Booking> findByRoomId(Long roomId);
     List<Booking> findByStatus(BookingStatus status);
-
-    @org.springframework.data.jpa.repository.Query("SELECT b FROM Booking b JOIN FETCH b.room r JOIN FETCH r.category c WHERE b.user.id = :userId ORDER BY b.createdAt DESC")
-    List<Booking> findMyBookings(@org.springframework.data.repository.query.Param("userId") Long userId);
 }

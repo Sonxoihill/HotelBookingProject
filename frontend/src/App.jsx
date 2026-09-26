@@ -34,8 +34,6 @@ import StaffManagementPage from './pages/admin/StaffManagementPage';
 import NotFoundPage from './pages/common/NotFoundPage';
 import UnauthorizedPage from './pages/common/UnauthorizedPage';
 
-import ProtectedRoute from './components/common/ProtectedRoute';
-
 export function App() {
   return (
     <BrowserRouter>
@@ -59,25 +57,11 @@ export function App() {
           {/* Đặt phòng & Cổng thanh toán */}
           <Route path="booking-payment" element={<BookingPaymentPage />} />
 
-          {/* Lịch sử đặt phòng: Đặt phòng của tôi (Bảo vệ bằng ProtectedRoute) */}
-          <Route
-            path="my-bookings"
-            element={
-              <ProtectedRoute>
-                <BookingHistoryPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Lịch sử đặt phòng & : Đánh giá & Phản hồi */}
+          <Route path="my-bookings" element={<BookingHistoryPage />} />
 
-          {/* Quản lý hồ sơ cá nhân (SCRUM-38: Bảo vệ bằng ProtectedRoute) */}
-          <Route
-            path="profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Quản lý hồ sơ cá nhân */}
+          <Route path="profile" element={<ProfilePage />} />
 
           {/* Đăng nhập */}
           <Route path="login" element={<LoginPage />} />

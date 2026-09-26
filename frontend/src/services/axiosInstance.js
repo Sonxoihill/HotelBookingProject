@@ -49,16 +49,14 @@ axiosInstance.interceptors.response.use(
         tokenStorage.clearAuth();
       }
 
-      if (status === 403) {
-        console.warn('Truy cập bị từ chối: Tài khoản không có quyền hạn cần thiết (403 Forbidden).');
+      let errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      if (data?.errors && typeof data.errors === 'object') {
+        const errorList = Object.values(data.errors);
+        if (errorList.length > 0) {
+          errorMessage = errorList.join(', ');
+        }
       }
-
-      const errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
-      const customError = new Error(errorMessage);
-      customError.status = status;
-      customError.errors = data?.errors;
-      customError.data = data;
-      return Promise.reject(customError);
+      return Promise.reject(new Error(errorMessage));
     }
 
     return Promise.reject(error);

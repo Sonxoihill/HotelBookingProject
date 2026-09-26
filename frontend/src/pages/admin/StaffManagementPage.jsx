@@ -24,7 +24,7 @@ const INITIAL_STAFF = [
   {
     id: 1,
     name: 'Mai Huyền Trâm',
-    email: 'huyen.tram@gmail.com',
+    email: 'huyen.tram@letoile-resort.vn',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
     code: '0842',
     department: 'Lễ tân chính',
@@ -39,7 +39,7 @@ const INITIAL_STAFF = [
   {
     id: 2,
     name: 'Lê Thị Thảo',
-    email: 'thao.le@gmail.com',
+    email: 'thao.le@letoile-resort.vn',
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&auto=format&fit=crop&q=80',
     code: '0512',
     department: 'Tổ trưởng Buồng phòng',
@@ -54,7 +54,7 @@ const INITIAL_STAFF = [
   {
     id: 3,
     name: 'Vũ Mạnh Cường',
-    email: 'cuong.vu@gmail.com',
+    email: 'cuong.vu@letoile-resort.vn',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
     code: '0630',
     department: 'Nhân viên Buồng phòng',
@@ -69,7 +69,7 @@ const INITIAL_STAFF = [
   {
     id: 4,
     name: 'Trần Quốc Bảo',
-    email: 'bao.tran@gmail.com',
+    email: 'bao.tran@letoile-resort.vn',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
     code: '0219',
     department: 'Kỹ thuật viên MEP',
@@ -84,7 +84,7 @@ const INITIAL_STAFF = [
   {
     id: 5,
     name: 'Phan Anh Tuấn',
-    email: 'tuan.phan@gmail.com',
+    email: 'tuan.phan@letoile-resort.vn',
     avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=120&auto=format&fit=crop&q=80',
     code: '0311',
     department: 'Quản gia riêng Biệt thự',

@@ -1,93 +1,86 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, BedDouble, Star } from 'lucide-react';
+import { Users, Maximize2, Wifi, Coffee, Star } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 
 export const RoomCard = ({ room }) => {
-  if (!room) return null;
-
-  const id = room.id;
-  const roomNumber = room.roomNumber || '';
-  const floor = room.floor;
-  const status = room.status || 'AVAILABLE';
-  const category = room.category || {};
-
-  const name = category.name ? `${category.name} (Phòng ${roomNumber})` : `Phòng ${roomNumber}`;
-  const roomType = category.name || 'Tiêu chuẩn';
-  const pricePerNight = category.basePrice || room.basePrice || 0;
-  const maxGuests = category.capacity || room.capacity || 2;
-  const bedType = category.bedType || room.bedType || 'Giường tiêu chuẩn';
-  const description = category.description || room.description || '';
-  const imageUrl = category.imageUrl || room.imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427';
-  const isAvailable = status === 'AVAILABLE';
+  const {
+    id = 1,
+    name = 'Deluxe Ocean View Room',
+    roomType = 'Deluxe',
+    pricePerNight = 1250000,
+    maxGuests = 2,
+    sizeSqM = 35,
+    rating = 4.9,
+    reviewsCount = 48,
+    imageUrl = 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=800&q=80',
+    amenities = ['Wi-Fi tốc độ cao', 'Bữa sáng miễn phí', 'Ban công view biển'],
+    isAvailable = true,
+  } = room || {};
 
   return (
-    <div className="bg-white rounded-3xl border border-stone-200/90 shadow-2xs hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group">
       {/* Image & Badges */}
-      <div className="relative aspect-[16/11] overflow-hidden bg-stone-100">
+      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
         <img
           src={imageUrl}
           alt={name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
         />
         <div className="absolute top-3 left-3 flex gap-2">
           <Badge variant="amber">{roomType}</Badge>
-          {!isAvailable && <Badge variant="rose">Đã đặt</Badge>}
+          {!isAvailable && <Badge variant="rose">Hết phòng</Badge>}
         </div>
-        <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-xs text-white text-[10px] tracking-wider uppercase font-semibold px-2.5 py-0.5 rounded-full">
-          Tầng {floor || 1}
+        <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-xs font-bold text-slate-800 flex items-center gap-1 shadow-xs">
+          <Star size={13} className="text-amber-500 fill-amber-500" />
+          <span>{rating}</span>
+          <span className="text-slate-400 font-normal">({reviewsCount})</span>
         </div>
       </div>
 
       {/* Details */}
-      <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-        <div className="space-y-2">
-          <h3 className="font-serif text-lg font-medium text-stone-900 group-hover:text-amber-800 transition-colors line-clamp-1">
+      <div className="p-5 flex-1 flex flex-col justify-between">
+        <div>
+          <h3 className="font-bold text-lg text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-1">
             {name}
           </h3>
 
-          {description && (
-            <p className="text-xs text-stone-500 line-clamp-2 font-light leading-relaxed">
-              {description}
-            </p>
-          )}
+          <div className="flex items-center gap-4 mt-2.5 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <Users size={14} className="text-slate-400" /> {maxGuests} Khách
+            </span>
+            <span className="flex items-center gap-1">
+              <Maximize2 size={14} className="text-slate-400" /> {sizeSqM} m²
+            </span>
+          </div>
 
-          <div className="flex items-center gap-4 text-xs text-stone-600 pt-2 border-t border-stone-100">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Users size={14} className="text-stone-400" /> {maxGuests} Khách
-            </span>
-            <span>•</span>
-            <span className="flex items-center gap-1.5 font-medium">
-              <BedDouble size={14} className="text-stone-400" /> {bedType}
-            </span>
+          {/* Amenities tags */}
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {amenities.slice(0, 3).map((item, idx) => (
+              <span
+                key={idx}
+                className="text-[11px] px-2 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-100"
+              >
+                {item}
+              </span>
+            ))}
           </div>
         </div>
 
         {/* Pricing & CTA */}
-        <div className="pt-4 border-t border-stone-100 flex items-center justify-between gap-2">
+        <div className="pt-5 mt-4 border-t border-slate-100 flex items-center justify-between">
           <div>
-            <span className="text-[10px] tracking-wider text-stone-400 uppercase block">
-              Giá mỗi đêm từ
-            </span>
-            <span className="text-base sm:text-lg font-bold text-stone-900 font-serif">
-              {formatVND(pricePerNight)}
-            </span>
+            <span className="text-xs text-slate-400 block">Giá mỗi đêm từ</span>
+            <span className="text-lg font-bold text-amber-600">{formatVND(pricePerNight)}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Link to={`/rooms/${id}`}>
-              <Button variant="outline" size="sm" className="rounded-full px-3 text-xs font-semibold hover:border-stone-400">
-                Xem chi tiết
-              </Button>
-            </Link>
-            <Link to={`/booking-payment?roomId=${id}`}>
-              <Button variant="primary" size="sm" className="rounded-full px-3 text-xs font-semibold bg-[#C59D5F] hover:bg-[#b08b50] text-white">
-                Đặt ngay
-              </Button>
-            </Link>
-          </div>
+          <Link to={`/rooms/${id}`}>
+            <Button variant="primary" size="sm">
+              Xem phòng
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

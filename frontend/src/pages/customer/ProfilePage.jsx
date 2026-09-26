@@ -7,12 +7,126 @@ import { tokenStorage } from '../../utils/tokenStorage';
 import { User, Mail, Phone, ShieldCheck, AlertCircle, CheckCircle2, Loader2, Lock, Eye, EyeOff, Check } from 'lucide-react';
 
 export const ProfilePage = () => {
-  const user = tokenStorage.getUser() || {
-    fullName: 'Nguyễn Văn An',
-    email: 'an.nguyen@gmail.com',
-    phone: '0912345678',
-    address: 'Hải Châu, Đà Nẵng',
-  };
+  const navigate = useNavigate();
+
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    role: '',
+    status: '',
+  });
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // State quản lý Đổi Mật Khẩu
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showPassword, setShowPassword] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  // Ràng buộc bảo mật mật khẩu
+  const isLengthValid = passwordData.newPassword.length >= 8;
+  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(passwordData.newPassword);
+  const isMatch = passwordData.confirmPassword.length > 0 && passwordData.newPassword === passwordData.confirmPassword;
+
+  // Tải dữ liệu thật từ Database qua API GET /users/profile khi component mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setIsLoading(true);
+      setErrorMessage('');
+      try {
+        const response = await userService.getProfile();
+        const profile = response?.data || response;
+        if (profile) {
+          setFormData({
+            fullName: profile.fullName || '',
+            email: profile.email || '',
+            phone: profile.phone || '',
+            role: profile.role || 'GUEST',
+            status: profile.status || 'ACTIVE',
+          });
+          // Cập nhật lại thông tin đồng bộ trong localStorage
+          const existingUser = tokenStorage.getUser() || {};
+          tokenStorage.setUser({
+            ...existingUser,
+            fullName: profile.fullName,
+            email: profile.email,
+            phone: profile.phone,
+            role: profile.role,
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải thông tin hồ sơ:', err);
+        const errMsg = err.message || 'Không thể tải thông tin hồ sơ.';
+        if (errMsg.includes('401') || errMsg.toLowerCase().includes('phiên đăng nhập')) {
+          tokenStorage.clearAuth();
+          navigate('/login');
+          return;
+        }
+        setErrorMessage(errMsg);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [navigate]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSuccessMessage('');
+    setErrorMessage('');
+
+    if (!formData.fullName || !formData.fullName.trim()) {
+      setErrorMessage('Họ và tên không được để trống!');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const phoneTrimmed = formData.phone ? formData.phone.trim() : '';
+    if (!phoneTrimmed) {
+      setErrorMessage('Số điện thoại không được để trống!');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Ràng buộc số điện thoại: Bắt đầu bằng 0 (đủ 10 số) hoặc +84 và 9 số sau (0-9)
+    const phoneRegex = /^(0[0-9]{9}|\+84[0-9]{9})$/;
+    if (!phoneRegex.test(phoneTrimmed)) {
+      setErrorMessage(
+        'Số điện thoại không hợp lệ! Số điện thoại bắt buộc phải là 10 số (bắt đầu bằng 0 và 9 số sau từ 0-9) hoặc bắt đầu bằng +84 và 9 số sau (0-9).'
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      // Cập nhật Họ và tên và Số điện thoại vào database
+      const response = await userService.updateProfile({
+        fullName: formData.fullName.trim(),
+        phone: phoneTrimmed,
+      });
+
+      const updated = response?.data || response;
+      setFormData((prev) => ({
+        ...prev,
+        fullName: updated.fullName || prev.fullName,
+        phone: updated.phone || prev.phone,
+      }));
 
       // Cập nhật user trong localStorage
       const existingUser = tokenStorage.getUser() || {};

@@ -1,92 +1,39 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { tokenStorage } from '../../utils/tokenStorage';
-import { loginApi } from '../../services/authService';
-import { Hotel, Mail, Lock, LogIn, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { authService } from '../../services/authService';
+import { Hotel, Mail, Lock, LogIn } from 'lucide-react';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState({});
-  const [apiError, setApiError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const validateForm = () => {
-    const nextErrors = {};
-
-    if (!email.trim()) {
-      nextErrors.email = 'Vui lòng nhập địa chỉ email';
-    } else if (!/^[a-zA-Z0-9.]+@gmail\.com$/i.test(email.trim())) {
-      nextErrors.email = 'Email không đúng định dạng, Ví dụ Abc.123@gmail.com';
-    }
-
-    if (!password) {
-      nextErrors.password = 'Vui lòng nhập mật khẩu';
-    } else if (password.length < 6) {
-      nextErrors.password = 'Mật khẩu phải chứa ít nhất 6 ký tự';
-    }
-
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  };
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setApiError('');
-    setSuccessMsg('');
-
-    if (!validateForm()) {
-      return;
-    }
-
     setIsLoading(true);
     setErrorMsg('');
 
     try {
-      const response = await loginApi({
-        email: email.trim(),
-        password: password,
-      });
+      const response = await authService.login({ email, password });
+      const user = response?.user || tokenStorage.getUser();
+      const role = user?.role;
 
-      const authData = response?.data || response;
-      if (authData?.token) {
-        tokenStorage.setToken(authData.token);
+      if (role === 'ADMIN') {
+        navigate('/admin');
+      } else if (role === 'RECEPTIONIST') {
+        navigate('/receptionist');
+      } else {
+        navigate('/');
       }
-      if (authData?.email) {
-        tokenStorage.setUser({
-          id: authData.id,
-          email: authData.email,
-          fullName: authData.fullName,
-          role: authData.role,
-        });
-      }
-
-      setSuccessMsg('Đăng nhập thành công! Đang chuyển hướng...');
-
-      setTimeout(() => {
-        const role = authData?.role;
-        const redirectFrom = location.state?.from?.pathname;
-        if (redirectFrom && (
-          (role === 'ADMIN') ||
-          (role === 'RECEPTIONIST' && !redirectFrom.startsWith('/admin')) ||
-          (!redirectFrom.startsWith('/admin') && !redirectFrom.startsWith('/receptionist'))
-        )) {
-          navigate(redirectFrom, { replace: true });
-        } else if (role === 'ADMIN') {
-          navigate('/admin', { replace: true });
-        } else if (role === 'RECEPTIONIST') {
-          navigate('/receptionist', { replace: true });
-        } else {
-          navigate('/', { replace: true });
-        }
-      }, 700);
     } catch (err) {
-      setApiError(err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.');
+      console.error('Login error:', err);
+      setErrorMsg(err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại email/mật khẩu!');
     } finally {
       setIsLoading(false);
     }
@@ -106,51 +53,30 @@ export const LoginPage = () => {
           </p>
         </div>
 
-        {/* Global Error Banner */}
-        {apiError && (
-          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2.5 animate-in fade-in duration-200">
-            <AlertCircle size={16} className="shrink-0 text-rose-500" />
-            <span>{apiError}</span>
-          </div>
-        )}
-
-        {/* Success Banner */}
-        {successMsg && (
-          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2.5 animate-in fade-in duration-200">
-            <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
         {/* Login Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold">
+              {errorMsg}
+            </div>
+          )}
           <Input
-            id="login-email"
-            label="Địa chỉ Email *"
+            label="Địa chỉ Email"
             type="email"
             icon={Mail}
-            placeholder="example@gmail.com"
+            placeholder="example@domain.com"
             value={email}
-            error={errors.email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (errors.email) setErrors((prev) => ({ ...prev, email: '' }));
-            }}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
 
           <Input
-            id="login-password"
-            label="Mật khẩu *"
+            label="Mật khẩu"
             type="password"
             icon={Lock}
             placeholder="••••••••"
             value={password}
-            error={errors.password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (errors.password) setErrors((prev) => ({ ...prev, password: '' }));
-            }}
+            onChange={(e) => setPassword(e.target.value)}
             required
           />
 
@@ -166,7 +92,7 @@ export const LoginPage = () => {
             type="submit"
             variant="primary"
             isLoading={isLoading}
-            className="w-full py-2.5 text-sm font-bold gap-2 mt-2"
+            className="w-full py-2.5 text-sm font-bold gap-2"
           >
             <LogIn size={16} />
             <span>Đăng Nhập</span>

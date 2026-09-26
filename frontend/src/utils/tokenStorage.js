@@ -59,50 +59,6 @@ export const tokenStorage = {
     tokenStorage.removeToken();
     tokenStorage.removeUser();
   },
-
-  getDecodedToken: () => {
-    try {
-      const token = tokenStorage.getToken();
-      if (!token) return null;
-      const parts = token.split('.');
-      if (parts.length !== 3) return null;
-      const base64Url = parts[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch {
-      return null;
-    }
-  },
-
-  isTokenExpired: () => {
-    const decoded = tokenStorage.getDecodedToken();
-    if (!decoded || !decoded.exp) return true;
-    return decoded.exp * 1000 <= Date.now();
-  },
-
-  getUserRole: () => {
-    // Ưu tiên đọc role trực tiếp từ chữ ký payload của JWT token để đảm bảo tính xác thực
-    const decoded = tokenStorage.getDecodedToken();
-    if (decoded?.role) return decoded.role;
-    const user = tokenStorage.getUser();
-    return user?.role || null;
-  },
-
-  isAuthenticated: () => {
-    const token = tokenStorage.getToken();
-    if (!token) return false;
-    if (tokenStorage.isTokenExpired()) {
-      tokenStorage.clearAuth();
-      return false;
-    }
-    return true;
-  },
 };
 
 export default tokenStorage;

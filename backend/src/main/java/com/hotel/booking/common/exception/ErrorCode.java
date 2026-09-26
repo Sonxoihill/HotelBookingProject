@@ -30,7 +30,6 @@ public enum ErrorCode {
     // 409 Conflict
     CONFLICT(HttpStatus.CONFLICT, "Dữ liệu đã tồn tại hoặc bị xung đột"),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "Email đã được sử dụng"),
-    PHONE_ALREADY_EXISTS(HttpStatus.CONFLICT, "Số điện thoại đã được sử dụng"),
 
     // 500 Internal Server Error
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã xảy ra lỗi máy chủ nội bộ");

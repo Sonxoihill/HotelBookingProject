@@ -58,7 +58,7 @@ export const BookingPaymentPage = () => {
   const [formData, setFormData] = useState({
     fullName: 'Nguyễn Văn An',
     phone: queryPhone,
-    email: 'an.nguyen@gmail.com',
+    email: 'an.nguyen@example.com',
     specialRequests: 'Yêu cầu phòng tầng cao, view biển thoáng mát.',
   });
 
@@ -351,7 +351,7 @@ export const BookingPaymentPage = () => {
                   <Input
                     label="Email nhận hóa đơn *"
                     type="email"
-                    placeholder="email@gmail.com"
+                    placeholder="email@example.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required

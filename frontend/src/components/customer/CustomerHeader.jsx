@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, User, LogOut } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, User } from 'lucide-react';
 import { tokenStorage } from '../../utils/tokenStorage';
 import { authService } from '../../services/authService';
 
@@ -86,20 +86,23 @@ export const CustomerHeader = () => {
             })}
           </nav>
 
-          {/* Right: Khi đã đăng nhập thì có Nút hồ sơ cá nhân và Nút đăng xuất góc trong cùng bên phải; khi đăng xuất thì chuyển thành Nút đăng nhập */}
+          {/* Right: Khi đã đăng nhập thì có Nút hồ sơ cá nhân và Nút đăng xuất; khi đăng xuất thì chuyển thành Nút đăng nhập */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {isLoggedIn ? (
+            {currentUser ? (
               <>
-                {/* Nút hồ sơ cá nhân */}
+                {/* Nút hồ sơ cá nhân với avatar chữ cái đầu */}
                 <Link
                   to="/profile"
                   title={currentUser?.fullName ? `Hồ sơ cá nhân: ${currentUser.fullName}` : 'Hồ sơ cá nhân'}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-stone-300 hover:border-amber-500 transition-all hover:scale-105 shadow-xs flex items-center justify-center bg-stone-100 shrink-0"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-100 hover:bg-stone-200 transition-colors text-xs font-semibold text-stone-800"
                 >
-                  <User size={18} className="text-stone-700" />
+                  <div className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold text-[10px]">
+                    {currentUser.fullName ? currentUser.fullName[0].toUpperCase() : 'U'}
+                  </div>
+                  <span className="hidden sm:inline max-w-[120px] truncate">{currentUser.fullName}</span>
                 </Link>
 
-                {/* Nút đăng xuất bên cạnh nút hồ sơ cá nhân ở góc trong cùng bên phải */}
+                {/* Nút đăng xuất */}
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -111,13 +114,21 @@ export const CustomerHeader = () => {
                 </button>
               </>
             ) : (
-              /* Nút đăng nhập hiển thị khi chưa đăng nhập hoặc khi đã ấn đăng xuất */
-              <Link
-                to="/login"
-                className="px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-stone-900 bg-[#F7DFBC] hover:bg-[#ebd0a7] transition-all shadow-2xs hover:shadow-xs"
-              >
-                Đăng nhập
-              </Link>
+              /* Nút đăng nhập + đăng ký khi chưa đăng nhập */
+              <div className="hidden sm:flex items-center gap-2">
+                <Link
+                  to="/login"
+                  className="px-4 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-900 transition-colors"
+                >
+                  Đăng Nhập
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-full bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors"
+                >
+                  Đăng Ký
+                </Link>
+              </div>
             )}
 
             {/* Mobile menu button */}
@@ -152,8 +163,8 @@ export const CustomerHeader = () => {
             );
           })}
 
-          <div className="pt-2 border-t border-stone-100">
-            {isLoggedIn ? (
+          <div className="pt-2 border-t border-stone-100 mt-2">
+            {currentUser ? (
               <div className="space-y-1">
                 <Link
                   to="/profile"
@@ -176,13 +187,22 @@ export const CustomerHeader = () => {
                 </button>
               </div>
             ) : (
-              <Link
-                to="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="block text-center text-sm px-4 py-2.5 rounded-xl font-semibold bg-[#F7DFBC] text-stone-900"
-              >
-                Đăng nhập
-              </Link>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center text-sm py-2 px-3 border border-stone-300 rounded-xl font-medium text-stone-700"
+                >
+                  Đăng nhập
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center text-sm py-2 px-3 bg-amber-600 text-white rounded-xl font-medium"
+                >
+                  Đăng ký
+                </Link>
+              </div>
             )}
           </div>
         </div>

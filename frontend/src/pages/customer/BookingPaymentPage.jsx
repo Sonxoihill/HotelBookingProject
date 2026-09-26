@@ -441,7 +441,7 @@ export const BookingPaymentPage = () => {
                   <Input
                     label="Email nhận hóa đơn *"
                     type="email"
-                    placeholder="email@example.com"
+                    placeholder="email@gmail.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required

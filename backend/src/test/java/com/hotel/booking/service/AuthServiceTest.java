@@ -96,8 +96,8 @@ class AuthServiceTest {
                 .phone("0901234567")
                 .build();
 
-        com.hotel.booking.common.exception.BadRequestException ex =
-                assertThrows(com.hotel.booking.common.exception.BadRequestException.class, () -> authService.register(request));
+        com.hotel.booking.common.exception.BadRequestException ex = assertThrows(
+                com.hotel.booking.common.exception.BadRequestException.class, () -> authService.register(request));
         assertEquals("Mật khẩu xác nhận không trùng khớp", ex.getMessage());
         verify(userRepository, never()).save(any(User.class));
     }

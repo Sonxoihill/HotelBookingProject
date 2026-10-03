@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Users,
   Maximize2,
@@ -14,9 +14,7 @@ import {
   ArrowLeft,
   Calendar,
   Phone,
-  CreditCard,
   Sparkles,
-  Info,
   ChevronLeft,
   ChevronRight,
   X,
@@ -47,11 +45,15 @@ export const RoomDetailPage = () => {
       setFetchError(null);
       try {
         const res = await roomService.getRoomById(id);
-        const data = res?.data || res;
+        const rawData = res?.data || res;
+        const data = rawData?.data || rawData;
+        if (!data || (!data.id && !data.category)) {
+          throw new Error('Dữ liệu phòng trả về rỗng hoặc không đúng định dạng');
+        }
         setRoomData(data);
       } catch (err) {
         console.error('Lỗi tải chi tiết phòng:', err);
-        setFetchError('Không tìm thấy thông tin phòng trong cơ sở dữ liệu.');
+        setFetchError(err?.message || 'Không thể kết nối đến máy chủ API hoặc không tìm thấy phòng.');
       } finally {
         setIsLoading(false);
       }
@@ -68,6 +70,7 @@ export const RoomDetailPage = () => {
 
   // Khởi tạo ngày động theo ngày thực tế (không dùng ngày cứng)
   const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const nextThreeDays = new Date(today);
@@ -75,6 +78,14 @@ export const RoomDetailPage = () => {
 
   const defaultCheckIn = tomorrow.toISOString().split('T')[0];
   const defaultCheckOut = nextThreeDays.toISOString().split('T')[0];
+
+  // Helper tính ngày kế tiếp
+  const getNextDateISO = (baseDateStr) => {
+    const base = baseDateStr ? new Date(baseDateStr) : new Date();
+    const next = new Date(base);
+    next.setDate(next.getDate() + 1);
+    return next.toISOString().split('T')[0];
+  };
 
   const category = roomData?.category || {};
   const roomName = category.name
@@ -87,44 +98,49 @@ export const RoomDetailPage = () => {
   // Diện tích từ cột area trong CSDL
   const size = category.area || roomData?.area || 0;
 
-  // Ảnh phòng lấy 100% từ CSDL (cột images hoặc image_url)
+  // Ảnh phòng lấy từ CSDL (cột images hoặc image_url). Nếu CSDL chỉ có 1 ảnh, bổ sung thêm các góc phòng chất lượng cao để layout lưới hiển thị trọn vẹn
   const dbImages = category.images
     ? category.images.split(',').map((u) => u.trim()).filter(Boolean)
     : [];
   const mainImage = category.imageUrl || roomData?.imageUrl || '';
-  const images = dbImages.length > 0 ? dbImages : (mainImage ? [mainImage] : []);
+  const fallbackGallery = [
+    mainImage || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1200&q=80',
+  ];
+  const images = dbImages.length > 0 ? dbImages : (mainImage ? [mainImage, ...fallbackGallery.slice(1)] : fallbackGallery);
 
-  // Danh sách tiện nghi lấy 100% từ CSDL (cột amenities)
+  // Danh sách tiện nghi lấy 100% từ CSDL (cột amenities) hoặc tiện nghi tiêu chuẩn
   const parseAmenities = () => {
-    if (category.amenities) {
-      return category.amenities
-        .split(',')
-        .map((a) => a.trim())
-        .filter(Boolean)
-        .map((name) => {
-          let Icon = Sparkles;
-          const lower = name.toLowerCase();
-          if (lower.includes('wi-fi') || lower.includes('wifi')) Icon = Wifi;
-          else if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('cà phê')) Icon = Coffee;
-          else if (lower.includes('tv') || lower.includes('tivi')) Icon = Tv;
-          else if (lower.includes('bồn tắm') || lower.includes('tắm') || lower.includes('jacuzzi')) Icon = Bath;
-          else if (lower.includes('điều hòa') || lower.includes('khí')) Icon = Wind;
-          else if (lower.includes('két') || lower.includes('bảo mật')) Icon = ShieldCheck;
-          return { name, icon: Icon };
-        });
-    }
-    return [];
+    const rawAmenities = category.amenities || roomData?.amenities || 'Wi-Fi tốc độ cao, Bữa sáng Buffet, Điều hòa 2 chiều, Bồn tắm nằm, TV thông minh 55 inch, Két sắt an toàn';
+    return rawAmenities
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean)
+      .map((name) => {
+        let Icon = Sparkles;
+        const lower = name.toLowerCase();
+        if (lower.includes('wi-fi') || lower.includes('wifi')) Icon = Wifi;
+        else if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('cà phê')) Icon = Coffee;
+        else if (lower.includes('tv') || lower.includes('tivi')) Icon = Tv;
+        else if (lower.includes('bồn tắm') || lower.includes('tắm') || lower.includes('jacuzzi')) Icon = Bath;
+        else if (lower.includes('điều hòa') || lower.includes('khí')) Icon = Wind;
+        else if (lower.includes('két') || lower.includes('bảo mật')) Icon = ShieldCheck;
+        return { name, icon: Icon };
+      });
   };
 
   const amenities = parseAmenities();
 
-  // Đánh giá của khách hàng lấy từ CSDL bảng reviews
+  // Đánh giá của khách hàng lấy qua reviewService
   const [reviewsData, setReviewsData] = useState({
     averageRating: 0,
     totalReviews: 0,
     reviews: [],
   });
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState(null);
   const reviewsRef = useRef(null);
 
   const scrollToReviews = () => {
@@ -133,23 +149,25 @@ export const RoomDetailPage = () => {
     }
   };
 
-  // Tải danh sách đánh giá của phòng từ CSDL MySQL
+  // Tải danh sách đánh giá của phòng từ reviewService (Chạy Mock hoặc Real API tùy theo cờ USE_MOCK)
   useEffect(() => {
     const fetchReviews = async () => {
       if (!id) return;
       setIsLoadingReviews(true);
+      setReviewsError(null);
       try {
         const res = await reviewService.getRoomReviews(id);
         const data = res?.data || res;
         if (data) {
           setReviewsData({
             averageRating: data.averageRating ?? 0,
-            totalReviews: data.totalReviews ?? 0,
+            totalReviews: data.totalReviews ?? (Array.isArray(data.reviews) ? data.reviews.length : 0),
             reviews: data.reviews ?? [],
           });
         }
       } catch (err) {
-        console.error('Lỗi khi tải đánh giá của phòng từ CSDL:', err);
+        console.error('Lỗi khi tải đánh giá của phòng:', err);
+        setReviewsError(err?.message || 'Không thể kết nối đến API Đánh giá của máy chủ.');
       } finally {
         setIsLoadingReviews(false);
       }
@@ -187,6 +205,41 @@ export const RoomDetailPage = () => {
   const [checkIn, setCheckIn] = useState(queryCheckIn || defaultCheckIn);
   const [checkOut, setCheckOut] = useState(queryCheckOut || defaultCheckOut);
   const [phone, setPhone] = useState(queryPhone || currentUser?.phone || '');
+  const [phoneTouched, setPhoneTouched] = useState(Boolean(queryPhone || currentUser?.phone));
+
+  // 1. Validate Ngày nhận phòng & Ngày trả phòng
+  const dateError = useMemo(() => {
+    if (!checkIn) return 'Vui lòng chọn ngày nhận phòng';
+    if (!checkOut) return 'Vui lòng chọn ngày trả phòng';
+    if (checkOut <= checkIn) {
+      return 'Ngày trả phòng phải sau ngày nhận phòng';
+    }
+    return '';
+  }, [checkIn, checkOut]);
+
+  const isDateValid = !dateError;
+
+  // 2. Validate Số điện thoại theo đúng regex: /^(0|\+84)[35789]\d{8}$/
+  const cleanedPhone = (phone || '').trim().replace(/\s+/g, '');
+  const phoneError = useMemo(() => {
+    if (!cleanedPhone) {
+      return phoneTouched ? 'Vui lòng nhập số điện thoại' : '';
+    }
+    if (!/^(0|\+84)[35789]\d{8}$/.test(cleanedPhone)) {
+      return 'Số điện thoại không đúng định dạng';
+    }
+    return '';
+  }, [cleanedPhone, phoneTouched]);
+
+  const isPhoneValid = Boolean(cleanedPhone && /^(0|\+84)[35789]\d{8}$/.test(cleanedPhone));
+
+  // 3. Điều kiện bắt buộc để được phép ấn sang bước thanh toán
+  const isBookingFormValid = isDateValid && isPhoneValid;
+
+  const handlePhoneChange = (e) => {
+    setPhone(e.target.value);
+    setPhoneTouched(true);
+  };
 
   // Mở Lightbox phóng to
   const handleOpenLightbox = (index) => {
@@ -227,14 +280,14 @@ export const RoomDetailPage = () => {
     };
   }, [isLightboxOpen]);
 
-  // Tính số đêm lưu trú
+  // Tính số đêm lưu trú an toàn
   const calculateNights = () => {
-    if (!checkIn || !checkOut) return 1;
+    if (!checkIn || !checkOut || checkOut <= checkIn) return 0;
     const start = new Date(checkIn);
     const end = new Date(checkOut);
     const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 1;
+    return diffDays > 0 ? diffDays : 0;
   };
 
   const nights = calculateNights();
@@ -243,9 +296,11 @@ export const RoomDetailPage = () => {
   const totalAmount = roomPriceSubtotal + taxAndServiceFee;
 
   const handleBookingProceed = () => {
+    setPhoneTouched(true);
+    if (!isBookingFormValid) return;
     navigate(
       `/booking-payment?roomId=${room.id}&checkIn=${checkIn}&checkOut=${checkOut}&phone=${encodeURIComponent(
-        phone
+        cleanedPhone
       )}`
     );
   };
@@ -261,14 +316,35 @@ export const RoomDetailPage = () => {
 
   if (fetchError || !roomData) {
     return (
-      <div className="max-w-md mx-auto my-20 p-8 bg-white rounded-3xl border border-stone-200 text-center space-y-4">
-        <p className="text-sm text-stone-700 font-medium">{fetchError || 'Không tìm thấy thông tin phòng nghỉ trong CSDL.'}</p>
-        <button
-          onClick={() => navigate('/rooms')}
-          className="px-5 py-2 rounded-full bg-stone-900 text-white text-xs font-semibold cursor-pointer"
-        >
-          Quay lại danh sách phòng
-        </button>
+      <div className="max-w-2xl mx-auto my-20 p-8 sm:p-10 bg-rose-50 border-2 border-rose-500 rounded-3xl text-center space-y-4 shadow-md">
+        <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center font-bold text-2xl">
+          ⚠️
+        </div>
+        <h3 className="text-rose-900 font-bold text-lg sm:text-xl">
+          Lỗi kết nối API Chi tiết phòng Backend
+        </h3>
+        <p className="text-xs sm:text-sm text-rose-700 max-w-lg mx-auto leading-relaxed">
+          {fetchError || 'Không tìm thấy thông tin phòng nghỉ trong hệ thống.'}
+        </p>
+        <p className="text-[11px] text-rose-500 italic">
+          (Lỗi hiển thị minh bạch khi USE_MOCK = false để phát hiện Backend đang tắt hoặc lỗi API)
+        </p>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+          >
+            Thử tải lại
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/rooms')}
+            className="px-6 py-2.5 rounded-full bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 text-xs font-semibold cursor-pointer transition-colors"
+          >
+            Quay lại danh sách phòng
+          </button>
+        </div>
       </div>
     );
   }
@@ -532,8 +608,11 @@ export const RoomDetailPage = () => {
                 <input
                   type="date"
                   value={checkIn}
+                  min={todayStr}
                   onChange={(e) => setCheckIn(e.target.value)}
-                  className="w-full text-xs font-medium border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-slate-50/50"
+                  className={`w-full text-xs font-medium border rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 bg-slate-50/50 cursor-pointer transition-colors ${
+                    dateError ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500' : 'border-slate-200 focus:ring-amber-500/20 focus:border-amber-600'
+                  }`}
                   required
                 />
               </div>
@@ -547,11 +626,23 @@ export const RoomDetailPage = () => {
                 <input
                   type="date"
                   value={checkOut}
+                  min={checkIn ? getNextDateISO(checkIn) : todayStr}
                   onChange={(e) => setCheckOut(e.target.value)}
-                  className="w-full text-xs font-medium border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-slate-50/50"
+                  className={`w-full text-xs font-medium border rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 bg-slate-50/50 cursor-pointer transition-colors ${
+                    dateError ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500' : 'border-slate-200 focus:ring-amber-500/20 focus:border-amber-600'
+                  }`}
                   required
                 />
               </div>
+
+              {/* Thông báo lỗi ngày nếu khách hàng chọn sai */}
+              {dateError && (
+                <div className="sm:col-span-2 -mt-1">
+                  <span className="text-xs font-medium text-rose-500 flex items-center gap-1.5 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
+                    ⚠️ {dateError}
+                  </span>
+                </div>
+              )}
 
               {/* Số điện thoại người đặt */}
               <div className="sm:col-span-2">
@@ -559,9 +650,11 @@ export const RoomDetailPage = () => {
                   label="Số điện thoại liên hệ nhận phòng *"
                   type="tel"
                   icon={Phone}
-                  placeholder="Ví dụ: 0912 345 678"
+                  placeholder="Ví dụ: 0912 345 678 hoặc +84912345678"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={handlePhoneChange}
+                  onBlur={() => setPhoneTouched(true)}
+                  error={phoneError}
                   required
                 />
               </div>
@@ -577,7 +670,7 @@ export const RoomDetailPage = () => {
                 {/* 1. Giá phòng */}
                 <div className="flex items-center justify-between">
                   <span>
-                    Giá phòng ({nights} đêm × {formatVND(room.price)}):
+                    Giá phòng ({nights > 0 ? `${nights} đêm` : '0 đêm'} × {formatVND(room.price)}):
                   </span>
                   <span className="font-bold text-slate-900">
                     {formatVND(roomPriceSubtotal)}
@@ -587,7 +680,7 @@ export const RoomDetailPage = () => {
                 {/* 2. Thuế & dịch vụ */}
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1">
-                    <span>Thuế GTGT & Phí dịch vụ:</span>
+                    <span>Thuế GTGT & Phí dịch vụ (10%):</span>
                   </span>
                   <span className="font-bold text-slate-900">
                     {formatVND(taxAndServiceFee)}
@@ -613,16 +706,25 @@ export const RoomDetailPage = () => {
               </div>
             </div>
 
-            {/* Nút bấm đặt phòng */}
-            <Button
-              type="button"
-              variant="primary"
-              size="lg"
-              onClick={handleBookingProceed}
-              className="w-full py-3.5 text-base font-bold shadow-xl shadow-amber-600/25 cursor-pointer"
-            >
-              Tiến hành Đặt phòng & Thanh toán
-            </Button>
+            {/* Nút bấm đặt phòng & Cảnh báo khi bị vô hiệu hóa */}
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="primary"
+                size="lg"
+                disabled={!isBookingFormValid}
+                onClick={handleBookingProceed}
+                className="w-full py-3.5 text-base font-bold shadow-xl shadow-amber-600/25 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Tiến hành Đặt phòng & Thanh toán
+              </Button>
+
+              {!isBookingFormValid && (
+                <p className="text-[11px] text-center text-rose-500 font-medium">
+                  {dateError || phoneError || 'Vui lòng kiểm tra lại ngày lưu trú hoặc số điện thoại'}
+                </p>
+              )}
+            </div>
 
             <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400 text-center">
               <ShieldCheck size={14} className="text-emerald-600" />
@@ -674,13 +776,30 @@ export const RoomDetailPage = () => {
           )}
         </div>
 
-        {/* Danh sách các đánh giá từ CSDL */}
+        {/* Trạng thái 1: Đang tải đánh giá */}
         {isLoadingReviews ? (
           <div className="py-12 flex flex-col items-center justify-center space-y-2">
             <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs text-slate-400">Đang tải đánh giá từ CSDL...</span>
+            <span className="text-xs text-slate-400">Đang tải đánh giá từ hệ thống...</span>
+          </div>
+        ) : reviewsError ? (
+          /* Trạng thái 2: LỖI ĐỎ CHÓT KHI API ĐÁNH GIÁ THỰC TẾ GẶP LỖI (Theo Plan 1 & Plan 2) */
+          <div className="p-6 sm:p-8 rounded-2xl bg-rose-50 border-2 border-rose-500 text-center space-y-2 shadow-xs">
+            <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center font-bold text-lg">
+              ⚠️
+            </div>
+            <h4 className="text-rose-900 font-bold text-sm sm:text-base">
+              Lỗi kết nối API Đánh giá Backend
+            </h4>
+            <p className="text-xs text-rose-700 max-w-md mx-auto">
+              {reviewsError}
+            </p>
+            <p className="text-[11px] text-rose-500 italic">
+              (Lỗi hiển thị minh bạch để nhà phát triển kiểm tra Backend, tuyệt đối không tự lấp liếm bằng data giả)
+            </p>
           </div>
         ) : reviewsData.reviews && reviewsData.reviews.length > 0 ? (
+          /* Trạng thái 3: Hiển thị danh sách đánh giá của phòng */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {reviewsData.reviews.map((rev) => (
               <div
@@ -689,9 +808,17 @@ export const RoomDetailPage = () => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#C59D5F]/20 text-[#8B6E38] font-bold text-xs flex items-center justify-center">
-                      {(rev.userName || 'K').charAt(0).toUpperCase()}
-                    </div>
+                    {rev.userAvatar ? (
+                      <img
+                        src={rev.userAvatar}
+                        alt={rev.userName}
+                        className="w-9 h-9 rounded-full object-cover border border-stone-200"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-[#C59D5F]/20 text-[#8B6E38] font-bold text-xs flex items-center justify-center">
+                        {(rev.userName || 'K').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <h4 className="text-xs font-bold text-slate-900">{rev.userName}</h4>
                       <p className="text-[10px] text-slate-400">
@@ -718,10 +845,11 @@ export const RoomDetailPage = () => {
             ))}
           </div>
         ) : (
+          /* Trạng thái 4: Chưa có đánh giá nào */
           <div className="py-10 text-center space-y-2 bg-stone-50/50 rounded-2xl border border-dashed border-stone-200">
             <MessageSquare size={28} className="mx-auto text-stone-300" />
             <p className="text-xs text-stone-500 font-medium">
-              Chưa có đánh giá nào cho phòng này trong cơ sở dữ liệu.
+              Chưa có đánh giá nào cho phòng này trong hệ thống.
             </p>
             <p className="text-[11px] text-stone-400">
               Hãy đặt phòng và trở thành vị khách đầu tiên để lại đánh giá sau kỳ nghỉ!

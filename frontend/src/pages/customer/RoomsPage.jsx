@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SlidersHorizontal,
@@ -11,6 +11,8 @@ import {
   BedDouble,
   Sparkles,
   Loader2,
+  Calendar,
+  Search,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import { roomService } from '../../services/roomService';
@@ -23,10 +25,38 @@ export const RoomsPage = () => {
   const queryCheckOut = searchParams.get('checkOut');
   const queryGuests = searchParams.get('guests');
 
+  // Helper định dạng ngày YYYY-MM-DD
+  const formatDateToISO = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTodayISO = () => formatDateToISO(new Date());
+
+  const getNextDateISO = (baseDateStr) => {
+    const base = baseDateStr ? new Date(baseDateStr) : new Date();
+    const next = new Date(base);
+    next.setDate(next.getDate() + 1);
+    return formatDateToISO(next);
+  };
+
+  const todayStr = getTodayISO();
+  const tomorrowStr = getNextDateISO(todayStr);
+
+  // Trạng thái tìm kiếm ngày tháng trên cùng (đồng bộ với URL params hoặc mặc định)
+  const [searchCheckIn, setSearchCheckIn] = useState(queryCheckIn || todayStr);
+  const [searchCheckOut, setSearchCheckOut] = useState(queryCheckOut || tomorrowStr);
+  const [searchGuests, setSearchGuests] = useState(queryGuests || '');
+  const [searchError, setSearchError] = useState('');
+
   // Dữ liệu phòng và dịch vụ thực tế lấy từ Database
   const [allRooms, setAllRooms] = useState([]);
   const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
 
   // Filter States: Loại phòng, Khoảng giá, Tiện nghi, Dịch vụ
   const [selectedTypes, setSelectedTypes] = useState(['Tất cả loại phòng']);
@@ -37,42 +67,51 @@ export const RoomsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [roomsPerPage, setRoomsPerPage] = useState(3);
 
+  // Cập nhật lại input tìm kiếm khi query params trên URL thay đổi
+  useEffect(() => {
+    if (queryCheckIn) setSearchCheckIn(queryCheckIn);
+    if (queryCheckOut) setSearchCheckOut(queryCheckOut);
+    if (queryGuests) setSearchGuests(queryGuests);
+  }, [queryCheckIn, queryCheckOut, queryGuests]);
+
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
-    window.scrollTo({ top: 380, behavior: 'smooth' });
+    window.scrollTo({ top: 440, behavior: 'smooth' });
   };
 
   // Tải danh sách phòng và dịch vụ trực tiếp từ Database qua API
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        // 1. Tải danh sách phòng từ CSDL
-        const roomsRes = await roomService.getPublicRooms({ page: 0, size: 100 });
-        const roomData = roomsRes?.data || roomsRes;
-        const roomList = roomData?.content || roomData?.items || [];
-        setAllRooms(roomList);
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      // 1. Tải danh sách phòng từ CSDL
+      const roomsRes = await roomService.getPublicRooms({ page: 0, size: 100 });
+      const roomData = roomsRes?.data || roomsRes;
+      const roomList = roomData?.content || roomData?.items || [];
+      setAllRooms(Array.isArray(roomList) ? roomList : []);
 
-        if (roomList.length > 0) {
-          const highestPrice = Math.max(
-            ...roomList.map((r) => Number(r.category?.basePrice || r.basePrice || 2000000))
-          );
-          setMaxPrice(highestPrice + 500000);
-        }
-
-        // 2. Tải danh sách dịch vụ từ bảng services trong CSDL
-        const servicesRes = await serviceService.getServices();
-        const serviceList = servicesRes?.data || servicesRes || [];
-        setServices(Array.isArray(serviceList) ? serviceList : []);
-      } catch (err) {
-        console.error('Lỗi tải dữ liệu từ CSDL:', err);
-      } finally {
-        setIsLoading(false);
+      if (roomList.length > 0) {
+        const highestPrice = Math.max(
+          ...roomList.map((r) => Number(r.category?.basePrice || r.basePrice || 2000000))
+        );
+        setMaxPrice(highestPrice + 500000);
       }
-    };
 
-    fetchData();
+      // 2. Tải danh sách dịch vụ từ bảng services trong CSDL
+      const servicesRes = await serviceService.getServices();
+      const serviceList = servicesRes?.data || servicesRes || [];
+      setServices(Array.isArray(serviceList) ? serviceList : []);
+    } catch (err) {
+      console.error('Lỗi tải dữ liệu từ CSDL:', err);
+      setFetchError(err?.message || 'Không thể kết nối đến máy chủ API.');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Danh sách các loại phòng động 100% từ Database
   const roomTypes = useMemo(() => {
@@ -82,6 +121,17 @@ export const RoomsPage = () => {
       if (catName) types.add(catName);
     });
     return ['Tất cả loại phòng', ...Array.from(types)];
+  }, [allRooms]);
+
+  // Danh sách sức chứa phòng trích xuất từ database
+  const capacities = useMemo(() => {
+    const set = new Set();
+    allRooms.forEach((r) => {
+      const cap = r.capacity || r.category?.capacity;
+      if (cap) set.add(Number(cap));
+    });
+    const arr = Array.from(set).sort((a, b) => a - b);
+    return arr.length > 0 ? arr : [1, 2, 4];
   }, [allRooms]);
 
   // Danh sách tiện nghi lấy từ các trường bedType và description của phòng trong Database
@@ -139,12 +189,63 @@ export const RoomsPage = () => {
     );
   };
 
+  // Xử lý thay đổi ngày nhận phòng trên thanh tìm kiếm
+  const handleCheckInChange = (e) => {
+    const newCheckIn = e.target.value;
+    setSearchCheckIn(newCheckIn);
+    if (searchCheckOut && newCheckIn && searchCheckOut <= newCheckIn) {
+      setSearchError('Ngày Check-out phải sau ngày Check-in');
+    } else {
+      setSearchError('');
+    }
+  };
+
+  // Xử lý thay đổi ngày trả phòng trên thanh tìm kiếm
+  const handleCheckOutChange = (e) => {
+    const newCheckOut = e.target.value;
+    setSearchCheckOut(newCheckOut);
+    if (newCheckOut && searchCheckIn && newCheckOut <= searchCheckIn) {
+      setSearchError('Ngày Check-out phải sau ngày Check-in');
+    } else {
+      setSearchError('');
+    }
+  };
+
+  // Nhấn nút Tìm kiếm trên thanh tìm kiếm trên cùng
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    if (!searchCheckIn) {
+      setSearchError('Vui lòng chọn ngày Check-in!');
+      return;
+    }
+    if (!searchCheckOut) {
+      setSearchError('Vui lòng chọn ngày Check-out!');
+      return;
+    }
+    if (searchCheckOut <= searchCheckIn) {
+      setSearchError('Ngày Check-out phải sau ngày Check-in');
+      return;
+    }
+    setSearchError('');
+    setCurrentPage(1);
+
+    const params = new URLSearchParams();
+    params.set('checkIn', searchCheckIn);
+    params.set('checkOut', searchCheckOut);
+    if (searchGuests) params.set('guests', searchGuests);
+    navigate(`/rooms?${params.toString()}`);
+  };
+
   const handleReset = () => {
     setSelectedTypes(['Tất cả loại phòng']);
     setMaxPrice(maxAvailablePrice + 500000);
     setSelectedAmenities([]);
     setSelectedServices([]);
     setCurrentPage(1);
+    setSearchCheckIn(todayStr);
+    setSearchCheckOut(tomorrowStr);
+    setSearchGuests('');
+    setSearchError('');
     if (queryCheckIn || queryCheckOut || queryGuests) {
       navigate('/rooms');
     }
@@ -160,7 +261,7 @@ export const RoomsPage = () => {
       const roomCapacity = Number(room.category?.capacity || room.capacity || 0);
       const isAvailable = (room.status || 'AVAILABLE') === 'AVAILABLE';
 
-      // 0. Nếu tìm kiếm từ trang chủ (Check-in, Check-out, Khách):
+      // 0. Nếu tìm kiếm từ bộ lọc ngày:
       // Chỉ hiển thị các phòng CÒN TRỐNG phù hợp với tiêu chí
       if (queryCheckIn && queryCheckOut) {
         if (!isAvailable) return false;
@@ -224,13 +325,12 @@ export const RoomsPage = () => {
   // Phân trang danh sách đã lọc
   const totalPages = Math.ceil(filteredRooms.length / roomsPerPage) || 1;
   const startIndex = (currentPage - 1) * roomsPerPage;
-  const endIndex = Math.min(startIndex + roomsPerPage, filteredRooms.length);
   const paginatedRooms = useMemo(() => {
     return filteredRooms.slice(startIndex, startIndex + roomsPerPage);
   }, [filteredRooms, startIndex, roomsPerPage]);
 
   return (
-    <div className="space-y-12 pb-20 bg-[#FAF8F5]">
+    <div className="space-y-12 pb-24 bg-[#FAF8F5]">
       {/* 1. HERO BANNER SECTION */}
       <section className="relative min-h-[380px] sm:min-h-[440px] flex items-center justify-center bg-stone-900 text-white">
         <div className="absolute inset-0 overflow-hidden">
@@ -242,7 +342,7 @@ export const RoomsPage = () => {
           <div className="absolute inset-0 bg-gradient-to-b from-stone-950/70 via-stone-900/50 to-[#FAF8F5]" />
         </div>
 
-        <div className="relative max-w-4xl mx-auto px-4 text-center space-y-3 pt-12 pb-16 z-10">
+        <div className="relative max-w-4xl mx-auto px-4 text-center space-y-3 pt-12 pb-20 z-10">
           <span className="text-[10px] sm:text-xs font-semibold tracking-[0.3em] text-[#F7DFBC] uppercase block">
             Khám phá không gian nghỉ dưỡng thực tế
           </span>
@@ -250,13 +350,101 @@ export const RoomsPage = () => {
             Bộ Sưu Tập Phòng Nghỉ & Suites
           </h1>
           <p className="text-xs sm:text-sm text-stone-200 max-w-xl mx-auto font-light leading-relaxed">
-            Dữ liệu phòng phòng nghỉ được đồng bộ trực tiếp từ hệ thống khách sạn, đảm bảo tính chính xác và tình trạng phòng thời gian thực.
+            Dữ liệu phòng nghỉ được đồng bộ trực tiếp từ hệ thống khách sạn, đảm bảo tính chính xác và tình trạng phòng thời gian thực.
           </p>
+        </div>
+
+        {/* =================================================================== */}
+        {/* BỘ UI INPUT TÌM KIẾM NGÀY THÁNG TRÊN CÙNG (CHECKIN, CHECKOUT, GUESTS) */}
+        {/* =================================================================== */}
+        <div className="absolute -bottom-10 left-0 right-0 max-w-5xl mx-auto px-4 z-20">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="bg-white rounded-2xl md:rounded-full p-2.5 sm:p-3 shadow-xl border border-stone-200/90 flex flex-col md:flex-row items-center justify-between gap-3 text-stone-900"
+          >
+            {/* Field 1: Ngày Check-in */}
+            <div className="flex-1 w-full px-5 py-1 text-left border-b md:border-b-0 md:border-r border-stone-200">
+              <label htmlFor="rooms-checkin" className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
+                Ngày Check-in
+              </label>
+              <div className="flex items-center gap-2">
+                <Calendar size={14} className="text-[#C5A880] shrink-0" />
+                <input
+                  id="rooms-checkin"
+                  type="date"
+                  value={searchCheckIn}
+                  min={todayStr}
+                  onChange={handleCheckInChange}
+                  className="bg-transparent focus:outline-none w-full text-xs font-semibold text-stone-800 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Field 2: Ngày Check-out */}
+            <div className="flex-1 w-full px-5 py-1 text-left border-b md:border-b-0 md:border-r border-stone-200">
+              <label htmlFor="rooms-checkout" className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
+                Ngày Check-out
+              </label>
+              <div className="flex items-center gap-2">
+                <Calendar size={14} className="text-[#C5A880] shrink-0" />
+                <input
+                  id="rooms-checkout"
+                  type="date"
+                  value={searchCheckOut}
+                  min={getNextDateISO(searchCheckIn)}
+                  onChange={handleCheckOutChange}
+                  className="bg-transparent focus:outline-none w-full text-xs font-semibold text-stone-800 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Field 3: Khách lưu trú (Sức chứa phòng) */}
+            <div className="flex-1 w-full px-5 py-1 text-left">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
+                Khách lưu trú
+              </span>
+              <div className="flex items-center gap-2">
+                <Users size={14} className="text-[#C5A880] shrink-0" />
+                <select
+                  value={searchGuests}
+                  onChange={(e) => setSearchGuests(e.target.value)}
+                  className="w-full text-xs font-semibold text-stone-800 bg-transparent focus:outline-none cursor-pointer"
+                >
+                  <option value="">Tất cả sức chứa</option>
+                  {capacities.map((cap) => (
+                    <option key={cap} value={cap}>
+                      {cap} người
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Nút Tìm kiếm */}
+            <div className="w-full md:w-auto shrink-0">
+              <button
+                type="submit"
+                className="w-full md:w-auto bg-black hover:bg-stone-800 text-white rounded-full px-7 py-3.5 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
+              >
+                <Search size={14} />
+                <span>Tìm kiếm</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Cảnh báo lỗi ngày */}
+          {searchError && (
+            <div className="mt-2 text-center">
+              <span className="inline-block bg-rose-600 text-white text-xs font-medium px-4 py-1 rounded-full shadow-md">
+                ⚠️ {searchError}
+              </span>
+            </div>
+          )}
         </div>
       </section>
 
       {/* 2. MAIN 2-COLUMN LAYOUT */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* =================================================================== */}
           {/* CỘT TRÁI: BỘ LỌC TÌM KIẾM (lg:col-span-4)                           */}
@@ -476,7 +664,7 @@ export const RoomsPage = () => {
           {/* =================================================================== */}
           <div className="lg:col-span-8 space-y-6">
 
-            {/* Banner hiển thị tiêu chí tìm kiếm từ trang chủ */}
+            {/* Banner hiển thị tiêu chí tìm kiếm từ ngày tháng */}
             {queryCheckIn && queryCheckOut && (
               <div className="bg-[#FAF6F0] rounded-2xl p-4 border border-[#F7DFBC]/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                 <div className="flex items-center gap-3">
@@ -503,29 +691,58 @@ export const RoomsPage = () => {
               </div>
             )}
 
-            {/* Trạng thái tải dữ liệu */}
+            {/* Trạng thái 1: Tải dữ liệu */}
             {isLoading ? (
               <div className="min-h-[300px] flex flex-col items-center justify-center space-y-3 bg-white rounded-3xl border border-stone-200 p-12">
                 <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
                 <span className="text-xs text-stone-500 font-medium">Đang tải danh sách phòng từ hệ thống...</span>
               </div>
-            ) : paginatedRooms.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-stone-200 p-12 text-center space-y-3">
-                <h3 className="font-serif text-lg font-medium text-stone-800">
-                  Không tìm thấy phòng trống phù hợp với tiêu chí tìm kiếm
+            ) : fetchError ? (
+              /* Trạng thái 2: LỖI ĐỎ KHI API THẬT GẶP SỰ CỐ (Không nuốt lỗi theo Plan 1) */
+              <div className="bg-rose-50 border-2 border-rose-500 rounded-3xl p-8 sm:p-10 text-center space-y-3 shadow-xs">
+                <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center font-bold text-lg">
+                  ⚠️
+                </div>
+                <h3 className="text-rose-900 font-bold text-base sm:text-lg">
+                  Lỗi kết nối máy chủ API Backend
                 </h3>
-                <p className="text-xs text-stone-500">
-                  Vui lòng thử điều chỉnh lại ngày nhận/trả phòng, số lượng khách hoặc các tiêu chí lọc để có kết quả phù hợp hơn.
+                <p className="text-xs text-rose-700 max-w-md mx-auto leading-relaxed">
+                  {fetchError}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="text-xs font-semibold text-amber-600 hover:underline pt-2 cursor-pointer"
-                >
-                  Đặt lại toàn bộ bộ lọc
-                </button>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={fetchData}
+                    className="px-6 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                  >
+                    Thử tải lại dữ liệu
+                  </button>
+                </div>
+              </div>
+            ) : paginatedRooms.length === 0 ? (
+              /* Trạng thái 3: MẢNG RỖNG -> THÔNG BÁO "Không tìm thấy phòng trống phù hợp" */
+              <div className="bg-white rounded-3xl border border-stone-200 p-12 text-center space-y-3 shadow-2xs">
+                <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-400 mx-auto flex items-center justify-center">
+                  <BedDouble size={24} />
+                </div>
+                <h3 className="font-serif text-lg sm:text-xl font-medium text-stone-800">
+                  Không tìm thấy phòng trống phù hợp
+                </h3>
+                <p className="text-xs text-stone-500 max-w-md mx-auto leading-relaxed">
+                  Hiện không có phòng nào thỏa mãn các tiêu chí tìm kiếm ngày nhận/trả phòng hoặc bộ lọc đã chọn. Quý khách vui lòng thử chọn ngày khác hoặc điều chỉnh lại bộ lọc.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                  >
+                    <span>Đặt lại toàn bộ bộ lọc</span>
+                  </button>
+                </div>
               </div>
             ) : (
+              /* Trạng thái 4: HIỂN THỊ DANH SÁCH PHÒNG */
               <div className="space-y-6">
                 {paginatedRooms.map((room) => {
                   const category = room.category || {};

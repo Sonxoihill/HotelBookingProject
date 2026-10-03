@@ -2,7 +2,6 @@ package com.hotel.booking.dto.user;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import lombok.*;
 
 @Getter
@@ -13,12 +12,14 @@ import lombok.*;
 public class UpdateProfileRequest {
 
     @NotBlank(message = "Họ và tên không được để trống")
-    @Size(min = 2, max = 100, message = "Họ và tên phải từ 2 đến 100 ký tự")
+    @Pattern(regexp = "^[\\p{L}\\s]+$", message = "Họ và tên không đúng định dạng.")
     private String fullName;
 
+    @NotBlank(message = "Số điện thoại không được để trống")
     @Pattern(
-        regexp = "^$|^(0[0-9]{9}|\\+84[0-9]{9})$",
-        message = "Số điện thoại không hợp lệ! Bắt buộc phải là 10 số (bắt đầu bằng 0 và 9 số sau từ 0-9) hoặc bắt đầu bằng +84 và 9 số sau (0-9)."
+        regexp = "^(0|\\+84)[35789]\\d{8}$",
+        message = "Số điện thoại không đúng định dạng."
     )
     private String phone;
 }
+

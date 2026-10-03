@@ -34,8 +34,9 @@ public class UserServiceImpl implements UserService {
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL
     );
 
-    // Ràng buộc số điện thoại: Bắt đầu bằng 0 (đủ 10 số) hoặc +84 và 9 số sau (0-9)
-    private static final Pattern PHONE_PATTERN = Pattern.compile("^(0[0-9]{9}|\\+84[0-9]{9})$");
+    // Ràng buộc họ tên và số điện thoại theo chuẩn đăng ký
+    private static final Pattern FULL_NAME_PATTERN = Pattern.compile("^[\\p{L}\\s]+$");
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^(0|\\+84)[35789]\\d{8}$");
 
     @Override
     @Transactional(readOnly = true)
@@ -51,27 +52,28 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
-        // 1. Chống XSS cho trường Họ và tên
+        // 1. Chống XSS và kiểm tra định dạng họ và tên theo validate đăng ký
         String newFullName = request.getFullName();
         if (newFullName == null || newFullName.trim().isEmpty()) {
-            throw new BadRequestException("Họ và tên không được để trống!");
+            throw new BadRequestException("Vui lòng nhập họ và tên");
         }
 
-        if (XSS_PATTERN.matcher(newFullName).matches()) {
-            log.warn("Cảnh báo phát hiện payload XSS từ user {}: {}", email, newFullName);
-            throw new BadRequestException("Họ tên không được chứa mã độc hoặc thẻ HTML/Script!");
+        if (!FULL_NAME_PATTERN.matcher(newFullName.trim()).matches() || XSS_PATTERN.matcher(newFullName).matches()) {
+            throw new BadRequestException("Họ và tên không đúng định dạng.");
         }
 
         // Cập nhật tên đã được sanitize an toàn
         user.setFullName(newFullName.trim());
 
-        // 2. Cập nhật Số điện thoại nếu có yêu cầu
+        // 2. Cập nhật Số điện thoại theo validate đăng ký
         if (request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
-            String newPhone = request.getPhone().trim();
+            String newPhone = request.getPhone().trim().replaceAll("\\s+", "");
             if (!PHONE_PATTERN.matcher(newPhone).matches()) {
-                throw new BadRequestException("Số điện thoại không hợp lệ! Bắt buộc phải là 10 số (bắt đầu bằng 0 và 9 số sau từ 0-9) hoặc bắt đầu bằng +84 và 9 số sau (0-9).");
+                throw new BadRequestException("Số điện thoại không đúng định dạng.");
             }
             user.setPhone(newPhone);
+        } else {
+            throw new BadRequestException("Vui lòng nhập số điện thoại");
         }
 
         // Lưu thông qua JPA (PreparedStatement) an toàn chống SQLi
@@ -103,29 +105,23 @@ public class UserServiceImpl implements UserService {
             throw new BadRequestException("Mật khẩu hiện tại không chính xác!");
         }
 
-        // 2. Ràng buộc: Mật khẩu mới phải từ 8 ký tự trở lên
+        // 2. Ràng buộc: Mật khẩu mới phải từ 6 ký tự trở lên theo validate trang đăng ký
         String newPassword = request.getNewPassword() != null ? request.getNewPassword().trim() : "";
-        if (newPassword.length() < 8) {
-            throw new BadRequestException("Mật khẩu mới phải có từ 8 ký tự trở lên!");
+        if (newPassword.length() < 6) {
+            throw new BadRequestException("Mật khẩu phải chứa ít nhất 6 ký tự");
         }
 
-        // 3. Ràng buộc: Mật khẩu mới phải có ký hiệu đặc biệt
-        Pattern specialCharPattern = Pattern.compile(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?].*");
-        if (!specialCharPattern.matcher(newPassword).matches()) {
-            throw new BadRequestException("Mật khẩu mới phải chứa ít nhất 1 ký hiệu đặc biệt (ví dụ: @, #, $, %, !...)!");
-        }
-
-        // 4. Kiểm tra xác nhận mật khẩu
+        // 3. Kiểm tra xác nhận mật khẩu
         if (!newPassword.equals(request.getConfirmPassword() != null ? request.getConfirmPassword().trim() : "")) {
-            throw new BadRequestException("Xác nhận mật khẩu mới không trùng khớp!");
+            throw new BadRequestException("Mật khẩu xác nhận không trùng khớp");
         }
 
-        // 5. Mật khẩu mới không được trùng mật khẩu cũ
+        // 4. Mật khẩu mới không được trùng mật khẩu cũ
         if (currentPasswordMatches && request.getCurrentPassword().equals(newPassword)) {
             throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu hiện tại!");
         }
 
-        // 6. Mã hóa và cập nhật mật khẩu mới vào database
+        // 5. Mã hóa và cập nhật mật khẩu mới vào database
         String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
         user.setPassword(hashedPassword);
         userRepository.save(user);

@@ -6,7 +6,7 @@ import { tokenStorage } from '../utils/tokenStorage';
  * Đọc baseURL từ biến môi trường VITE_API_BASE_URL (mặc định: http://localhost:5000/api)
  */
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',

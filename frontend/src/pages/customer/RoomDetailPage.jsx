@@ -117,28 +117,22 @@ export const RoomDetailPage = () => {
   // Diện tích từ cột area trong CSDL
   const size = roomData?.area || category.area || 0;
 
-  // Ảnh phòng lấy từ CSDL (cột images, imageUrls hoặc imageUrl)
+  // Ảnh phòng lấy 100% từ CSDL (cột images, imageUrls hoặc imageUrl), không dùng dữ liệu/ảnh mẫu
   let dbImages = [];
   if (Array.isArray(roomData?.images) && roomData.images.length > 0) {
-    dbImages = roomData.images;
+    dbImages = roomData.images.filter(Boolean);
   } else if (Array.isArray(roomData?.imageUrls) && roomData.imageUrls.length > 0) {
-    dbImages = roomData.imageUrls;
+    dbImages = roomData.imageUrls.filter(Boolean);
   } else if (typeof category.images === 'string' && category.images.trim()) {
     dbImages = category.images.split(',').map((u) => u.trim()).filter(Boolean);
   } else if (Array.isArray(category.images) && category.images.length > 0) {
-    dbImages = category.images;
+    dbImages = category.images.filter(Boolean);
   }
 
   const mainImage = roomData?.imageUrl || category.imageUrl || (dbImages.length > 0 ? dbImages[0] : '');
-  const fallbackGallery = [
-    mainImage || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80',
-    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80',
-    'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80',
-    'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1200&q=80',
-  ];
-  const images = dbImages.length > 0 ? dbImages : (mainImage ? [mainImage, ...fallbackGallery.slice(1)] : fallbackGallery);
+  const images = dbImages.length > 0 ? dbImages : (mainImage ? [mainImage] : []);
 
-  // Danh sách tiện nghi lấy 100% từ CSDL (cột amenities) hoặc tiện nghi tiêu chuẩn
+  // Danh sách tiện nghi lấy 100% từ CSDL (cột amenities), không dùng tiện nghi mẫu
   const parseAmenities = () => {
     const rawAmenities = roomData?.amenities || category.amenities;
     let list = [];
@@ -147,7 +141,7 @@ export const RoomDetailPage = () => {
     } else if (typeof rawAmenities === 'string' && rawAmenities.trim()) {
       list = rawAmenities.split(',').map((a) => a.trim()).filter(Boolean);
     } else {
-      list = ['Wi-Fi tốc độ cao', 'Bữa sáng Buffet', 'Điều hòa 2 chiều', 'Bồn tắm nằm', 'TV thông minh 55 inch', 'Két sắt an toàn'];
+      list = [];
     }
 
     return list.map((name) => {
@@ -266,17 +260,20 @@ export const RoomDetailPage = () => {
 
   // Mở Lightbox phóng to
   const handleOpenLightbox = (index) => {
+    if (!room.images || room.images.length === 0) return;
     setLightboxIndex(index);
     setIsLightboxOpen(true);
   };
 
   // Chuyển ảnh lùi
   const handlePrevImage = () => {
+    if (!room.images || room.images.length === 0) return;
     setLightboxIndex((prev) => (prev - 1 + room.images.length) % room.images.length);
   };
 
   // Chuyển ảnh tới
   const handleNextImage = () => {
+    if (!room.images || room.images.length === 0) return;
     setLightboxIndex((prev) => (prev + 1) % room.images.length);
   };
 
@@ -884,7 +881,7 @@ export const RoomDetailPage = () => {
       {/* ===================================================================== */}
       {/* LIGHTBOX MODAL: PHÓNG TO ẢNH & ĐIỀU HƯỚNG CHUYỂN TIẾP CÁC ẢNH       */}
       {/* ===================================================================== */}
-      {isLightboxOpen && (
+      {isLightboxOpen && room.images && room.images.length > 0 && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200">
           {/* Top bar của Lightbox */}
           <div className="flex items-center justify-between text-white z-10">

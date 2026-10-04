@@ -15,6 +15,12 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     List<Room> findByCategoryId(Long categoryId);
     List<Room> findByCategoryIdAndStatus(Long categoryId, RoomStatus status);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"category"})
+    org.springframework.data.domain.Page<Room> findAll(org.springframework.data.domain.Pageable pageable);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"category"})
+    List<Room> findAll();
+
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT r FROM Room r " +
             "JOIN FETCH r.category c " +
             "WHERE r.status != com.hotel.booking.enums.RoomStatus.MAINTENANCE " +

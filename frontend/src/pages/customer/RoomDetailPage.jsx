@@ -49,13 +49,22 @@ export const RoomDetailPage = () => {
         const res = await roomService.getRoomById(id);
         const data = res?.data || res;
         setRoomData(data);
+        if (data?.reviews) {
+          setReviewsData({
+            averageRating: data.averageRating ?? 0,
+            totalReviews: data.totalReviews ?? 0,
+            reviews: data.reviews ?? [],
+          });
+          setIsLoadingReviews(false);
+        }
       } catch (err) {
         console.error('Lỗi tải chi tiết phòng:', err);
-        setFetchError('Không tìm thấy thông tin phòng trong cơ sở dữ liệu.');
+        setFetchError(err?.message || 'Phòng đã ngừng phục vụ, vui lòng quay lại danh sách phòng.');
       } finally {
         setIsLoading(false);
       }
     };
+
     if (id) {
       fetchRoom();
     }

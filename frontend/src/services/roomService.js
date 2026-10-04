@@ -19,6 +19,12 @@ export const roomService = {
     return await axiosInstance.get('/rooms', { params });
   },
 
+  // Tìm kiếm và lọc phòng trống theo tiêu chí và kiểm tra trùng lịch (UC04)
+  searchRooms: async (params) => {
+    return await axiosInstance.get('/rooms/search', { params });
+  },
+
+
   // Lấy thông tin chi tiết một phòng
   getRoomById: async (roomId) => {
     return await axiosInstance.get(`/rooms/${roomId}`);

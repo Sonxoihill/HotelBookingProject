@@ -16,10 +16,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
     open-in-view: false
 
   flyway:
@@ -32,9 +32,22 @@ logging:
   level:
     root: INFO
     com.hotel.booking: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: WARN
     org.flywaydb: INFO
 
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours (86,400,000 ms)
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    display-request-duration: true
+    filter: true
+

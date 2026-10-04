@@ -1,5 +1,7 @@
 package com.hotel.booking.service;
 
+import com.hotel.booking.dto.request.RoomSearchRequest;
+import com.hotel.booking.dto.response.RoomSearchResponse;
 import com.hotel.booking.entity.Room;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,4 +14,10 @@ public interface RoomService {
     List<Room> getAllRooms();
 
     Room getRoomById(Long id);
+
+    com.hotel.booking.dto.response.RoomDetailResponse getRoomDetail(Long id);
+
+    List<RoomSearchResponse> searchRooms(RoomSearchRequest request);
 }
+
+

@@ -113,8 +113,11 @@ public class SecurityConfig {
                                 "/error",
                                 "/api/v1/health/**",
                                 "/v3/api-docs/**",
+                                "/v3/api-docs",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/swagger-resources/**",
+                                "/webjars/**"
                         ).permitAll()
                         // API công khai xem thông tin phòng và dịch vụ
                         .requestMatchers(HttpMethod.GET,

@@ -7,6 +7,7 @@ import axiosInstance from './axiosInstance';
  * - Xem Sơ đồ phòng (Lễ tân)
  * - Cập nhật Trạng thái dọn phòng (Lễ tân)
  * - Quản lý Loại phòng & Phòng (Admin)
+ * Đã kết nối API thật 100% theo Plan 2
  */
 export const roomService = {
   // Lấy danh sách phòng công khai có phân trang (Trang chủ / Danh sách phòng)
@@ -19,13 +20,12 @@ export const roomService = {
     return await axiosInstance.get('/rooms', { params });
   },
 
-  // Tìm kiếm và lọc phòng trống theo tiêu chí và kiểm tra trùng lịch (UC04)
+  // Tìm kiếm & Lọc phòng trống (UC04)
   searchRooms: async (params) => {
     return await axiosInstance.get('/rooms/search', { params });
   },
 
-
-  // Lấy thông tin chi tiết một phòng
+  // Lấy thông tin chi tiết một phòng (UC05)
   getRoomById: async (roomId) => {
     return await axiosInstance.get(`/rooms/${roomId}`);
   },

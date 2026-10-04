@@ -4,7 +4,7 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { userService } from '../../services/userService';
 import { tokenStorage } from '../../utils/tokenStorage';
-import { User, Mail, Phone, ShieldCheck, AlertCircle, CheckCircle2, Loader2, Lock, Eye, EyeOff, Check } from 'lucide-react';
+import { User, Mail, Phone, Lock, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 export const ProfilePage = () => {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export const ProfilePage = () => {
     status: '',
   });
 
+  const [profileErrors, setProfileErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -28,19 +29,10 @@ export const ProfilePage = () => {
     newPassword: '',
     confirmPassword: '',
   });
-  const [showPassword, setShowPassword] = useState({
-    current: false,
-    new: false,
-    confirm: false,
-  });
+  const [passwordErrors, setPasswordErrors] = useState({});
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
-
-  // Ràng buộc bảo mật mật khẩu
-  const isLengthValid = passwordData.newPassword.length >= 8;
-  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(passwordData.newPassword);
-  const isMatch = passwordData.confirmPassword.length > 0 && passwordData.newPassword === passwordData.confirmPassword;
 
   // Tải dữ liệu thật từ Database qua API GET /users/profile khi component mount
   useEffect(() => {
@@ -85,40 +77,54 @@ export const ProfilePage = () => {
     fetchProfile();
   }, [navigate]);
 
+  // Validate thông tin cá nhân theo đúng validate của RegisterPage
+  const validateProfile = () => {
+    const nextErrors = {};
+
+    if (!formData.fullName.trim()) {
+      nextErrors.fullName = 'Vui lòng nhập họ và tên';
+    } else if (!/^[\p{L}\s]+$/u.test(formData.fullName.trim())) {
+      nextErrors.fullName = 'Họ và tên không đúng định dạng ';
+    }
+
+    const cleanedPhone = (formData.phone || '').trim().replace(/\s+/g, '');
+    if (!cleanedPhone) {
+      nextErrors.phone = 'Vui lòng nhập số điện thoại';
+    } else if (!/^(0|\+84)[35789]\d{8}$/.test(cleanedPhone)) {
+      nextErrors.phone = 'Số điện thoại không đúng định dạng ';
+    }
+
+    setProfileErrors(nextErrors);
+    return nextErrors;
+  };
+
+  const handleProfileChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (profileErrors[field]) {
+      setProfileErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSuccessMessage('');
     setErrorMessage('');
 
-    if (!formData.fullName || !formData.fullName.trim()) {
-      setErrorMessage('Họ và tên không được để trống!');
-      setIsSubmitting(false);
+    const validationErrors = validateProfile();
+    if (Object.keys(validationErrors).length > 0) {
+      const firstErrorMsg = Object.values(validationErrors)[0];
+      setErrorMessage(firstErrorMsg);
       return;
     }
 
-    const phoneTrimmed = formData.phone ? formData.phone.trim() : '';
-    if (!phoneTrimmed) {
-      setErrorMessage('Số điện thoại không được để trống!');
-      setIsSubmitting(false);
-      return;
-    }
-
-    // Ràng buộc số điện thoại: Bắt đầu bằng 0 (đủ 10 số) hoặc +84 và 9 số sau (0-9)
-    const phoneRegex = /^(0[0-9]{9}|\+84[0-9]{9})$/;
-    if (!phoneRegex.test(phoneTrimmed)) {
-      setErrorMessage(
-        'Số điện thoại không hợp lệ! Số điện thoại bắt buộc phải là 10 số (bắt đầu bằng 0 và 9 số sau từ 0-9) hoặc bắt đầu bằng +84 và 9 số sau (0-9).'
-      );
-      setIsSubmitting(false);
-      return;
-    }
+    setIsSubmitting(true);
+    const cleanedPhone = (formData.phone || '').trim().replace(/\s+/g, '');
 
     try {
       // Cập nhật Họ và tên và Số điện thoại vào database
       const response = await userService.updateProfile({
         fullName: formData.fullName.trim(),
-        phone: phoneTrimmed,
+        phone: cleanedPhone,
       });
 
       const updated = response?.data || response;
@@ -133,13 +139,13 @@ export const ProfilePage = () => {
       tokenStorage.setUser({
         ...existingUser,
         fullName: updated.fullName || formData.fullName,
-        phone: updated.phone || phoneTrimmed,
+        phone: updated.phone || cleanedPhone,
       });
 
       // Phát sự kiện để Header và các component khác đồng bộ thông tin mới
       window.dispatchEvent(new Event('storage'));
 
-      setSuccessMessage('Cập nhật thông tin cá nhân thành công! Số điện thoại đã được lưu vào cơ sở dữ liệu.');
+      setSuccessMessage('Cập nhật thông tin cá nhân thành công!');
       setTimeout(() => setSuccessMessage(''), 4000);
     } catch (err) {
       console.error('Lỗi cập nhật hồ sơ:', err);
@@ -149,9 +155,50 @@ export const ProfilePage = () => {
         navigate('/login');
         return;
       }
+
+      if (err.errors && typeof err.errors === 'object') {
+        setProfileErrors((prev) => ({ ...prev, ...err.errors }));
+      }
+      if (errMsg.includes('Số điện thoại') || errMsg.toLowerCase().includes('phone')) {
+        setProfileErrors((prev) => ({ ...prev, phone: errMsg }));
+      } else if (errMsg.includes('Họ và tên') || errMsg.toLowerCase().includes('fullname')) {
+        setProfileErrors((prev) => ({ ...prev, fullName: errMsg }));
+      }
+
       setErrorMessage(errMsg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Validate đổi mật khẩu theo đúng validate của RegisterPage
+  const validatePassword = () => {
+    const nextErrors = {};
+
+    if (!passwordData.currentPassword) {
+      nextErrors.currentPassword = 'Vui lòng nhập mật khẩu hiện tại';
+    }
+
+    if (!passwordData.newPassword) {
+      nextErrors.newPassword = 'Vui lòng nhập mật khẩu';
+    } else if (passwordData.newPassword.length < 6) {
+      nextErrors.newPassword = 'Mật khẩu phải chứa ít nhất 6 ký tự';
+    }
+
+    if (!passwordData.confirmPassword) {
+      nextErrors.confirmPassword = 'Vui lòng xác nhận lại mật khẩu';
+    } else if (passwordData.newPassword !== passwordData.confirmPassword) {
+      nextErrors.confirmPassword = 'Mật khẩu xác nhận không trùng khớp';
+    }
+
+    setPasswordErrors(nextErrors);
+    return nextErrors;
+  };
+
+  const handlePasswordChange = (field, value) => {
+    setPasswordData((prev) => ({ ...prev, [field]: value }));
+    if (passwordErrors[field]) {
+      setPasswordErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
@@ -161,23 +208,10 @@ export const ProfilePage = () => {
     setPasswordSuccess('');
     setPasswordError('');
 
-    if (!passwordData.currentPassword) {
-      setPasswordError('Vui lòng nhập mật khẩu hiện tại!');
-      return;
-    }
-
-    if (!isLengthValid) {
-      setPasswordError('Mật khẩu mới phải có từ 8 ký tự trở lên!');
-      return;
-    }
-
-    if (!hasSpecialChar) {
-      setPasswordError('Mật khẩu mới phải chứa ít nhất 1 ký hiệu đặc biệt (ví dụ: @, #, $, %, !...)!');
-      return;
-    }
-
-    if (!isMatch) {
-      setPasswordError('Xác nhận mật khẩu mới không trùng khớp!');
+    const validationErrors = validatePassword();
+    if (Object.keys(validationErrors).length > 0) {
+      const firstErrorMsg = Object.values(validationErrors)[0];
+      setPasswordError(firstErrorMsg);
       return;
     }
 
@@ -195,10 +229,14 @@ export const ProfilePage = () => {
         newPassword: '',
         confirmPassword: '',
       });
+      setPasswordErrors({});
       setTimeout(() => setPasswordSuccess(''), 5000);
     } catch (err) {
       console.error('Lỗi khi đổi mật khẩu:', err);
       const errMsg = err.message || 'Có lỗi xảy ra khi đổi mật khẩu.';
+      if (err.errors && typeof err.errors === 'object') {
+        setPasswordErrors((prev) => ({ ...prev, ...err.errors }));
+      }
       setPasswordError(errMsg);
     } finally {
       setIsChangingPassword(false);
@@ -274,7 +312,7 @@ export const ProfilePage = () => {
           </div>
         </div>
 
-        {/* Cột phải: 2 khối (1. Thông tin định danh, 2. Đổi mật khẩu) */}
+        {/* Cột phải: 2 khối (1. Thông tin cá nhân, 2. Đổi mật khẩu) */}
         <div className="md:col-span-2 space-y-8">
           {/* Khối 1: Thông tin cá nhân */}
           <div className="bg-white rounded-3xl border border-stone-200 p-6 shadow-xs space-y-6">
@@ -291,7 +329,8 @@ export const ProfilePage = () => {
                     icon={User}
                     placeholder="Nhập họ và tên đầy đủ"
                     value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    onChange={(e) => handleProfileChange('fullName', e.target.value)}
+                    error={profileErrors.fullName}
                     required
                   />
                 </div>
@@ -302,8 +341,9 @@ export const ProfilePage = () => {
                   icon={Phone}
                   placeholder="Ví dụ: 0912345678 hoặc +84912345678"
                   value={formData.phone || ''}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  helperText="Bắt buộc: 10 số bắt đầu bằng 0 hoặc +84 kèm 9 số sau (0-9)"
+                  onChange={(e) => handleProfileChange('phone', e.target.value)}
+                  error={profileErrors.phone}
+                  helperText={!profileErrors.phone ? "Định dạng: 0x hoặc +84x (x là 3, 5, 7, 8, 9) gồm 10 số" : undefined}
                   required
                 />
 
@@ -339,7 +379,7 @@ export const ProfilePage = () => {
                     Đổi Mật Khẩu Tài Khoản
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Mật khẩu phải từ 8 ký tự trở lên và có ký hiệu đặc biệt.
+                    Mật khẩu phải chứa ít nhất 6 ký tự.
                   </p>
                 </div>
               </div>
@@ -362,83 +402,48 @@ export const ProfilePage = () => {
 
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               {/* Mật khẩu hiện tại */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 block">
-                  Mật khẩu hiện tại <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword.current ? 'text' : 'password'}
-                    placeholder="Nhập mật khẩu hiện tại của bạn"
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    required
-                    className="w-full px-4 py-2.5 pr-10 text-xs sm:text-sm bg-stone-50/50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-600 focus:bg-white transition-all font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword({ ...showPassword, current: !showPassword.current })}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer"
-                  >
-                    {showPassword.current ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
+              <Input
+                label="Mật khẩu hiện tại"
+                type="password"
+                placeholder="••••••••"
+                icon={Lock}
+                value={passwordData.currentPassword}
+                onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+                error={passwordErrors.currentPassword}
+                required
+              />
 
               {/* Mật khẩu mới & Xác nhận mật khẩu mới */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 block">
-                    Mật khẩu mới <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword.new ? 'text' : 'password'}
-                      placeholder="Ít nhất 8 ký tự & ký hiệu đặc biệt"
-                      value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                      required
-                      className="w-full px-4 py-2.5 pr-10 text-xs sm:text-sm bg-stone-50/50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-600 focus:bg-white transition-all font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword({ ...showPassword, new: !showPassword.new })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer"
-                    >
-                      {showPassword.new ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
+                <Input
+                  label="Mật khẩu mới"
+                  type="password"
+                  placeholder="••••••••"
+                  icon={Lock}
+                  value={passwordData.newPassword}
+                  onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                  error={passwordErrors.newPassword}
+                  helperText={!passwordErrors.newPassword ? "Mật khẩu phải chứa ít nhất 6 ký tự" : undefined}
+                  required
+                />
 
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 block">
-                    Xác nhận mật khẩu mới <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword.confirm ? 'text' : 'password'}
-                      placeholder="Nhập lại mật khẩu mới"
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                      required
-                      className="w-full px-4 py-2.5 pr-10 text-xs sm:text-sm bg-stone-50/50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-600 focus:bg-white transition-all font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer"
-                    >
-                      {showPassword.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
+                <Input
+                  label="Xác nhận mật khẩu mới"
+                  type="password"
+                  placeholder="••••••••"
+                  icon={Lock}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                  error={passwordErrors.confirmPassword}
+                  required
+                />
               </div>
+
               <div className="pt-2 flex justify-end">
                 <Button
                   type="submit"
                   variant="primary"
                   isLoading={isChangingPassword}
-                  disabled={!isLengthValid || !hasSpecialChar || !isMatch || !passwordData.currentPassword}
                 >
                   Lưu Thay Đổi Mật Khẩu
                 </Button>

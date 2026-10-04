@@ -2,6 +2,7 @@ import axiosInstance from './axiosInstance';
 
 /**
  * Service quản lý Đánh giá & Phản hồi của khách hàng (lưu & lấy từ Database MySQL)
+ * Đã kết nối API thật theo Plan 2
  */
 export const reviewService = {
   // Lấy danh sách đánh giá của một phòng kèm điểm trung bình từ CSDL

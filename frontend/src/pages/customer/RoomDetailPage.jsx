@@ -38,6 +38,16 @@ export const RoomDetailPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
 
+  // Đánh giá của khách hàng lấy qua reviewService
+  const [reviewsData, setReviewsData] = useState({
+    averageRating: 0,
+    totalReviews: 0,
+    reviews: [],
+  });
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState(null);
+  const reviewsRef = useRef(null);
+
   // Tải thông tin phòng từ cơ sở dữ liệu
   useEffect(() => {
     const fetchRoom = async () => {
@@ -51,13 +61,22 @@ export const RoomDetailPage = () => {
           throw new Error('Dữ liệu phòng trả về rỗng hoặc không đúng định dạng');
         }
         setRoomData(data);
+        if (data?.reviews) {
+          setReviewsData({
+            averageRating: data.averageRating ?? 0,
+            totalReviews: data.totalReviews ?? 0,
+            reviews: data.reviews ?? [],
+          });
+          setIsLoadingReviews(false);
+        }
       } catch (err) {
         console.error('Lỗi tải chi tiết phòng:', err);
-        setFetchError(err?.message || 'Không thể kết nối đến máy chủ API hoặc không tìm thấy phòng.');
+        setFetchError(err?.message || 'Phòng đã ngừng phục vụ hoặc không thể kết nối đến máy chủ API.');
       } finally {
         setIsLoading(false);
       }
     };
+
     if (id) {
       fetchRoom();
     }
@@ -132,16 +151,6 @@ export const RoomDetailPage = () => {
   };
 
   const amenities = parseAmenities();
-
-  // Đánh giá của khách hàng lấy qua reviewService
-  const [reviewsData, setReviewsData] = useState({
-    averageRating: 0,
-    totalReviews: 0,
-    reviews: [],
-  });
-  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
-  const [reviewsError, setReviewsError] = useState(null);
-  const reviewsRef = useRef(null);
 
   const scrollToReviews = () => {
     if (reviewsRef.current) {

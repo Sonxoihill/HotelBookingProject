@@ -1,0 +1,545 @@
+{
+  "info": {
+    "_postman_id": "hotel-booking-api-collection-v1",
+    "name": "Hotel Booking Management System API",
+    "description": "Postman Collection cho hệ thống Quản lý & Đặt phòng Khách sạn.\nBao gồm đầy đủ các API tìm kiếm phòng (UC04), xem chi tiết phòng (UC05), xác thực, đặt phòng, dịch vụ, đánh giá và quản trị.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01. Authentication",
+      "item": [
+        {
+          "name": "Đăng ký tài khoản (Register)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Khách\",\n  \"email\": \"customer@example.com\",\n  \"password\": \"123456\",\n  \"confirmPassword\": \"123456\",\n  \"phone\": \"0987654321\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Đăng ký tài khoản người dùng mới."
+          },
+          "response": []
+        },
+        {
+          "name": "Đăng nhập (Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set(\"token\", jsonData.data.token);",
+                  "    console.log(\"Saved JWT Token to environment: \" + jsonData.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@example.com\",\n  \"password\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Đăng nhập tài khoản và tự động lưu `token` vào Environment."
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy thông tin tài khoản hiện tại (Get Me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Lấy thông tin người dùng đang đăng nhập thông qua JWT Token."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02. Room Management (Subtask 1.2 & 1.3)",
+      "item": [
+        {
+          "name": "Tìm kiếm & Lọc phòng trống (UC04)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/search?checkIn=2026-10-10&checkOut=2026-10-12&minPrice=500000&maxPrice=3000000&capacity=2&categoryId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "search"],
+              "query": [
+                {
+                  "key": "checkIn",
+                  "value": "2026-10-10",
+                  "description": "Ngày nhận phòng (Định dạng YYYY-MM-DD)"
+                },
+                {
+                  "key": "checkOut",
+                  "value": "2026-10-12",
+                  "description": "Ngày trả phòng (Định dạng YYYY-MM-DD)"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "500000",
+                  "description": "Giá tối thiểu (VNĐ)"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "3000000",
+                  "description": "Giá tối đa (VNĐ)"
+                },
+                {
+                  "key": "capacity",
+                  "value": "2",
+                  "description": "Sức chứa tối thiểu (Số người)"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "1",
+                  "description": "ID danh mục / hạng phòng"
+                }
+              ]
+            },
+            "description": "Subtask 1.2 (UC04): Tìm kiếm danh sách phòng trống theo ngày nhận, ngày trả, khoảng giá, hạng phòng và sức chứa."
+          },
+          "response": []
+        },
+        {
+          "name": "Xem chi tiết phòng (UC05)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "1"]
+            },
+            "description": "Subtask 1.3 (UC05): Lấy thông tin chi tiết của phòng theo ID, bao gồm tiện ích, ảnh mô tả, giá và đánh giá của khách hàng."
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy danh sách phòng công khai (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/public?page=0&size=6&sort=id,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "public"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "6"
+                },
+                {
+                  "key": "sort",
+                  "value": "id,asc"
+                }
+              ]
+            },
+            "description": "Lấy danh sách các phòng khả dụng hiển thị trang chủ."
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy toàn bộ danh sách phòng (Phân trang)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms?page=0&size=12&sort=id,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "12"
+                },
+                {
+                  "key": "sort",
+                  "value": "id,asc"
+                }
+              ]
+            },
+            "description": "Lấy toàn bộ danh sách phòng có phân trang 12 phòng/trang."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03. Booking Management",
+      "item": [
+        {
+          "name": "Tạo đơn đặt phòng mới (Create Booking)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": 1,\n  \"checkInDate\": \"2026-10-10\",\n  \"checkOutDate\": \"2026-10-12\",\n  \"customerName\": \"Nguyễn Văn Khách\",\n  \"customerPhone\": \"0987654321\",\n  \"customerEmail\": \"customer@example.com\",\n  \"guestCount\": 2,\n  \"specialRequests\": \"Tầng cao, phòng yên tĩnh\",\n  \"serviceIds\": [1, 2]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings"]
+            },
+            "description": "Tạo đơn đặt phòng mới cho người dùng hoặc khách vãng lai."
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy lịch sử đặt phòng của tôi (My History)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bookings/my-history",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "my-history"]
+            },
+            "description": "Lấy danh sách các đơn đặt phòng của tài khoản đang đăng nhập."
+          },
+          "response": []
+        },
+        {
+          "name": "Hủy đơn đặt phòng (Cancel Booking)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Có việc bận đột xuất nên muốn đổi kế hoạch du lịch\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings/1/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "1", "cancel"]
+            },
+            "description": "Hủy đơn đặt phòng theo ID."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04. Hotel Services",
+      "item": [
+        {
+          "name": "Lấy danh sách dịch vụ khách sạn",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            },
+            "description": "Lấy toàn bộ dịch vụ phụ trợ đang hoạt động của khách sạn."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05. Reviews",
+      "item": [
+        {
+          "name": "Xem đánh giá của phòng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/room/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviews", "room", "1"]
+            },
+            "description": "Lấy điểm đánh giá trung bình và các nhận xét của phòng."
+          },
+          "response": []
+        },
+        {
+          "name": "Gửi đánh giá phòng",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": 1,\n  \"rating\": 5,\n  \"comment\": \"Phòng rất sạch đẹp, view ngắm biển tuyệt vời, nhân viên nhiệt tình!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviews"]
+            },
+            "description": "Gửi đánh giá phòng lưu trú."
+          },
+          "response": []
+        },
+        {
+          "name": "Xem đánh giá của bản thân",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/my-reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviews", "my-reviews"]
+            },
+            "description": "Lấy danh sách các đánh giá do chính mình đã đăng."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06. User Management",
+      "item": [
+        {
+          "name": "Lấy thông tin hồ sơ cá nhân",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Lấy thông tin hồ sơ tài khoản hiện tại."
+          },
+          "response": []
+        },
+        {
+          "name": "Cập nhật hồ sơ cá nhân",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Khách VIP\",\n  \"phone\": \"0987654321\",\n  \"address\": \"123 Trần Phú, Nha Trang\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Cập nhật họ tên, điện thoại, địa chỉ."
+          },
+          "response": []
+        },
+        {
+          "name": "Đổi mật khẩu",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"123456\",\n  \"newPassword\": \"NewPassword123@\",\n  \"confirmPassword\": \"NewPassword123@\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "change-password"]
+            },
+            "description": "Đổi mật khẩu người dùng."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07. Admin & Receptionist",
+      "item": [
+        {
+          "name": "Ping Quyền Quản trị viên (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/ping",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "ping"]
+            },
+            "description": "Kiểm tra quyền ROLE_ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Ping Quyền Quầy Lễ tân (RECEPTIONIST)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/ping",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "ping"]
+            },
+            "description": "Kiểm tra quyền ROLE_RECEPTIONIST hoặc ROLE_ADMIN."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "08. Health & System",
+      "item": [
+        {
+          "name": "Kiểm tra sức khỏe Backend & CSDL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Kiểm tra kết nối MySQL, đếm tổng số bản ghi Users, Rooms, Bookings..."
+          },
+          "response": []
+        },
+        {
+          "name": "OpenAPI Specification (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v3/api-docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["v3", "api-docs"]
+            },
+            "description": "Lấy OpenAPI 3.0 specification định dạng JSON."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

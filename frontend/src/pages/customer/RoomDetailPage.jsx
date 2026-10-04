@@ -107,21 +107,29 @@ export const RoomDetailPage = () => {
   };
 
   const category = roomData?.category || {};
-  const roomName = category.name
+  const roomName = roomData?.roomName || (category.name
     ? (roomData?.roomNumber ? `${category.name} (Phòng ${roomData.roomNumber})` : category.name)
-    : (roomData?.roomNumber ? `Phòng ${roomData.roomNumber}` : `Phòng #${id}`);
-  const basePrice = category.basePrice || roomData?.basePrice || 0;
-  const capacity = category.capacity || roomData?.capacity || 0;
-  const bedType = category.bedType || roomData?.bedType || '';
-  const description = category.description || roomData?.description || '';
+    : (roomData?.roomNumber ? `Phòng ${roomData.roomNumber}` : `Phòng #${id}`));
+  const basePrice = roomData?.pricePerNight || roomData?.basePrice || category.basePrice || 0;
+  const capacity = roomData?.capacity || category.capacity || 0;
+  const bedType = roomData?.bedType || category.bedType || '';
+  const description = roomData?.description || category.description || '';
   // Diện tích từ cột area trong CSDL
-  const size = category.area || roomData?.area || 0;
+  const size = roomData?.area || category.area || 0;
 
-  // Ảnh phòng lấy từ CSDL (cột images hoặc image_url). Nếu CSDL chỉ có 1 ảnh, bổ sung thêm các góc phòng chất lượng cao để layout lưới hiển thị trọn vẹn
-  const dbImages = category.images
-    ? category.images.split(',').map((u) => u.trim()).filter(Boolean)
-    : [];
-  const mainImage = category.imageUrl || roomData?.imageUrl || '';
+  // Ảnh phòng lấy từ CSDL (cột images, imageUrls hoặc imageUrl)
+  let dbImages = [];
+  if (Array.isArray(roomData?.images) && roomData.images.length > 0) {
+    dbImages = roomData.images;
+  } else if (Array.isArray(roomData?.imageUrls) && roomData.imageUrls.length > 0) {
+    dbImages = roomData.imageUrls;
+  } else if (typeof category.images === 'string' && category.images.trim()) {
+    dbImages = category.images.split(',').map((u) => u.trim()).filter(Boolean);
+  } else if (Array.isArray(category.images) && category.images.length > 0) {
+    dbImages = category.images;
+  }
+
+  const mainImage = roomData?.imageUrl || category.imageUrl || (dbImages.length > 0 ? dbImages[0] : '');
   const fallbackGallery = [
     mainImage || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80',
     'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80',
@@ -132,22 +140,27 @@ export const RoomDetailPage = () => {
 
   // Danh sách tiện nghi lấy 100% từ CSDL (cột amenities) hoặc tiện nghi tiêu chuẩn
   const parseAmenities = () => {
-    const rawAmenities = category.amenities || roomData?.amenities || 'Wi-Fi tốc độ cao, Bữa sáng Buffet, Điều hòa 2 chiều, Bồn tắm nằm, TV thông minh 55 inch, Két sắt an toàn';
-    return rawAmenities
-      .split(',')
-      .map((a) => a.trim())
-      .filter(Boolean)
-      .map((name) => {
-        let Icon = Sparkles;
-        const lower = name.toLowerCase();
-        if (lower.includes('wi-fi') || lower.includes('wifi')) Icon = Wifi;
-        else if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('cà phê')) Icon = Coffee;
-        else if (lower.includes('tv') || lower.includes('tivi')) Icon = Tv;
-        else if (lower.includes('bồn tắm') || lower.includes('tắm') || lower.includes('jacuzzi')) Icon = Bath;
-        else if (lower.includes('điều hòa') || lower.includes('khí')) Icon = Wind;
-        else if (lower.includes('két') || lower.includes('bảo mật')) Icon = ShieldCheck;
-        return { name, icon: Icon };
-      });
+    const rawAmenities = roomData?.amenities || category.amenities;
+    let list = [];
+    if (Array.isArray(rawAmenities)) {
+      list = rawAmenities.filter(Boolean);
+    } else if (typeof rawAmenities === 'string' && rawAmenities.trim()) {
+      list = rawAmenities.split(',').map((a) => a.trim()).filter(Boolean);
+    } else {
+      list = ['Wi-Fi tốc độ cao', 'Bữa sáng Buffet', 'Điều hòa 2 chiều', 'Bồn tắm nằm', 'TV thông minh 55 inch', 'Két sắt an toàn'];
+    }
+
+    return list.map((name) => {
+      let Icon = Sparkles;
+      const lower = String(name).toLowerCase();
+      if (lower.includes('wi-fi') || lower.includes('wifi')) Icon = Wifi;
+      else if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('cà phê')) Icon = Coffee;
+      else if (lower.includes('tv') || lower.includes('tivi')) Icon = Tv;
+      else if (lower.includes('bồn tắm') || lower.includes('tắm') || lower.includes('jacuzzi')) Icon = Bath;
+      else if (lower.includes('điều hòa') || lower.includes('khí')) Icon = Wind;
+      else if (lower.includes('két') || lower.includes('bảo mật')) Icon = ShieldCheck;
+      return { name: String(name), icon: Icon };
+    });
   };
 
   const amenities = parseAmenities();
@@ -158,7 +171,7 @@ export const RoomDetailPage = () => {
     }
   };
 
-  // Tải danh sách đánh giá của phòng từ reviewService (Chạy Mock hoặc Real API tùy theo cờ USE_MOCK)
+  // Tải danh sách đánh giá của phòng từ reviewService (Kết nối trực tiếp API Backend)
   useEffect(() => {
     const fetchReviews = async () => {
       if (!id) return;
@@ -166,7 +179,8 @@ export const RoomDetailPage = () => {
       setReviewsError(null);
       try {
         const res = await reviewService.getRoomReviews(id);
-        const data = res?.data || res;
+        const rawData = res?.data || res;
+        const data = rawData?.data || rawData;
         if (data) {
           setReviewsData({
             averageRating: data.averageRating ?? 0,
@@ -336,7 +350,7 @@ export const RoomDetailPage = () => {
           {fetchError || 'Không tìm thấy thông tin phòng nghỉ trong hệ thống.'}
         </p>
         <p className="text-[11px] text-rose-500 italic">
-          (Lỗi hiển thị minh bạch khi USE_MOCK = false để phát hiện Backend đang tắt hoặc lỗi API)
+          (Lỗi hiển thị minh bạch để phát hiện Backend đang tắt hoặc lỗi API, tuyệt đối không dùng dữ liệu giả)
         </p>
         <div className="flex items-center justify-center gap-3 pt-2">
           <button

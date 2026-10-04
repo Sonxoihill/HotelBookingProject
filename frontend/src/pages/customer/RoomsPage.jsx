@@ -84,20 +84,32 @@ export const RoomsPage = () => {
     setIsLoading(true);
     setFetchError(null);
     try {
-      // 1. Tải danh sách phòng từ CSDL
-      const roomsRes = await roomService.getPublicRooms({ page: 0, size: 100 });
-      const roomData = roomsRes?.data || roomsRes;
-      const roomList = roomData?.content || roomData?.items || [];
+      let roomList = [];
+      if (queryCheckIn && queryCheckOut) {
+        // 1. Gọi API tìm kiếm phòng trống theo ngày và sức chứa từ Backend
+        const searchRes = await roomService.searchRooms({
+          checkIn: queryCheckIn,
+          checkOut: queryCheckOut,
+          capacity: queryGuests ? Number(queryGuests) : undefined,
+        });
+        const searchData = searchRes?.data || searchRes;
+        roomList = Array.isArray(searchData) ? searchData : (searchData?.content || []);
+      } else {
+        // 2. Tải danh sách phòng công khai từ CSDL
+        const roomsRes = await roomService.getPublicRooms({ page: 0, size: 100 });
+        const roomData = roomsRes?.data || roomsRes;
+        roomList = roomData?.content || roomData?.items || (Array.isArray(roomData) ? roomData : []);
+      }
       setAllRooms(Array.isArray(roomList) ? roomList : []);
 
       if (roomList.length > 0) {
         const highestPrice = Math.max(
-          ...roomList.map((r) => Number(r.category?.basePrice || r.basePrice || 2000000))
+          ...roomList.map((r) => Number(r.pricePerNight || r.category?.basePrice || r.basePrice || 2000000))
         );
         setMaxPrice(highestPrice + 500000);
       }
 
-      // 2. Tải danh sách dịch vụ từ bảng services trong CSDL
+      // Tải danh sách dịch vụ từ bảng services trong CSDL
       const servicesRes = await serviceService.getServices();
       const serviceList = servicesRes?.data || servicesRes || [];
       setServices(Array.isArray(serviceList) ? serviceList : []);
@@ -107,7 +119,7 @@ export const RoomsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [queryCheckIn, queryCheckOut, queryGuests]);
 
   useEffect(() => {
     fetchData();
@@ -117,7 +129,7 @@ export const RoomsPage = () => {
   const roomTypes = useMemo(() => {
     const types = new Set();
     allRooms.forEach((r) => {
-      const catName = r.category?.name;
+      const catName = r.categoryName || r.category?.name || r.roomType;
       if (catName) types.add(catName);
     });
     return ['Tất cả loại phòng', ...Array.from(types)];
@@ -134,13 +146,17 @@ export const RoomsPage = () => {
     return arr.length > 0 ? arr : [1, 2, 4];
   }, [allRooms]);
 
-  // Danh sách tiện nghi lấy từ các trường bedType và description của phòng trong Database
+  // Danh sách tiện nghi lấy từ các trường bedType, amenities và description của phòng trong Database
   const availableAmenities = useMemo(() => {
     const set = new Set();
     allRooms.forEach((r) => {
       const cat = r.category || {};
-      if (cat.bedType) set.add(cat.bedType);
-      const desc = cat.description || '';
+      const bed = r.bedType || cat.bedType;
+      if (bed) set.add(bed);
+      if (Array.isArray(r.amenities)) {
+        r.amenities.forEach((a) => set.add(a));
+      }
+      const desc = r.description || cat.description || '';
       if (desc.toLowerCase().includes('phòng khách')) set.add('Phòng khách riêng');
       if (desc.toLowerCase().includes('view')) set.add('Tầm nhìn thoáng đãng');
       if (desc.toLowerCase().includes('tiện nghi')) set.add('Tiện nghi tiêu chuẩn');
@@ -150,12 +166,12 @@ export const RoomsPage = () => {
 
   const minAvailablePrice = useMemo(() => {
     if (allRooms.length === 0) return 400000;
-    return Math.min(...allRooms.map((r) => Number(r.category?.basePrice || r.basePrice || 400000)));
+    return Math.min(...allRooms.map((r) => Number(r.pricePerNight || r.category?.basePrice || r.basePrice || 400000)));
   }, [allRooms]);
 
   const maxAvailablePrice = useMemo(() => {
     if (allRooms.length === 0) return 5000000;
-    return Math.max(...allRooms.map((r) => Number(r.category?.basePrice || r.basePrice || 5000000)));
+    return Math.max(...allRooms.map((r) => Number(r.pricePerNight || r.category?.basePrice || r.basePrice || 5000000)));
   }, [allRooms]);
 
   const handleToggleType = (type) => {
@@ -254,11 +270,11 @@ export const RoomsPage = () => {
   // Logic lọc và sắp xếp phòng trực tiếp từ dữ liệu Database
   const filteredRooms = useMemo(() => {
     let result = allRooms.filter((room) => {
-      const price = Number(room.category?.basePrice || room.basePrice || 0);
-      const categoryName = room.category?.name || '';
-      const bedType = room.category?.bedType || '';
-      const description = room.category?.description || '';
-      const roomCapacity = Number(room.category?.capacity || room.capacity || 0);
+      const price = Number(room.pricePerNight || room.category?.basePrice || room.basePrice || 0);
+      const categoryName = room.categoryName || room.category?.name || room.roomType || '';
+      const bedType = room.bedType || room.category?.bedType || '';
+      const description = room.description || room.category?.description || '';
+      const roomCapacity = Number(room.capacity || room.category?.capacity || 0);
       const isAvailable = (room.status || 'AVAILABLE') === 'AVAILABLE';
 
       // 0. Nếu tìm kiếm từ bộ lọc ngày:
@@ -286,7 +302,9 @@ export const RoomsPage = () => {
       // 3. Kiểm tra Tiện nghi (đối chiếu dữ liệu Database)
       if (selectedAmenities.length > 0) {
         const matchesAll = selectedAmenities.every((amenity) => {
+          const inAmenitiesList = Array.isArray(room.amenities) && room.amenities.includes(amenity);
           return (
+            inAmenitiesList ||
             bedType === amenity ||
             description.toLowerCase().includes(amenity.toLowerCase())
           );
@@ -307,14 +325,14 @@ export const RoomsPage = () => {
     // Sắp xếp
     if (sortBy === 'PRICE_ASC') {
       result.sort((a, b) => {
-        const pA = Number(a.category?.basePrice || a.basePrice || 0);
-        const pB = Number(b.category?.basePrice || b.basePrice || 0);
+        const pA = Number(a.pricePerNight || a.category?.basePrice || a.basePrice || 0);
+        const pB = Number(b.pricePerNight || b.category?.basePrice || b.basePrice || 0);
         return pA - pB;
       });
     } else if (sortBy === 'PRICE_DESC') {
       result.sort((a, b) => {
-        const pA = Number(a.category?.basePrice || a.basePrice || 0);
-        const pB = Number(b.category?.basePrice || b.basePrice || 0);
+        const pA = Number(a.pricePerNight || a.category?.basePrice || a.basePrice || 0);
+        const pB = Number(b.pricePerNight || b.category?.basePrice || b.basePrice || 0);
         return pB - pA;
       });
     }
@@ -746,13 +764,14 @@ export const RoomsPage = () => {
               <div className="space-y-6">
                 {paginatedRooms.map((room) => {
                   const category = room.category || {};
-                  const roomName = category.name ? `${category.name} (Phòng ${room.roomNumber})` : `Phòng ${room.roomNumber}`;
-                  const price = category.basePrice || room.basePrice || 0;
-                  const capacity = category.capacity || room.capacity || 2;
-                  const bedType = category.bedType || room.bedType || 'Giường tiêu chuẩn';
-                  const description = category.description || room.description || '';
-                  const imageUrl = category.imageUrl || room.imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427';
+                  const roomName = room.roomName || (category.name ? `${category.name} (Phòng ${room.roomNumber})` : `Phòng ${room.roomNumber}`);
+                  const price = room.pricePerNight || category.basePrice || room.basePrice || 0;
+                  const capacity = room.capacity || category.capacity || 2;
+                  const bedType = room.bedType || category.bedType || 'Giường tiêu chuẩn';
+                  const description = room.description || category.description || '';
+                  const imageUrl = room.imageUrl || category.imageUrl || (Array.isArray(room.images) && room.images[0]) || (Array.isArray(room.imageUrls) && room.imageUrls[0]) || 'https://images.unsplash.com/photo-1590490360182-c33d57733427';
                   const status = room.status || 'AVAILABLE';
+                  const categoryBadge = room.categoryName || category.name || room.roomType || 'Tiêu chuẩn';
 
                   return (
                     <div
@@ -767,7 +786,7 @@ export const RoomsPage = () => {
                           className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
                         />
                         <span className="absolute top-3.5 left-3.5 bg-black/80 backdrop-blur-xs text-white text-[9px] tracking-wider uppercase font-semibold px-3 py-1 rounded-full">
-                          {category.name || 'Tiêu chuẩn'}
+                          {categoryBadge}
                         </span>
                         <span className="absolute bottom-3.5 left-3.5 bg-white/90 backdrop-blur-xs text-stone-900 text-[10px] font-semibold px-2.5 py-0.5 rounded-full">
                           Tầng {room.floor || 1}
@@ -820,9 +839,9 @@ export const RoomsPage = () => {
 
                           {/* Tiện nghi & Dịch vụ trực tiếp từ Database */}
                           <div className="flex flex-wrap gap-1.5 pt-1 text-[11px]">
-                            {category.bedType && (
+                            {bedType && (
                               <span className="px-2 py-0.5 rounded-md bg-stone-100/90 text-stone-600 border border-stone-200/60 font-light">
-                                • {category.bedType}
+                                • {bedType}
                               </span>
                             )}
                             {services.slice(0, 3).map((sv) => (
@@ -842,10 +861,12 @@ export const RoomsPage = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              const detailUrl = queryCheckIn && queryCheckOut
-                                ? `/rooms/${room.id}?checkIn=${queryCheckIn}&checkOut=${queryCheckOut}`
-                                : `/rooms/${room.id}`;
-                              navigate(detailUrl);
+                              const params = new URLSearchParams();
+                              if (queryCheckIn) params.set('checkIn', queryCheckIn);
+                              if (queryCheckOut) params.set('checkOut', queryCheckOut);
+                              if (queryGuests) params.set('guests', queryGuests);
+                              const qs = params.toString();
+                              navigate(qs ? `/rooms/${room.id}?${qs}` : `/rooms/${room.id}`);
                             }}
                             className="bg-black hover:bg-stone-800 text-white rounded-full px-5 py-2.5 text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
                           >

@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.web.util.HtmlUtils;
 
 @Getter
 @Setter
@@ -150,10 +151,14 @@ public class RoomDetailResponse {
 
             reviewResponses = reviewEntities.stream().map(rev -> {
                 String userName = rev.getUser() != null ? rev.getUser().getFullName() : "Khách hàng";
+                String comment = rev.getComment();
+                if (comment != null && (comment.contains("<") || comment.contains(">"))) {
+                    comment = HtmlUtils.htmlEscape(comment);
+                }
                 return ReviewResponse.builder()
                         .id(rev.getId())
                         .rating(rev.getRating())
-                        .comment(rev.getComment())
+                        .comment(comment)
                         .userId(rev.getUser() != null ? rev.getUser().getId() : null)
                         .userName(userName)
                         .roomId(room.getId())

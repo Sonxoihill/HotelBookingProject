@@ -231,6 +231,8 @@ export const RoomDetailPage = () => {
   useEffect(() => {
     const fetchReviews = async () => {
       if (!id) return;
+      setIsLoadingReviews(true);
+      setReviewsError(null);
       try {
         const res = await reviewService.getRoomReviews(id);
         const rawData = res?.data || res;

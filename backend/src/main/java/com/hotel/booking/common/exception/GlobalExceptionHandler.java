@@ -3,6 +3,7 @@ package com.hotel.booking.common.exception;
 import com.hotel.booking.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -11,6 +12,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
@@ -42,8 +44,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleConstraintViolationException(ConstraintViolationException ex) {
         log.warn("Constraint violation: {}", ex.getMessage());
         Map<String, String> errors = new HashMap<>();
-        ex.getConstraintViolations().forEach(violation ->
-                errors.put(violation.getPropertyPath().toString(), violation.getMessage()));
+        ex.getConstraintViolations()
+                .forEach(violation -> errors.put(violation.getPropertyPath().toString(), violation.getMessage()));
         ApiResponse<Void> response = ApiResponse.error(ErrorCode.VALIDATION_ERROR.getDefaultMessage(), errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
@@ -58,8 +60,29 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         log.warn("Method not supported: {}", ex.getMessage());
-        ApiResponse<Void> response = ApiResponse.error(String.format("Phương thức HTTP '%s' không được hỗ trợ cho endpoint này.", ex.getMethod()));
+        ApiResponse<Void> response = ApiResponse
+                .error(String.format("Phương thức HTTP '%s' không được hỗ trợ cho endpoint này.", ex.getMethod()));
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
+    }
+
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, TypeMismatchException.class})
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatchException(TypeMismatchException ex) {
+        log.warn("Type mismatch error: {}", ex.getMessage());
+        String message;
+        if (ex instanceof MethodArgumentTypeMismatchException mismatchEx) {
+            String paramName = mismatchEx.getName();
+            Object value = mismatchEx.getValue();
+            Class<?> requiredType = mismatchEx.getRequiredType();
+            String typeName = requiredType != null ? requiredType.getSimpleName() : "hợp lệ";
+            message = String.format("Tham số '%s' nhận giá trị '%s' không đúng định dạng (yêu cầu kiểu %s).",
+                    paramName, value, typeName);
+        } else {
+            String propertyName = ex.getPropertyName() != null ? ex.getPropertyName() : "tham số";
+            message = String.format("Tham số '%s' nhận giá trị '%s' không đúng định dạng.",
+                    propertyName, ex.getValue());
+        }
+        ApiResponse<Void> response = ApiResponse.error(message);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

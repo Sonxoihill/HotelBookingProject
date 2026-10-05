@@ -15,6 +15,7 @@ import com.hotel.booking.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.HtmlUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -48,11 +49,17 @@ public class ReviewServiceImpl implements ReviewService {
             throw new IllegalArgumentException("Cần cung cấp mã đơn đặt phòng hoặc mã phòng để đánh giá.");
         }
 
+        String rawComment = request.getComment();
+        String sanitizedComment = null;
+        if (rawComment != null) {
+            sanitizedComment = HtmlUtils.htmlEscape(rawComment.trim());
+        }
+
         Review review = Review.builder()
                 .user(user)
                 .room(room)
                 .rating(request.getRating())
-                .comment(request.getComment())
+                .comment(sanitizedComment)
                 .build();
 
         Review saved = reviewRepository.save(review);
@@ -107,10 +114,15 @@ public class ReviewServiceImpl implements ReviewService {
         Long roomId = review.getRoom() != null ? review.getRoom().getId() : null;
         Long userId = review.getUser() != null ? review.getUser().getId() : null;
 
+        String comment = review.getComment();
+        if (comment != null && (comment.contains("<") || comment.contains(">"))) {
+            comment = HtmlUtils.htmlEscape(comment);
+        }
+
         return ReviewResponse.builder()
                 .id(review.getId())
                 .rating(review.getRating())
-                .comment(review.getComment())
+                .comment(comment)
                 .userId(userId)
                 .userName(userName)
                 .roomId(roomId)

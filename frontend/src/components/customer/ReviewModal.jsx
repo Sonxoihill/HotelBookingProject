@@ -150,7 +150,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
                   className={`transition-colors duration-150 ${
                     (hoverRating || rating) >= star
                       ? 'text-amber-400 fill-amber-400 filter drop-shadow-sm'
-                      : 'text-stone-300'
+                      : 'text-stone-300 fill-stone-100'
                   }`}
                 />
               </button>

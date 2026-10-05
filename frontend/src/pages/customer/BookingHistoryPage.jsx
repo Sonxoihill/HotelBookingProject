@@ -67,10 +67,36 @@ export const BookingHistoryPage = () => {
         const profile = profileRes?.data || profileRes;
         setUserProfile(profile);
 
-        // 2. Tải danh sách đơn đặt phòng từ Database
-        const bookingsRes = await bookingService.getMyBookings();
-        const bookingsList = bookingsRes?.data || bookingsRes || [];
-        setBookings(Array.isArray(bookingsList) ? bookingsList : []);
+        // 2. Tải danh sách đơn đặt phòng và danh sách đánh giá của tôi từ Database
+        const [bookingsRes, myReviewsRes] = await Promise.allSettled([
+          bookingService.getMyBookings(),
+          reviewService.getMyReviews(),
+        ]);
+
+        const rawBookings = bookingsRes.status === 'fulfilled' ? (bookingsRes.value?.data || bookingsRes.value || []) : [];
+        const bookingsList = Array.isArray(rawBookings) ? rawBookings : [];
+
+        const rawReviews = myReviewsRes.status === 'fulfilled' ? (myReviewsRes.value?.data || myReviewsRes.value || []) : [];
+        const reviewsList = Array.isArray(rawReviews) ? rawReviews : [];
+
+        // Gắn thông tin review thật từ database vào từng đơn đặt phòng (theo roomId)
+        const enrichedBookings = bookingsList.map((b) => {
+          const matchedReview = reviewsList.find((r) => r.roomId === b.room?.id);
+          if (matchedReview) {
+            return {
+              ...b,
+              review: {
+                id: matchedReview.id,
+                rating: matchedReview.rating,
+                comment: matchedReview.comment,
+                reviewedAt: matchedReview.createdAt,
+              },
+            };
+          }
+          return b;
+        });
+
+        setBookings(enrichedBookings);
 
         // 3. Tải số lượng phòng trống thực tế từ Database (rooms table)
         try {
@@ -552,8 +578,16 @@ export const BookingHistoryPage = () => {
                       {/* Tag đánh giá nếu đã đánh giá */}
                       {b.review && (
                         <div className="p-2.5 bg-amber-50/70 border border-amber-200/70 rounded-xl text-xs text-amber-900 flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 font-semibold">
-                            <Star size={14} className="fill-amber-500 text-amber-500" />
+                          <div className="flex items-center gap-2 font-semibold flex-wrap">
+                            <div className="flex items-center text-amber-500">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  size={14}
+                                  className={s <= Number(b.review.rating) ? 'fill-amber-500 text-amber-500' : 'fill-stone-100 text-stone-300'}
+                                />
+                              ))}
+                            </div>
                             <span>Đã đánh giá: {b.review.rating} sao</span>
                             <span className="italic text-stone-600 text-[11px] font-normal truncate max-w-[200px] sm:max-w-none">
                               - "{b.review.comment}"

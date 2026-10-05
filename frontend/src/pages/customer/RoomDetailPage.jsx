@@ -20,11 +20,22 @@ import {
   X,
   ZoomIn,
   MessageSquare,
+  DoorClosed,
+  Home,
+  BedDouble,
+  Car,
+  Shirt,
+  Bike,
+  Utensils,
+  CheckCircle2,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import { tokenStorage } from '../../utils/tokenStorage';
 import { roomService } from '../../services/roomService';
 import { reviewService } from '../../services/reviewService';
+import { serviceService } from '../../services/serviceService';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import Input from '../../components/common/Input';
@@ -37,6 +48,8 @@ export const RoomDetailPage = () => {
   const [roomData, setRoomData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
+  const [isNotFound, setIsNotFound] = useState(false);
+  const [services, setServices] = useState([]);
 
   // Đánh giá của khách hàng lấy qua reviewService
   const [reviewsData, setReviewsData] = useState({
@@ -48,38 +61,68 @@ export const RoomDetailPage = () => {
   const [reviewsError, setReviewsError] = useState(null);
   const reviewsRef = useRef(null);
 
-  // Tải thông tin phòng từ cơ sở dữ liệu
+  // Tải thông tin phòng và dịch vụ trực tiếp từ cơ sở dữ liệu
   useEffect(() => {
-    const fetchRoom = async () => {
+    const fetchRoomAndServices = async () => {
       setIsLoading(true);
       setFetchError(null);
+      setIsNotFound(false);
+
+      // Nếu ID trên URL không hợp lệ (không phải số nguyên dương)
+      if (!id || isNaN(Number(id)) || Number(id) <= 0) {
+        setIsNotFound(true);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const res = await roomService.getRoomById(id);
         const rawData = res?.data || res;
         const data = rawData?.data || rawData;
         if (!data || (!data.id && !data.category)) {
-          throw new Error('Dữ liệu phòng trả về rỗng hoặc không đúng định dạng');
+          setIsNotFound(true);
+          return;
         }
         setRoomData(data);
-        if (data?.reviews) {
+        if (data?.reviews !== undefined) {
           setReviewsData({
-            averageRating: data.averageRating ?? 0,
-            totalReviews: data.totalReviews ?? 0,
-            reviews: data.reviews ?? [],
+            averageRating: Number(data.averageRating) || 0,
+            totalReviews: Number(data.totalReviews) || (Array.isArray(data.reviews) ? data.reviews.length : 0),
+            reviews: Array.isArray(data.reviews) ? data.reviews : [],
           });
           setIsLoadingReviews(false);
+          setReviewsError(null);
         }
       } catch (err) {
-        console.error('Lỗi tải chi tiết phòng:', err);
-        setFetchError(err?.message || 'Phòng đã ngừng phục vụ hoặc không thể kết nối đến máy chủ API.');
+        console.warn('Lỗi tải chi tiết phòng:', err);
+        const is404 =
+          err?.status === 404 ||
+          err?.response?.status === 404 ||
+          String(err?.message || '').includes('404') ||
+          String(err?.message || '').toLowerCase().includes('không tìm thấy') ||
+          String(err?.message || '').toLowerCase().includes('not found');
+
+        if (is404) {
+          setIsNotFound(true);
+        } else {
+          setFetchError('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+        }
       } finally {
         setIsLoading(false);
       }
+
+      // Tải danh sách dịch vụ đi kèm từ CSDL (tương đồng với danh sách phòng)
+      try {
+        const srvRes = await serviceService.getServices();
+        const srvRaw = srvRes?.data || srvRes || [];
+        const srvList = Array.isArray(srvRaw) ? srvRaw : (srvRaw?.content || []);
+        setServices(srvList.filter((s) => s.status === 'ACTIVE' || !s.status));
+      } catch (srvErr) {
+        console.warn('Lỗi tải danh mục dịch vụ đi kèm:', srvErr);
+      }
     };
 
-    if (id) {
-      fetchRoom();
-    }
+    fetchRoomAndServices();
   }, [id]);
 
   const [searchParams] = useSearchParams();
@@ -132,7 +175,18 @@ export const RoomDetailPage = () => {
   const mainImage = roomData?.imageUrl || category.imageUrl || (dbImages.length > 0 ? dbImages[0] : '');
   const images = dbImages.length > 0 ? dbImages : (mainImage ? [mainImage] : []);
 
-  // Danh sách tiện nghi lấy 100% từ CSDL (cột amenities), không dùng tiện nghi mẫu
+  // Helper chọn icon đại diện cho dịch vụ
+  const getServiceIcon = (name = '') => {
+    const lower = String(name).toLowerCase();
+    if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('ăn')) return Utensils;
+    if (lower.includes('xe') && (lower.includes('đưa') || lower.includes('sân bay') || lower.includes('ô tô'))) return Car;
+    if (lower.includes('giặt') || lower.includes('là') || lower.includes('sấy')) return Shirt;
+    if (lower.includes('xe máy') || lower.includes('moto') || lower.includes('thuê xe')) return Bike;
+    if (lower.includes('cà phê') || lower.includes('nước uống')) return Coffee;
+    return Sparkles;
+  };
+
+  // Danh sách tiện nghi phòng nghỉ lấy 100% từ cơ sở dữ liệu (cột amenities và bedType), không dùng dữ liệu tạo sẵn
   const parseAmenities = () => {
     const rawAmenities = roomData?.amenities || category.amenities;
     let list = [];
@@ -140,19 +194,27 @@ export const RoomDetailPage = () => {
       list = rawAmenities.filter(Boolean);
     } else if (typeof rawAmenities === 'string' && rawAmenities.trim()) {
       list = rawAmenities.split(',').map((a) => a.trim()).filter(Boolean);
-    } else {
-      list = [];
     }
 
-    return list.map((name) => {
+    const bed = roomData?.bedType || category.bedType;
+    if (bed && !list.includes(bed)) {
+      list.unshift(bed);
+    }
+
+    // Hợp nhất danh sách không trùng lặp từ CSDL
+    const mergedNames = Array.from(new Set(list));
+
+    return mergedNames.map((name) => {
       let Icon = Sparkles;
       const lower = String(name).toLowerCase();
-      if (lower.includes('wi-fi') || lower.includes('wifi')) Icon = Wifi;
-      else if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('cà phê')) Icon = Coffee;
-      else if (lower.includes('tv') || lower.includes('tivi')) Icon = Tv;
-      else if (lower.includes('bồn tắm') || lower.includes('tắm') || lower.includes('jacuzzi')) Icon = Bath;
-      else if (lower.includes('điều hòa') || lower.includes('khí')) Icon = Wind;
-      else if (lower.includes('két') || lower.includes('bảo mật')) Icon = ShieldCheck;
+      if (lower.includes('wi-fi') || lower.includes('wifi') || lower.includes('mạng')) Icon = Wifi;
+      else if (lower.includes('sáng') || lower.includes('buffet') || lower.includes('cà phê') || lower.includes('ấm đun') || lower.includes('nước khoáng')) Icon = Coffee;
+      else if (lower.includes('tv') || lower.includes('tivi') || lower.includes('truyền hình')) Icon = Tv;
+      else if (lower.includes('bồn tắm') || lower.includes('tắm') || lower.includes('vòi sen') || lower.includes('jacuzzi')) Icon = Bath;
+      else if (lower.includes('điều hòa') || lower.includes('khí') || lower.includes('lạnh')) Icon = Wind;
+      else if (lower.includes('két') || lower.includes('bảo mật') || lower.includes('an toàn')) Icon = ShieldCheck;
+      else if (lower.includes('giường') || lower.includes('nệm') || lower.includes('bed')) Icon = Bed;
+      else if (lower.includes('tầm nhìn') || lower.includes('ban công') || lower.includes('khu vực')) Icon = Maximize2;
       return { name: String(name), icon: Icon };
     });
   };
@@ -175,23 +237,27 @@ export const RoomDetailPage = () => {
         const res = await reviewService.getRoomReviews(id);
         const rawData = res?.data || res;
         const data = rawData?.data || rawData;
-        if (data) {
+        if (data && (Array.isArray(data.reviews) || data.totalReviews !== undefined)) {
           setReviewsData({
-            averageRating: data.averageRating ?? 0,
-            totalReviews: data.totalReviews ?? (Array.isArray(data.reviews) ? data.reviews.length : 0),
-            reviews: data.reviews ?? [],
+            averageRating: Number(data.averageRating) || 0,
+            totalReviews: Number(data.totalReviews) || (Array.isArray(data.reviews) ? data.reviews.length : 0),
+            reviews: Array.isArray(data.reviews) ? data.reviews : [],
           });
+          setReviewsError(null);
         }
       } catch (err) {
-        console.error('Lỗi khi tải đánh giá của phòng:', err);
-        setReviewsError(err?.message || 'Không thể kết nối đến API Đánh giá của máy chủ.');
+        console.warn('Ghi chú khi gọi API reviewService.getRoomReviews:', err?.message);
+        // Nếu roomData chưa có dữ liệu đánh giá trả về từ getRoomById, mới hiển thị thông báo lỗi
+        if (!roomData?.reviews) {
+          setReviewsError(err?.message || 'Không thể kết nối đến API Đánh giá của máy chủ.');
+        }
       } finally {
         setIsLoadingReviews(false);
       }
     };
 
     fetchReviews();
-  }, [id]);
+  }, [id, roomData?.reviews]);
 
   const room = {
     id: roomData?.id || id,
@@ -209,6 +275,53 @@ export const RoomDetailPage = () => {
     description: description,
     images: images,
     amenities: amenities,
+  };
+
+  // Hàm hiển thị số sao sáng chuẩn xác theo điểm số (hỗ trợ cả nửa sao ví dụ 4.5/5)
+  const renderRatingStars = (ratingValue, size = 14) => {
+    const num = Number(ratingValue) || 0;
+    return (
+      <div className="flex items-center gap-0.5" title={`${num}/5 sao`}>
+        {[1, 2, 3, 4, 5].map((s) => {
+          const fillPercentage = Math.max(0, Math.min(100, Math.round((num - (s - 1)) * 100)));
+          if (fillPercentage >= 75) {
+            return (
+              <Star
+                key={s}
+                size={size}
+                className="fill-amber-400 text-amber-400 shrink-0"
+              />
+            );
+          } else if (fillPercentage >= 25) {
+            return (
+              <div key={s} className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+                <Star
+                  size={size}
+                  className="absolute inset-0 fill-slate-100 text-slate-300"
+                />
+                <div
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ width: `${fillPercentage}%` }}
+                >
+                  <Star
+                    size={size}
+                    className="fill-amber-400 text-amber-400"
+                  />
+                </div>
+              </div>
+            );
+          } else {
+            return (
+              <Star
+                key={s}
+                size={size}
+                className="fill-slate-100 text-slate-300 shrink-0"
+              />
+            );
+          }
+        })}
+      </div>
+    );
   };
 
   // State quản lý ảnh hiển thị trên trang
@@ -334,36 +447,97 @@ export const RoomDetailPage = () => {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+        <div className="w-8 h-8 border-3 border-amber-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-stone-500 font-medium">Đang tải thông tin chi tiết phòng từ CSDL...</span>
+      </div>
+    );
+  }
+
+  // MÀN HÌNH 404 CUSTOM KHI TRUY CẬP ID KHÔNG TỒN TẠI (TUYỆT ĐỐI KHÔNG MÀN HÌNH TRẮNG HOẶC LỘ CODE LỖI)
+  if (isNotFound) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center px-4 py-16">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-stone-200 p-8 sm:p-10 text-center shadow-lg space-y-6">
+          {/* Icon minh họa 404 sang trọng */}
+          <div className="relative mx-auto w-20 h-20 rounded-3xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-700 shadow-inner">
+            <DoorClosed size={40} className="stroke-[1.75]" />
+            <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-stone-900 text-[#F7DFBC] text-[10px] font-bold uppercase tracking-wider shadow-xs">
+              404
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <span className="inline-block text-[11px] font-bold text-amber-800 bg-amber-100/70 px-3 py-1 rounded-full uppercase tracking-wider">
+              Không tìm thấy thông tin
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 font-serif">
+              Phòng không tồn tại
+            </h1>
+            <p className="text-xs sm:text-sm text-stone-500 leading-relaxed max-w-sm mx-auto">
+              Phòng bạn đang tìm kiếm (mã #{id}) không tồn tại trên hệ thống, đã ngừng hoạt động hoặc đường dẫn truy cập không chính xác.
+            </p>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/rooms')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold cursor-pointer transition-all shadow-xs hover:scale-102"
+            >
+              <BedDouble size={16} />
+              <span>Xem danh sách phòng</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold cursor-pointer transition-all hover:scale-102"
+            >
+              <Home size={16} />
+              <span>Về trang chủ</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // MÀN HÌNH BÁO SỰ CỐ KẾT NỐI MÁY CHỦ THÂN THIỆN (KHÔNG LỘ CODE LỖI HAY STACKTRACE)
   if (fetchError || !roomData) {
     return (
-      <div className="max-w-2xl mx-auto my-20 p-8 sm:p-10 bg-rose-50 border-2 border-rose-500 rounded-3xl text-center space-y-4 shadow-md">
-        <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center font-bold text-2xl">
-          ⚠️
-        </div>
-        <h3 className="text-rose-900 font-bold text-lg sm:text-xl">
-          Lỗi kết nối API Chi tiết phòng Backend
-        </h3>
-        <p className="text-xs sm:text-sm text-rose-700 max-w-lg mx-auto leading-relaxed">
-          {fetchError || 'Không tìm thấy thông tin phòng nghỉ trong hệ thống.'}
-        </p>
-        <p className="text-[11px] text-rose-500 italic">
-          (Lỗi hiển thị minh bạch để phát hiện Backend đang tắt hoặc lỗi API, tuyệt đối không dùng dữ liệu giả)
-        </p>
-        <div className="flex items-center justify-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer transition-colors shadow-xs"
-          >
-            Thử tải lại
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/rooms')}
-            className="px-6 py-2.5 rounded-full bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 text-xs font-semibold cursor-pointer transition-colors"
-          >
-            Quay lại danh sách phòng
-          </button>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-16">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-stone-200 p-8 sm:p-10 text-center shadow-lg space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+            <AlertTriangle size={32} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-stone-900 font-bold text-lg sm:text-xl font-serif">
+              Tạm thời không thể tải dữ liệu
+            </h3>
+            <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
+              Hệ thống tạm thời không thể kết nối đến máy chủ hoặc đường truyền mạng bị gián đoạn. Quý khách vui lòng thử tải lại sau ít phút.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+            >
+              <RotateCcw size={15} />
+              <span>Thử tải lại</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/rooms')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold cursor-pointer transition-colors"
+            >
+              <ArrowLeft size={15} />
+              <span>Quay lại danh sách phòng</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -445,40 +619,113 @@ export const RoomDetailPage = () => {
             )}
           </div>
 
-          {/* Mô tả chi tiết & Tiện nghi phòng */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">
-              Giới thiệu không gian phòng
-            </h3>
-            <p className="text-xs text-slate-600 leading-relaxed font-normal">
-              {room.description}
-            </p>
+          {/* Mô tả chi tiết không gian phòng */}
+          {room.description && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-3">
+              <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">
+                Giới thiệu không gian phòng
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                {room.description}
+              </p>
+            </div>
+          )}
 
-            {/* Tiện nghi phòng */}
-            <div className="pt-2">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-                Tiện nghi phòng nghỉ
-              </h4>
-              {room.amenities && room.amenities.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2.5">
+          {/* DỊCH VỤ, TIỆN NGHI PHÒNG NGHỈ (GỘP THÀNH 1 Ô DUY NHẤT, 100% DỮ LIỆU TỪ DATABASE) */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Dịch vụ, tiện nghi phòng nghỉ
+                </h3>
+                <p className="text-[11px] text-slate-400 font-light mt-0.5">
+                  Dữ liệu tiện nghi và dịch vụ trích xuất trực tiếp từ cơ sở dữ liệu
+                </p>
+              </div>
+              {(room.amenities.length > 0 || services.length > 0) && (
+                <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200/60">
+                  {room.amenities.length + services.length} tiện ích & dịch vụ
+                </span>
+              )}
+            </div>
+
+            {/* 1. Tiện nghi phòng nghỉ từ Database */}
+            {room.amenities && room.amenities.length > 0 && (
+              <div className="space-y-2.5">
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                  Tiện nghi phòng
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {room.amenities.map((item, idx) => {
                     const Icon = item.icon;
                     return (
                       <div
                         key={idx}
-                        className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100 text-slate-700 text-xs font-medium"
+                        className="flex items-center gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-slate-700 text-xs font-medium hover:bg-amber-50/50 hover:border-amber-200/50 transition-colors"
                       >
-                        <Icon size={15} className="text-amber-600 shrink-0" />
+                        <Icon size={16} className="text-amber-600 shrink-0" />
                         <span className="truncate">{item.name}</span>
                       </div>
                     );
                   })}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic">
-                  Chưa có thông tin tiện nghi trong cơ sở dữ liệu.
-                </p>
-              )}
+              </div>
+            )}
+
+            {/* 2. Dịch vụ đi kèm từ Database */}
+            {services && services.length > 0 && (
+              <div className="space-y-2.5 pt-3 border-t border-slate-100">
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                  Dịch vụ đi kèm
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {services.map((srv) => {
+                    const SrvIcon = getServiceIcon(srv.name);
+                    return (
+                      <div
+                        key={srv.id}
+                        className="p-3.5 rounded-2xl bg-stone-50/80 hover:bg-[#FAF6F0] border border-stone-200/80 hover:border-[#F7DFBC] transition-all flex items-start gap-3 group"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-white border border-stone-200 flex items-center justify-center text-amber-700 shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                          <SrvIcon size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <h4 className="text-xs font-bold text-stone-900 truncate">
+                              {srv.name}
+                            </h4>
+                            {srv.price > 0 ? (
+                              <span className="text-[11px] font-mono font-bold text-amber-800 shrink-0">
+                                +{formatVND(srv.price)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                                Miễn phí
+                              </span>
+                            )}
+                          </div>
+                          {srv.description && (
+                            <p className="text-[11px] text-stone-500 font-light mt-1 line-clamp-2 leading-relaxed">
+                              {srv.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {(!room.amenities || room.amenities.length === 0) && (!services || services.length === 0) && (
+              <p className="text-xs text-slate-400 italic">
+                Chưa có thông tin dịch vụ, tiện nghi trong cơ sở dữ liệu.
+              </p>
+            )}
+
+            <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px] text-stone-500 font-light">
+              <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+              <span>Quý khách có thể lựa chọn dịch vụ này khi tiến hành đặt phòng hoặc đăng ký với lễ tân.</span>
             </div>
           </div>
         </div>
@@ -498,10 +745,10 @@ export const RoomDetailPage = () => {
                     <button
                       type="button"
                       onClick={scrollToReviews}
-                      className="flex items-center gap-1 text-xs font-bold text-slate-800 hover:text-amber-700 transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-amber-700 transition-colors cursor-pointer"
                       title="Xem các đánh giá từ khách hàng"
                     >
-                      <Star size={14} className="text-amber-500 fill-amber-500" />
+                      {renderRatingStars(room.rating, 13)}
                       <span>{room.rating}</span>
                       <span className="text-slate-400 font-normal">
                         ({room.reviewsCount} đánh giá từ khách)
@@ -601,6 +848,36 @@ export const RoomDetailPage = () => {
                     </span>
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Tiện nghi & Dịch vụ đi kèm tương đồng với Danh sách phòng */}
+            {services.length > 0 && (
+              <div className="pt-1">
+                <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider block mb-2">
+                  Dịch vụ tiện ích sẵn có:
+                </span>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {room.bedType && (
+                    <span className="px-2.5 py-1 rounded-xl bg-stone-100 text-stone-700 border border-stone-200 font-medium">
+                      • {room.bedType}
+                    </span>
+                  )}
+                  {services.map((sv) => (
+                    <span
+                      key={sv.id}
+                      className="px-2.5 py-1 rounded-xl bg-[#FAF6F0] text-[#5c3e21] border border-[#F7DFBC] font-medium flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <span className="text-amber-700 font-bold">✓</span>
+                      <span>{sv.name}</span>
+                      {sv.price > 0 && (
+                        <span className="text-[10px] text-stone-400 font-mono">
+                          (+{formatVND(sv.price)})
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -777,16 +1054,8 @@ export const RoomDetailPage = () => {
                 {room.rating}
               </div>
               <div className="text-xs">
-                <div className="flex items-center text-amber-500">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star
-                      key={s}
-                      size={13}
-                      className={s <= Math.round(room.rating) ? 'fill-amber-500 text-amber-500' : 'text-slate-300'}
-                    />
-                  ))}
-                </div>
-                <span className="text-slate-600 font-medium">{room.reviewsCount} lượt đánh giá</span>
+                {renderRatingStars(room.rating, 15)}
+                <span className="text-slate-600 font-medium block mt-0.5">{room.reviewsCount} lượt đánh giá</span>
               </div>
             </div>
           ) : (
@@ -802,8 +1071,8 @@ export const RoomDetailPage = () => {
             <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs text-slate-400">Đang tải đánh giá từ hệ thống...</span>
           </div>
-        ) : reviewsError ? (
-          /* Trạng thái 2: LỖI ĐỎ CHÓT KHI API ĐÁNH GIÁ THỰC TẾ GẶP LỖI (Theo Plan 1 & Plan 2) */
+        ) : reviewsError && (!reviewsData.reviews || reviewsData.reviews.length === 0) ? (
+          /* Trạng thái 2: LỖI KHI API ĐÁNH GIÁ GẶP LỖI VÀ CHƯA CÓ DATA */
           <div className="p-6 sm:p-8 rounded-2xl bg-rose-50 border-2 border-rose-500 text-center space-y-2 shadow-xs">
             <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center font-bold text-lg">
               ⚠️
@@ -814,56 +1083,122 @@ export const RoomDetailPage = () => {
             <p className="text-xs text-rose-700 max-w-md mx-auto">
               {reviewsError}
             </p>
-            <p className="text-[11px] text-rose-500 italic">
-              (Lỗi hiển thị minh bạch để nhà phát triển kiểm tra Backend, tuyệt đối không tự lấp liếm bằng data giả)
-            </p>
           </div>
         ) : reviewsData.reviews && reviewsData.reviews.length > 0 ? (
           /* Trạng thái 3: Hiển thị danh sách đánh giá của phòng */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {reviewsData.reviews.map((rev) => (
-              <div
-                key={rev.id}
-                className="p-5 rounded-2xl bg-stone-50/60 border border-stone-200/70 space-y-3 hover:bg-stone-50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {rev.userAvatar ? (
-                      <img
-                        src={rev.userAvatar}
-                        alt={rev.userName}
-                        className="w-9 h-9 rounded-full object-cover border border-stone-200"
-                      />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-[#C59D5F]/20 text-[#8B6E38] font-bold text-xs flex items-center justify-center">
-                        {(rev.userName || 'K').charAt(0).toUpperCase()}
+          reviewsData.reviews.length <= 2 ? (
+            /* BỐ CỤC 1: Nếu chỉ có 1 - 2 đánh giá -> Hiển thị dạng thẻ to, thoáng đãng full-width */
+            <div className="space-y-4">
+              {reviewsData.reviews.map((rev) => (
+                <div
+                  key={rev.id}
+                  className="p-6 sm:p-7 rounded-3xl bg-white border border-slate-200/80 shadow-2xs space-y-4 hover:shadow-xs transition-shadow"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      {rev.userAvatar ? (
+                        <img
+                          src={rev.userAvatar}
+                          alt={rev.userName}
+                          className="w-11 h-11 rounded-full object-cover border border-stone-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 rounded-full bg-[#f3ede3] text-[#735832] font-semibold text-sm flex items-center justify-center shrink-0">
+                          {(rev.userName || 'N').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                          {rev.userName || 'Nguyễn Văn Khách'}
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {(() => {
+                            if (!rev.createdAt) return 'Gần đây';
+                            const d = new Date(rev.createdAt);
+                            return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+                          })()}
+                        </p>
                       </div>
-                    )}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900">{rev.userName}</h4>
-                      <p className="text-[10px] text-slate-400">
-                        {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('vi-VN') : 'Gần đây'}
-                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          size={17}
+                          className={
+                            s <= Number(rev.rating)
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'fill-transparent text-slate-300'
+                          }
+                        />
+                      ))}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-0.5">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star
-                        key={s}
-                        size={13}
-                        className={s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}
-                      />
-                    ))}
-                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed font-light">
+                    "{rev.comment}"
+                  </p>
                 </div>
+              ))}
+            </div>
+          ) : (
+            /* BỐ CỤC 2: Nếu có nhiều hơn 2 đánh giá -> Hiển thị dạng lưới thu nhỏ 2 cột gọn gàng như ảnh */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reviewsData.reviews.map((rev) => (
+                <div
+                  key={rev.id}
+                  className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3 hover:shadow-xs transition-shadow flex flex-col justify-between"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      {rev.userAvatar ? (
+                        <img
+                          src={rev.userAvatar}
+                          alt={rev.userName}
+                          className="w-9 h-9 rounded-full object-cover border border-stone-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-[#f3ede3] text-[#735832] font-semibold text-xs flex items-center justify-center shrink-0">
+                          {(rev.userName || 'N').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                          {rev.userName || 'Nguyễn Văn Khách'}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {(() => {
+                            if (!rev.createdAt) return 'Gần đây';
+                            const d = new Date(rev.createdAt);
+                            return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+                          })()}
+                        </p>
+                      </div>
+                    </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed font-light">
-                  "{rev.comment}"
-                </p>
-              </div>
-            ))}
-          </div>
+                    <div className="flex items-center gap-0.5 shrink-0 pt-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          size={14}
+                          className={
+                            s <= Number(rev.rating)
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'fill-transparent text-slate-300'
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed font-light mt-1">
+                    "{rev.comment}"
+                  </p>
+                </div>
+              ))}
+            </div>
+          )
         ) : (
           /* Trạng thái 4: Chưa có đánh giá nào */
           <div className="py-10 text-center space-y-2 bg-stone-50/50 rounded-2xl border border-dashed border-stone-200">

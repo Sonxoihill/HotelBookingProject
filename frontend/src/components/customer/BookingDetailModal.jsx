@@ -176,14 +176,17 @@ export const BookingDetailModal = ({
                 <Star size={15} className="fill-amber-500 text-amber-500" />
                 <span>Đánh giá từ khách hàng:</span>
               </div>
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <Star
-                    key={s}
-                    size={13}
-                    className={s <= booking.review.rating ? 'fill-amber-500 text-amber-500' : 'text-stone-300'}
-                  />
-                ))}
+              <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      size={14}
+                      className={s <= Number(booking.review.rating) ? 'fill-amber-500 text-amber-500' : 'fill-stone-100 text-stone-300'}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs font-bold text-amber-900 ml-1">{booking.review.rating}/5</span>
               </div>
             </div>
             <p className="italic text-stone-700 bg-white/70 p-2.5 rounded-xl border border-amber-100">

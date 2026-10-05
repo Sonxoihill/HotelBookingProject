@@ -130,6 +130,53 @@ export const BookingPaymentPage = () => {
   const taxAndService = Math.round(roomPriceSubtotal * 0.1); // 10% thuế GTGT & phí dịch vụ
   const totalAmount = Math.max(0, roomPriceSubtotal + taxAndService - discount);
 
+  // Hàm hiển thị số sao sáng chuẩn xác theo điểm số (hỗ trợ cả nửa sao ví dụ 4.5/5)
+  const renderRatingStars = (ratingValue, size = 13) => {
+    const num = Number(ratingValue) || 0;
+    return (
+      <div className="flex items-center gap-0.5" title={`${num}/5 sao`}>
+        {[1, 2, 3, 4, 5].map((s) => {
+          const fillPercentage = Math.max(0, Math.min(100, Math.round((num - (s - 1)) * 100)));
+          if (fillPercentage >= 75) {
+            return (
+              <Star
+                key={s}
+                size={size}
+                className="fill-amber-400 text-amber-400 shrink-0"
+              />
+            );
+          } else if (fillPercentage >= 25) {
+            return (
+              <div key={s} className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+                <Star
+                  size={size}
+                  className="absolute inset-0 fill-slate-100 text-slate-300"
+                />
+                <div
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ width: `${fillPercentage}%` }}
+                >
+                  <Star
+                    size={size}
+                    className="fill-amber-400 text-amber-400"
+                  />
+                </div>
+              </div>
+            );
+          } else {
+            return (
+              <Star
+                key={s}
+                size={size}
+                className="fill-slate-100 text-slate-300 shrink-0"
+              />
+            );
+          }
+        })}
+      </div>
+    );
+  };
+
   // Xử lý áp dụng voucher
   const handleApplyVoucher = (e) => {
     e.preventDefault();
@@ -262,11 +309,18 @@ export const BookingPaymentPage = () => {
               </div>
             </div>
             <div className="p-5 space-y-2">
-              <div className="flex items-center gap-1 text-xs font-bold text-slate-800">
-                <Star size={14} className="text-amber-500 fill-amber-500" />
-                <span>4.9</span>
-                <span className="text-slate-400 font-normal">(52 đánh giá từ khách)</span>
-              </div>
+              {roomData?.totalReviews > 0 ? (
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                  {renderRatingStars(roomData.averageRating, 13)}
+                  <span>{roomData.averageRating}</span>
+                  <span className="text-slate-400 font-normal">({roomData.totalReviews} đánh giá từ khách)</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-xs text-slate-400 font-normal">
+                  <Star size={13} className="text-slate-300 fill-slate-100" />
+                  <span>(Chưa có đánh giá)</span>
+                </div>
+              )}
               <h3 className="font-bold text-lg text-slate-900 font-serif">
                 {roomName}
               </h3>

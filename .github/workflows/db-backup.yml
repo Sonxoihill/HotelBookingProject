@@ -1,0 +1,72 @@
+name: Daily Database Backup (Aiven MySQL)
+
+on:
+  schedule:
+    # Chạy vào lúc 17:00 UTC mỗi ngày (tương đương 00:00 AM giờ Việt Nam UTC+7)
+    - cron: '0 17 * * *'
+  # Cho phép kích hoạt thủ công (Manual Trigger) từ giao diện GitHub Actions
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Dump & Store Aiven MySQL Backup
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install MySQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client
+
+      - name: Set Backup Timestamp
+        id: vars
+        run: |
+          BACKUP_TIME=$(TZ="Asia/Ho_Chi_Minh" date +"%Y%m%d_%H%M%S")
+          BACKUP_DATE=$(TZ="Asia/Ho_Chi_Minh" date +"%Y-%m-%d")
+          echo "TIMESTAMP=${BACKUP_TIME}" >> $GITHUB_OUTPUT
+          echo "DATE=${BACKUP_DATE}" >> $GITHUB_OUTPUT
+
+      - name: Run mysqldump from Aiven Cloud
+        env:
+          DB_HOST: ${{ secrets.AIVEN_MYSQL_HOST }}
+          DB_PORT: ${{ secrets.AIVEN_MYSQL_PORT }}
+          DB_USER: ${{ secrets.AIVEN_MYSQL_USER }}
+          DB_PASSWORD: ${{ secrets.AIVEN_MYSQL_PASSWORD }}
+          DB_NAME: ${{ secrets.AIVEN_MYSQL_DATABASE }}
+          BACKUP_FILE: backups/hotel_booking_${{ steps.vars.outputs.TIMESTAMP }}.sql.gz
+        run: |
+          mkdir -p backups
+
+          echo "Bắt đầu xuất dữ liệu từ Aiven MySQL: ${DB_HOST}:${DB_PORT}..."
+
+          mysqldump \
+            --host="${DB_HOST}" \
+            --port="${DB_PORT}" \
+            --user="${DB_USER}" \
+            --password="${DB_PASSWORD}" \
+            --ssl-mode=REQUIRED \
+            --single-transaction \
+            --quick \
+            --routines \
+            --triggers \
+            --default-character-set=utf8mb4 \
+            "${DB_NAME}" | gzip > "${BACKUP_FILE}"
+
+          # Kiểm tra file đã tạo thành công và có dung lượng hợp lệ
+          if [ -s "${BACKUP_FILE}" ]; then
+            echo "Dump thành công! Kích thước file: $(du -h "${BACKUP_FILE}" | cut -f1)"
+          else
+            echo "Lỗi: File dump rỗng hoặc tạo thất bại!" >&2
+            exit 1
+          fi
+
+      - name: Upload Backup to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiven-backup-${{ steps.vars.outputs.DATE }}
+          path: backups/*.sql.gz
+          retention-days: 30
+          compression-level: 0 # File đã được nén gzip trước đó

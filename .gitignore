@@ -37,3 +37,9 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Database Backups
+backups/
+*.sql.gz
+*.sql.zip
+

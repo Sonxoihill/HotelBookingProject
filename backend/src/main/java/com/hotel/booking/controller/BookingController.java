@@ -51,7 +51,8 @@ public class BookingController {
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đặt phòng thành công"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Thông tin không hợp lệ hoặc phòng đã bị đặt")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Thông tin không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Xung đột phòng - Phòng đang được giữ (ON_HOLD) hoặc đã có người đặt")
     })
     @PostMapping
     public ApiResponse<Booking> createBooking(

@@ -26,8 +26,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -37,6 +40,9 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
+
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://*.onrender.com,https://hotelbookingproject-5wqz.onrender.com}")
+    private String allowedOrigins;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -51,13 +57,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-                "http://localhost:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:5173",
-                "https://*.onrender.com",
-                "https://hotelbookingproject-5wqz.onrender.com"
-        ));
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        configuration.setAllowedOriginPatterns(origins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("Authorization"));
@@ -125,6 +129,16 @@ public class SecurityConfig {
                                 "/services/**",
                                 "/api/v1/rooms/**",
                                 "/api/v1/services/**"
+                        ).permitAll()
+                        // API tạo đặt phòng công khai (hỗ trợ cả khách vãng lai và thành viên)
+                        .requestMatchers(HttpMethod.POST,
+                                "/bookings",
+                                "/api/v1/bookings"
+                        ).permitAll()
+                        // API Cổng thanh toán VNPay Sandbox & Webhook IPN (SCRUM-94)
+                        .requestMatchers(
+                                "/payment/**",
+                                "/api/v1/payment/**"
                         ).permitAll()
                         // Chặn nghiêm ngặt các API quản trị chỉ dành cho ADMIN
                         .requestMatchers(

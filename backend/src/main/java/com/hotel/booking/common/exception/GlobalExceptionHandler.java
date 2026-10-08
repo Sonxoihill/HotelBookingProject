@@ -22,11 +22,29 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(RoomConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRoomConflictException(RoomConflictException ex) {
+        log.warn("Room conflict exception: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
         log.warn("AppException: code={}, message={}", ex.getErrorCode(), ex.getMessage());
         ApiResponse<Void> response = ApiResponse.error(ex.getMessage());
         return ResponseEntity.status(ex.getErrorCode().getHttpStatus()).body(response);
+    }
+
+    @ExceptionHandler({
+            org.springframework.dao.ConcurrencyFailureException.class,
+            jakarta.persistence.PessimisticLockException.class,
+            jakarta.persistence.LockTimeoutException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleLockConflictException(Exception ex) {
+        log.warn("Phát hiện xung đột khóa đồng thời (concurrency lock conflict): {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error("Phòng đang được xử lý đặt bởi người dùng khác. Vui lòng thử lại sau ít phút!");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -1,19 +1,15 @@
 import axiosInstance from './axiosInstance';
-import { USE_MOCK } from './config';
-import { mockBookingService } from '../mocks/mockServices';
 
 /**
  * Service xử lý:
  * - Đặt phòng (Khách hàng)
  * - Xem Lịch sử đặt phòng (Khách hàng)
  * - Quản lý Đơn đặt phòng (Lễ tân: xem, check-in, check-out, hủy)
+ * Kết nối 100% API Backend thật qua /bookings
  */
 export const bookingService = {
   // Khách hàng tạo yêu cầu đặt phòng mới
   createBooking: async (bookingData) => {
-    if (USE_MOCK) {
-      return await mockBookingService.createBooking(bookingData);
-    }
     return await axiosInstance.post('/bookings', bookingData);
   },
 

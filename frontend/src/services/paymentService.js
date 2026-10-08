@@ -1,38 +1,48 @@
 import axiosInstance from './axiosInstance';
-import { USE_MOCK } from './config';
-import { mockPaymentService } from '../mocks/mockServices';
 
 /**
- * Service xử lý : Cổng thanh toán (Payment Gateway)
+ * Service xử lý: Cổng thanh toán (Payment Gateway)
+ * Kết nối 100% với Backend API thật (PaymentController - /payment):
+ * - GET /payment/create-url: Tạo URL thanh toán VNPay Sandbox băm HMAC-SHA512
+ * - GET /payment/vnpay-return: Xác thực kết quả thanh toán, cập nhật trạng thái đơn hàng và gửi email xác nhận
  */
 export const paymentService = {
   /**
-   * Tạo URL thanh toán VNPay để chuyển hướng khách hàng sang cổng VNPay
-   *
-   * [KIẾN TRÚC MỞ RỘNG - DỄ DÀNG GHÉP API BACKEND]:
-   * - Khi USE_MOCK = true: Sử dụng mockPaymentService mô phỏng tạo URL redirect sang /booking/vnpay-return
-   * - Khi USE_MOCK = false: Tự động chuyển hướng gọi API Backend thật
-   *
-   * @param {Object} paymentData Dữ liệu đơn đặt phòng & thanh toán { bookingId, amount, orderInfo, returnUrl, ... }
-   * @returns {Promise<{ paymentUrl: string }>} URL thanh toán trả về
+   * Tạo URL thanh toán VNPay Sandbox từ Backend (GET /payment/create-url)
+   * @param {Object} data { bookingId: number, amount?: number }
+   * @returns {Promise<{ paymentUrl: string }>} URL thanh toán trả về từ Backend
    */
-  createVNPayUrl: async (paymentData) => {
-    if (USE_MOCK) {
-      return await mockPaymentService.createVNPayUrl(paymentData);
+  createVNPayUrl: async ({ bookingId, amount }) => {
+    const params = { bookingId };
+    if (amount) {
+      params.amount = amount;
     }
-
-    // KHI BACKEND CUNG CẤP API THẬT (Deploy lên develop):
-    return await axiosInstance.post('/payments/create-payment-url', paymentData);
+    const res = await axiosInstance.get('/payment/create-url', { params });
+    const data = res?.data || res;
+    const url = data?.paymentUrl || data?.url || res?.paymentUrl || res?.url;
+    return {
+      paymentUrl: url,
+      url: url,
+    };
   },
 
-  // Tạo URL thanh toán chuyển hướng sang Cổng thanh toán (VNPAY, MoMo, ZaloPay,...)
-  createPaymentUrl: async (paymentData) => {
-    return await axiosInstance.post('/payments/create-payment-url', paymentData);
+  /**
+   * Xác thực và xử lý kết quả thanh toán VNPay (GET /payment/vnpay-return)
+   * Backend kiểm tra chữ ký HMAC-SHA512, cập nhật trạng thái đơn CONFIRMED trong Database và gửi email xác nhận
+   * @param {Object} params Tham số trả về từ VNPay
+   */
+  verifyVNPayReturn: async (params) => {
+    return await axiosInstance.get('/payment/vnpay-return', { params });
+  },
+
+  // Tạo URL thanh toán chung
+  createPaymentUrl: async (params) => {
+    return await axiosInstance.get('/payment/create-url', { params });
   },
 
   // Kiểm tra trạng thái giao dịch thanh toán từ Cổng thanh toán
   verifyPaymentStatus: async (params) => {
-    return await axiosInstance.get('/payments/vnpay-return', { params });
+    return await axiosInstance.get('/payment/vnpay-return', { params });
   },
 
   // Lễ tân ghi nhận thanh toán tiền mặt tại quầy

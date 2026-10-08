@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { formatVND } from '../../utils/formatters';
+import { paymentService } from '../../services/paymentService';
 import {
   CheckCircle2,
   XCircle,
@@ -50,6 +51,20 @@ export const VNPayReturnPage = () => {
   const rawAmount = searchParams.get('vnp_Amount') || '';
   const orderInfo = searchParams.get('vnp_OrderInfo') || '';
   const payDate = searchParams.get('vnp_PayDate') || '';
+
+  // Đồng bộ kết quả thanh toán với Backend để cập nhật Database và gửi Email xác nhận
+  useEffect(() => {
+    const hasVNPayParams = searchParams.get('vnp_ResponseCode') && searchParams.get('vnp_SecureHash');
+    if (hasVNPayParams) {
+      const allParams = {};
+      searchParams.forEach((value, key) => {
+        allParams[key] = value;
+      });
+      paymentService.verifyVNPayReturn(allParams).catch((err) => {
+        console.warn('Lỗi khi gửi xác thực thanh toán về Backend:', err);
+      });
+    }
+  }, [searchParams]);
 
   // VNPay truyền số tiền nhân với 100 (Ví dụ: 100000000 = 1.000.000 VNĐ)
   const amount = useMemo(() => {

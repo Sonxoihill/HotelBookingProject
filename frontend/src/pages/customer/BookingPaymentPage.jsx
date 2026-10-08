@@ -241,6 +241,25 @@ export const BookingPaymentPage = () => {
     try {
       // FLOW 1: THANH TOÁN TRỰC TUYẾN QUA CỔNG VNPAY
       if (paymentMethod === 'VNPAY') {
+        // Bước 1: Lưu đơn đặt phòng vào cơ sở dữ liệu MySQL thật qua API POST /bookings
+        const bookingRes = await bookingService.createBooking({
+          roomId: roomData?.id || Number(roomId) || 1,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          totalAmount: totalAmount,
+          paymentMethod: 'VNPAY',
+          specialRequests: formData.specialRequests?.trim() || '',
+          fullName: fullNameTrimmed,
+          phone: phoneTrimmed,
+          email: emailTrimmed,
+        });
+
+        const created = bookingRes?.data || bookingRes;
+        const bookingId = created?.id;
+        if (!bookingId) {
+          throw new Error('Không nhận được mã đơn đặt phòng từ máy chủ.');
+        }
+
         // Lưu thông tin đặt phòng để hỗ trợ quay lại thử lại khi thanh toán thất bại
         sessionStorage.setItem(
           'last_booking_attempt',
@@ -249,26 +268,19 @@ export const BookingPaymentPage = () => {
             checkIn: checkInDate,
             checkOut: checkOutDate,
             phone: phoneTrimmed,
+            bookingId: bookingId,
           })
         );
 
-        // Gọi hàm service riêng biệt tạo URL thanh toán
-        // [PENDING BACKEND]: Khi Backend hoàn tất API /create-url, hàm này sẽ trả về URL và redirect
+        // Bước 2: Gọi API Backend GET /payment/create-url để tạo URL chuyển hướng VNPay Sandbox
         const paymentRes = await paymentService.createVNPayUrl({
-          roomId: roomData?.id || Number(roomId) || 1,
-          checkIn: checkInDate,
-          checkOut: checkOutDate,
-          totalAmount: totalAmount,
-          specialRequests: formData.specialRequests?.trim() || '',
-          fullName: fullNameTrimmed,
-          phone: phoneTrimmed,
-          email: emailTrimmed,
-          returnUrl: `${window.location.origin}/booking/vnpay-return`,
+          bookingId: bookingId,
+          amount: totalAmount,
         });
 
         const vnpayUrl = paymentRes?.paymentUrl || paymentRes?.url || (typeof paymentRes === 'string' ? paymentRes : null);
         if (vnpayUrl) {
-          // Redirect sang Cổng thanh toán VNPay
+          // Bước 3: Chuyển hướng sang Cổng thanh toán VNPay Sandbox
           window.location.href = vnpayUrl;
           return;
         } else {

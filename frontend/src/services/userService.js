@@ -1,16 +1,12 @@
 import axiosInstance from './axiosInstance';
-import { USE_MOCK } from './config';
-import { mockUserService } from '../mocks/mockServices';
 
 /**
  * Service xử lý : Quản lý hồ sơ cá nhân
+ * Kết nối 100% API Backend thật qua /users/profile
  */
 export const userService = {
-  // Lấy thông tin hồ sơ người dùng
+  // Lấy thông tin hồ sơ người dùng từ Database
   getProfile: async () => {
-    if (USE_MOCK) {
-      return await mockUserService.getProfile();
-    }
     return await axiosInstance.get('/users/profile');
   },
 

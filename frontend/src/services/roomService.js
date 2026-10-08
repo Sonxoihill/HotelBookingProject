@@ -1,6 +1,4 @@
 import axiosInstance from './axiosInstance';
-import { USE_MOCK } from './config';
-import { mockRoomService } from '../mocks/mockServices';
 
 /**
  * Service xử lý:
@@ -9,7 +7,7 @@ import { mockRoomService } from '../mocks/mockServices';
  * - Xem Sơ đồ phòng (Lễ tân)
  * - Cập nhật Trạng thái dọn phòng (Lễ tân)
  * - Quản lý Loại phòng & Phòng (Admin)
- * Đã kết nối API thật 100% theo Plan 2
+ * Kết nối 100% API Backend thật qua /rooms
  */
 export const roomService = {
   // Lấy danh sách phòng công khai có phân trang (Trang chủ / Danh sách phòng)
@@ -27,11 +25,8 @@ export const roomService = {
     return await axiosInstance.get('/rooms/search', { params });
   },
 
-  // Lấy thông tin chi tiết một phòng (UC05)
+  // Lấy thông tin chi tiết một phòng từ Database (UC05)
   getRoomById: async (roomId) => {
-    if (USE_MOCK) {
-      return await mockRoomService.getRoomById(roomId);
-    }
     return await axiosInstance.get(`/rooms/${roomId}`);
   },
 
@@ -63,11 +58,6 @@ export const roomService = {
   // Admin - Cập nhật thông tin phòng
   updateRoom: async (roomId, roomData) => {
     return await axiosInstance.put(`/admin/rooms/${roomId}`, roomData);
-  },
-
-  // Admin - Xóa phòng
-  deleteRoom: async (roomId) => {
-    return await axiosInstance.delete(`/admin/rooms/${roomId}`);
   },
 };
 

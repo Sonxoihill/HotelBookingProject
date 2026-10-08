@@ -12,4 +12,6 @@ public interface BookingService {
     Booking createBooking(String email, CreateBookingRequest request);
 
     Booking cancelBooking(String email, Long bookingId, CancelBookingRequest request);
+
+    int cancelExpiredPendingBookings(int expirationMinutes);
 }

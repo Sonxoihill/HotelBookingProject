@@ -1,0 +1,24 @@
+# ===================================================================
+# STAGING ENVIRONMENT CONFIGURATION (SCRUM-97)
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: staging
+
+  datasource:
+    # URL Database Staging
+    url: ${STAGING_DB_URL:${DB_URL:jdbc:mysql://localhost:3308/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8}}
+    username: ${STAGING_DB_USERNAME:${DB_USERNAME:root}}
+    password: ${STAGING_DB_PASSWORD:${DB_PASSWORD:123456}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+cors:
+  # Cấu hình CORS cho phép domain Frontend Staging & Local
+  allowed-origins: ${STAGING_CORS_ALLOWED_ORIGINS:${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://*.onrender.com,https://hotelbookingproject-5wqz.onrender.com}}
+
+logging:
+  level:
+    root: INFO
+    com.hotel.booking: DEBUG
+    org.hibernate.SQL: DEBUG

@@ -1,0 +1,33 @@
+# ===================================================================
+# PRODUCTION ENVIRONMENT CONFIGURATION (SCRUM-97)
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    # Cloud MySQL (Aiven Cloud) - Production Database Sạch
+    url: ${PROD_DB_URL:jdbc:mysql://mysql-free-db-mysql-project.d.aivencloud.com:23328/defaultdb?sslmode=REQUIRED&useSSL=true&serverTimezone=UTC&characterEncoding=UTF-8}
+    username: ${PROD_DB_USERNAME:avnadmin}
+    password: ${PROD_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+cors:
+  # Cấu hình CORS cho phép domain Frontend Production
+  allowed-origins: ${PROD_CORS_ALLOWED_ORIGINS:https://hotelbookingproject-5wqz.onrender.com}
+
+logging:
+  level:
+    root: INFO
+    com.hotel.booking: INFO
+    org.hibernate.SQL: ERROR
+    org.flywaydb: INFO
+
+vnpay:
+  return-url: ${PROD_VNPAY_RETURN_URL:https://hotelbookingproject-5wqz.onrender.com/api/v1/payment/vnpay-return}

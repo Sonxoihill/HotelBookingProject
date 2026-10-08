@@ -5,6 +5,11 @@ import com.hotel.booking.enums.RoomStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -14,6 +19,10 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     List<Room> findByStatus(RoomStatus status);
     List<Room> findByCategoryId(Long categoryId);
     List<Room> findByCategoryIdAndStatus(Long categoryId, RoomStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Room r WHERE r.id = :id")
+    Optional<Room> findByIdWithLock(@Param("id") Long id);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"category"})
     org.springframework.data.domain.Page<Room> findAll(org.springframework.data.domain.Pageable pageable);

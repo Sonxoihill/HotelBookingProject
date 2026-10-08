@@ -16,6 +16,7 @@ import BookingHistoryPage from './pages/customer/BookingHistoryPage';
 import ProfilePage from './pages/customer/ProfilePage';
 import LoginPage from './pages/customer/LoginPage';
 import RegisterPage from './pages/customer/RegisterPage';
+import VNPayReturnPage from './pages/customer/VNPayReturnPage';
 
 // Receptionist Pages
 import RoomMatrixPage from './pages/receptionist/RoomMatrixPage';
@@ -66,6 +67,9 @@ export function App() {
             {/* Quản lý hồ sơ cá nhân */}
             <Route path="profile" element={<ProfilePage />} />
           </Route>
+
+          {/* Kết quả phản hồi từ Cổng thanh toán VNPay (Callback) */}
+          <Route path="booking/vnpay-return" element={<VNPayReturnPage />} />
 
           {/* Đăng nhập */}
           <Route path="login" element={<LoginPage />} />

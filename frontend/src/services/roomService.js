@@ -1,4 +1,6 @@
 import axiosInstance from './axiosInstance';
+import { USE_MOCK } from './config';
+import { mockRoomService } from '../mocks/mockServices';
 
 /**
  * Service xử lý:
@@ -27,6 +29,9 @@ export const roomService = {
 
   // Lấy thông tin chi tiết một phòng (UC05)
   getRoomById: async (roomId) => {
+    if (USE_MOCK) {
+      return await mockRoomService.getRoomById(roomId);
+    }
     return await axiosInstance.get(`/rooms/${roomId}`);
   },
 

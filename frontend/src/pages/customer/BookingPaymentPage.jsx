@@ -8,20 +8,18 @@ import { tokenStorage } from '../../utils/tokenStorage';
 import { roomService } from '../../services/roomService';
 import { bookingService } from '../../services/bookingService';
 import { userService } from '../../services/userService';
+import { paymentService } from '../../services/paymentService';
 import {
   ArrowLeft,
   CreditCard,
-  QrCode,
   Building2,
   ShieldCheck,
   CheckCircle2,
   Calendar,
   Clock,
-  TicketPercent,
-  Check,
   Star,
-  Hotel,
   Loader2,
+  Hotel,
 } from 'lucide-react';
 
 export const BookingPaymentPage = () => {
@@ -29,7 +27,7 @@ export const BookingPaymentPage = () => {
   const [searchParams] = useSearchParams();
 
   // Đọc thông số truyền từ trang trước
-  const roomId = searchParams.get('roomId') || '1';
+  const roomId = searchParams.get('roomId') || '';
   const queryCheckIn = searchParams.get('checkIn') || '';
   const queryCheckOut = searchParams.get('checkOut') || '';
   const queryPhone = searchParams.get('phone') || '';
@@ -38,21 +36,19 @@ export const BookingPaymentPage = () => {
   const [roomData, setRoomData] = useState(null);
   const [isLoadingRoom, setIsLoadingRoom] = useState(true);
 
-  // State thông tin khách hàng
+  // Lấy thông tin tài khoản đã lưu trong profile / tokenStorage
+  const storedUser = tokenStorage.getUser() || {};
+
+  // State thông tin khách hàng (tự động điền theo profile)
   const [formData, setFormData] = useState({
-    fullName: '',
-    phone: queryPhone || '',
-    email: '',
+    fullName: storedUser?.fullName || '',
+    phone: storedUser?.phone || queryPhone || '',
+    email: storedUser?.email || '',
     specialRequests: '',
   });
 
-  // State phương thức thanh toán
-  const [paymentMethod, setPaymentMethod] = useState('VNPAY');
-
-  // State voucher giảm giá
-  const [voucherCode, setVoucherCode] = useState('');
-  const [discount, setDiscount] = useState(0);
-  const [voucherMsg, setVoucherMsg] = useState('');
+  // State phương thức thanh toán (không gán dữ liệu mẫu, người dùng phải tự chọn)
+  const [paymentMethod, setPaymentMethod] = useState('');
 
   // State đồng ý điều khoản
   const [isAgreed, setIsAgreed] = useState(true);
@@ -68,9 +64,11 @@ export const BookingPaymentPage = () => {
       setIsLoadingRoom(true);
       try {
         // 1. Tải thông tin phòng cụ thể từ Database
-        const res = await roomService.getRoomById(roomId);
-        const data = res?.data || res;
-        setRoomData(data);
+        if (roomId) {
+          const res = await roomService.getRoomById(roomId);
+          const data = res?.data || res;
+          setRoomData(data);
+        }
 
         // 2. Tải thông tin tài khoản nếu đã đăng nhập
         try {
@@ -105,15 +103,21 @@ export const BookingPaymentPage = () => {
 
   const category = roomData?.category || {};
   const roomName = category.name
-    ? `${category.name} (Phòng ${roomData?.roomNumber})`
-    : `Phòng ${roomData?.roomNumber || roomId}`;
-  const pricePerNight = category.basePrice || roomData?.basePrice || 500000;
-  const imageUrl = category.imageUrl || roomData?.imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427';
-  const description = category.description || roomData?.description || 'Phòng nghỉ tiện nghi, sang trọng đẳng cấp quốc tế.';
+    ? `${category.name} (Phòng ${roomData?.roomNumber || ''})`
+    : (roomData?.roomNumber ? `Phòng ${roomData.roomNumber}` : (roomId ? `Phòng #${roomId}` : ''));
+  const pricePerNight = category.basePrice || roomData?.basePrice || 0;
+  const imageUrl = category.imageUrl || roomData?.imageUrl || '';
+  const description = category.description || roomData?.description || '';
 
-  // Ngày nhận / trả phòng chuẩn hóa
-  const checkInDate = queryCheckIn || '2026-10-15';
-  const checkOutDate = queryCheckOut || '2026-10-18';
+  // Ngày nhận / trả phòng chuẩn hóa (sử dụng ngày hiện tại nếu không truyền params, không dùng dữ liệu mẫu tĩnh)
+  const today = new Date();
+  const defaultCheckIn = today.toISOString().split('T')[0];
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const defaultCheckOut = tomorrow.toISOString().split('T')[0];
+
+  const checkInDate = queryCheckIn || defaultCheckIn;
+  const checkOutDate = queryCheckOut || defaultCheckOut;
 
   // Tính số đêm lưu trú
   const calculateNights = () => {
@@ -125,10 +129,42 @@ export const BookingPaymentPage = () => {
 
   const nights = calculateNights();
 
-  // Tính toán chi phí
+  // Tính toán chi phí (không có voucher mẫu)
   const roomPriceSubtotal = pricePerNight * nights;
   const taxAndService = Math.round(roomPriceSubtotal * 0.1); // 10% thuế GTGT & phí dịch vụ
-  const totalAmount = Math.max(0, roomPriceSubtotal + taxAndService - discount);
+  const totalAmount = roomPriceSubtotal + taxAndService;
+
+  // ============================================================================
+  // VALIDATION LOGIC CHẶN REQUEST RÁC
+  // ============================================================================
+
+  // 1. Validate Số điện thoại: !/^(0|\+84)[35789]\d{8}$/
+  const phoneTrimmed = (formData.phone || '').trim();
+  const isPhoneValid = /^(0|\+84)[35789]\d{8}$/.test(phoneTrimmed);
+  const phoneError = !phoneTrimmed
+    ? 'Số điện thoại không được để trống'
+    : (!isPhoneValid ? 'Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)' : '');
+
+  // 2. Validate Email: !/^[a-zA-Z0-9.]+@gmail\.com$/
+  const emailTrimmed = (formData.email || '').trim();
+  const isEmailValid = /^[a-zA-Z0-9.]+@gmail\.com$/.test(emailTrimmed);
+  const emailError = !emailTrimmed
+    ? 'Email không được để trống'
+    : (!isEmailValid ? 'Email phải có định dạng @gmail.com (VD: example@gmail.com)' : '');
+
+  // 3. Validate Họ và tên (không được để trống, không được sửa)
+  const fullNameTrimmed = (formData.fullName || '').trim();
+  const isFullNameValid = fullNameTrimmed.length > 0;
+  const fullNameError = !isFullNameValid ? 'Họ và tên không được để trống' : '';
+
+  // 4. Validate Phương thức thanh toán
+  const isPaymentMethodValid = Boolean(paymentMethod && paymentMethod.trim());
+
+  // 5. Điều khoản
+  const isTermsValid = Boolean(isAgreed);
+
+  // Tổng hợp điều kiện hợp lệ toàn bộ form
+  const isFormValid = isFullNameValid && isPhoneValid && isEmailValid && isPaymentMethodValid && isTermsValid;
 
   // Hàm hiển thị số sao sáng chuẩn xác theo điểm số (hỗ trợ cả nửa sao ví dụ 4.5/5)
   const renderRatingStars = (ratingValue, size = 13) => {
@@ -177,51 +213,80 @@ export const BookingPaymentPage = () => {
     );
   };
 
-  // Xử lý áp dụng voucher
-  const handleApplyVoucher = (e) => {
-    e.preventDefault();
-    if (!voucherCode.trim()) return;
-
-    const code = voucherCode.trim().toUpperCase();
-    if (code === 'LUXESTAY' || code === 'GIAM100K' || code === 'LETOILE2026') {
-      setDiscount(100000);
-      setVoucherMsg('Áp dụng mã giảm giá thành công (-100.000 ₫)');
-    } else if (code === 'VIP200') {
-      setDiscount(200000);
-      setVoucherMsg('Áp dụng voucher VIP thành công (-200.000 ₫)');
-    } else {
-      setDiscount(0);
-      setVoucherMsg('Mã giảm giá không hợp lệ hoặc đã hết hạn.');
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
 
-    if (!isAgreed) {
-      alert('Vui lòng đồng ý với điều khoản đặt phòng & chính sách để tiếp tục.');
-      return;
-    }
-
-    if (!formData.fullName.trim() || !formData.phone.trim() || !formData.email.trim()) {
-      setSubmitError('Vui lòng điền đầy đủ Họ và tên, Số điện thoại và Email!');
+    // Tuyệt đối chặn không cho gửi Request rác xuống Backend
+    if (!isFormValid) {
+      if (!isFullNameValid) {
+        setSubmitError('Họ và tên không được để trống!');
+      } else if (!phoneTrimmed) {
+        setSubmitError('Vui lòng nhập số điện thoại!');
+      } else if (!isPhoneValid) {
+        setSubmitError('Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)!');
+      } else if (!emailTrimmed) {
+        setSubmitError('Vui lòng nhập địa chỉ email!');
+      } else if (!isEmailValid) {
+        setSubmitError('Email phải có định dạng @gmail.com!');
+      } else if (!isPaymentMethodValid) {
+        setSubmitError('Vui lòng chọn một phương thức thanh toán!');
+      } else if (!isTermsValid) {
+        setSubmitError('Vui lòng đồng ý với điều khoản đặt phòng & chính sách để tiếp tục!');
+      }
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Gửi yêu cầu lưu vào cơ sở dữ liệu MySQL thật
+      // FLOW 1: THANH TOÁN TRỰC TUYẾN QUA CỔNG VNPAY
+      if (paymentMethod === 'VNPAY') {
+        // Lưu thông tin đặt phòng để hỗ trợ quay lại thử lại khi thanh toán thất bại
+        sessionStorage.setItem(
+          'last_booking_attempt',
+          JSON.stringify({
+            roomId: roomData?.id || Number(roomId) || 1,
+            checkIn: checkInDate,
+            checkOut: checkOutDate,
+            phone: phoneTrimmed,
+          })
+        );
+
+        // Gọi hàm service riêng biệt tạo URL thanh toán
+        // [PENDING BACKEND]: Khi Backend hoàn tất API /create-url, hàm này sẽ trả về URL và redirect
+        const paymentRes = await paymentService.createVNPayUrl({
+          roomId: roomData?.id || Number(roomId) || 1,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          totalAmount: totalAmount,
+          specialRequests: formData.specialRequests?.trim() || '',
+          fullName: fullNameTrimmed,
+          phone: phoneTrimmed,
+          email: emailTrimmed,
+          returnUrl: `${window.location.origin}/booking/vnpay-return`,
+        });
+
+        const vnpayUrl = paymentRes?.paymentUrl || paymentRes?.url || (typeof paymentRes === 'string' ? paymentRes : null);
+        if (vnpayUrl) {
+          // Redirect sang Cổng thanh toán VNPay
+          window.location.href = vnpayUrl;
+          return;
+        } else {
+          throw new Error('Hệ thống không nhận được URL thanh toán từ cổng VNPay.');
+        }
+      }
+
+      // FLOW 2: CÁC PHƯƠNG THỨC KHÁC (THANH TOÁN TẠI QUẦY, THẺ...) GIỮ NGUYÊN BUSINESS LOGIC
       const res = await bookingService.createBooking({
         roomId: roomData?.id || Number(roomId) || 1,
         checkIn: checkInDate,
         checkOut: checkOutDate,
         totalAmount: totalAmount,
         paymentMethod: paymentMethod,
-        specialRequests: formData.specialRequests,
-        fullName: formData.fullName.trim(),
-        phone: formData.phone.trim(),
-        email: formData.email.trim(),
+        specialRequests: formData.specialRequests?.trim() || '',
+        fullName: fullNameTrimmed,
+        phone: phoneTrimmed,
+        email: emailTrimmed,
       });
 
       const created = res?.data || res;
@@ -239,6 +304,26 @@ export const BookingPaymentPage = () => {
       <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
         <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
         <span className="text-xs text-stone-500 font-medium">Đang chuẩn bị thông tin đặt phòng & thanh toán...</span>
+      </div>
+    );
+  }
+
+  // MÀN HÌNH EMPTY / KHÔNG TÌM THẤY DỮ LIỆU PHÒNG
+  if (!roomData) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+          <Hotel size={32} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 font-serif">
+          Không Tìm Thấy Thông Tin Phòng
+        </h2>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Phòng yêu cầu hiện không tồn tại hoặc đã ngừng phục vụ. Quý khách vui lòng chọn phòng khác từ danh sách phòng nghỉ.
+        </p>
+        <Button variant="primary" onClick={() => navigate('/rooms')}>
+          Xem Danh Sách Phòng
+        </Button>
       </div>
     );
   }
@@ -274,7 +359,7 @@ export const BookingPaymentPage = () => {
       {/* 1. Mũi tên quay lại chi tiết phòng */}
       <button
         type="button"
-        onClick={() => navigate(`/rooms/${roomId}`)}
+        onClick={() => navigate(roomId ? `/rooms/${roomId}` : '/rooms')}
         className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
       >
         <ArrowLeft size={16} />
@@ -299,14 +384,22 @@ export const BookingPaymentPage = () => {
           {/* KHỐI 1: ẢNH & THÔNG TIN GIỚI THIỆU VỀ PHÒNG TỪ DATABASE */}
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
             <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
-              <img
-                src={imageUrl}
-                alt={roomName}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-3 left-3">
-                <Badge variant="amber">{category.name || 'Tiêu chuẩn'}</Badge>
-              </div>
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={roomName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
+                  Không có hình ảnh phòng
+                </div>
+              )}
+              {category.name && (
+                <div className="absolute top-3 left-3">
+                  <Badge variant="amber">{category.name}</Badge>
+                </div>
+              )}
             </div>
             <div className="p-5 space-y-2">
               {roomData?.totalReviews > 0 ? (
@@ -324,9 +417,11 @@ export const BookingPaymentPage = () => {
               <h3 className="font-bold text-lg text-slate-900 font-serif">
                 {roomName}
               </h3>
-              <p className="text-xs text-slate-600 leading-relaxed font-light">
-                {description}
-              </p>
+              {description && (
+                <p className="text-xs text-slate-600 leading-relaxed font-light">
+                  {description}
+                </p>
+              )}
             </div>
           </div>
 
@@ -375,40 +470,11 @@ export const BookingPaymentPage = () => {
             </div>
           </div>
 
-          {/* KHỐI 3: CHI TIẾT CHI PHÍ (GIÁ PHÒNG, THUẾ & DỊCH VỤ, GIẢM GIÁ, TỔNG TIỀN, Ô NHẬP VOUCHER, CHECKBOX ĐIỀU KHOẢN) */}
+          {/* KHỐI 3: CHI TIẾT CHI PHÍ (GIÁ PHÒNG, THUẾ & DỊCH VỤ, TỔNG TIỀN, CHECKBOX ĐIỀU KHOẢN) */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
               Chi tiết chi phí
             </h3>
-
-            {/* Ô nhập Voucher */}
-            <form onSubmit={handleApplyVoucher} className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <TicketPercent size={14} className="text-amber-600" />
-                <span>Mã giảm giá / Voucher</span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Nhập mã (VD: LUXESTAY, VIP200)"
-                  value={voucherCode}
-                  onChange={(e) => setVoucherCode(e.target.value)}
-                  className="flex-1 uppercase text-xs border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
-                />
-                <Button type="submit" variant="outline" size="sm" className="shrink-0 text-xs px-3">
-                  Áp dụng
-                </Button>
-              </div>
-              {voucherMsg && (
-                <span
-                  className={`text-[11px] block ${
-                    discount > 0 ? 'text-emerald-600 font-semibold' : 'text-rose-500'
-                  }`}
-                >
-                  {voucherMsg}
-                </span>
-              )}
-            </form>
 
             {/* Bảng giá kê khai */}
             <div className="space-y-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
@@ -423,13 +489,6 @@ export const BookingPaymentPage = () => {
                 <span>Thuế GTGT & phí dịch vụ (10%):</span>
                 <span className="font-semibold text-slate-800">{formatVND(taxAndService)}</span>
               </div>
-
-              {discount > 0 && (
-                <div className="flex justify-between items-center text-emerald-600 font-semibold">
-                  <span>Giảm giá (Voucher):</span>
-                  <span>-{formatVND(discount)}</span>
-                </div>
-              )}
 
               <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -474,30 +533,41 @@ export const BookingPaymentPage = () => {
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Họ và tên: Khóa cố định không được sửa */}
                 <Input
-                  label="Họ và tên *"
-                  placeholder="Ví dụ: Nguyễn Văn An"
+                  id="fullName"
+                  label="Họ và tên (Cố định theo tài khoản) *"
+                  placeholder="Họ và tên của bạn"
                   value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  required
+                  readOnly
+                  disabled
+                  error={fullNameError}
+                  className="bg-slate-100 cursor-not-allowed text-slate-700 font-medium select-none"
+                  helperText="Họ và tên cố định theo tài khoản của bạn (không thể chỉnh sửa)"
                 />
 
+                {/* Số điện thoại: Bắt lỗi validation !/^(0|\+84)[35789]\d{8}$/ */}
                 <Input
+                  id="phone"
                   label="Số điện thoại *"
                   type="tel"
-                  placeholder="0912 345 678"
+                  placeholder="Ví dụ: 0912345678 hoặc +84912345678"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  error={phoneError}
                   required
                 />
 
+                {/* Email nhận hóa đơn: Bắt lỗi validation !/^[a-zA-Z0-9.]+@gmail\.com$/ */}
                 <div className="sm:col-span-2">
                   <Input
+                    id="email"
                     label="Email nhận hóa đơn *"
                     type="email"
-                    placeholder="email@gmail.com"
+                    placeholder="Ví dụ: tenban@gmail.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    error={emailError}
                     required
                   />
                 </div>
@@ -521,9 +591,16 @@ export const BookingPaymentPage = () => {
 
             {/* KHỐI 2: PHƯƠNG THỨC THANH TOÁN (NGAY BÊN DƯỚI THÔNG TIN CỦA BẠN) */}
             <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">
-                Phương thức thanh toán
-              </h3>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-base font-bold text-slate-900">
+                  Phương thức thanh toán *
+                </h3>
+                {!paymentMethod && (
+                  <span className="text-xs text-rose-500 font-semibold animate-pulse">
+                    * Vui lòng chọn 1 phương thức
+                  </span>
+                )}
+              </div>
 
               <div className="space-y-3">
                 {/* 1. Cổng thanh toán VNPay (ATM, QR) */}
@@ -531,7 +608,7 @@ export const BookingPaymentPage = () => {
                   onClick={() => setPaymentMethod('VNPAY')}
                   className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
                     paymentMethod === 'VNPAY'
-                      ? 'border-amber-600 bg-amber-50/40 shadow-xs'
+                      ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -551,18 +628,19 @@ export const BookingPaymentPage = () => {
                   <input
                     type="radio"
                     name="paymentMethod"
+                    value="VNPAY"
                     checked={paymentMethod === 'VNPAY'}
                     onChange={() => setPaymentMethod('VNPAY')}
-                    className="accent-amber-600 w-4 h-4"
+                    className="accent-amber-600 w-4 h-4 cursor-pointer"
                   />
                 </label>
 
                 {/* 2. Thẻ quốc tế Visa / Mastercard */}
                 <label
-                  onClick={() => setPaymentMethod('CARD')}
+                  onClick={() => setPaymentMethod('CREDIT_CARD')}
                   className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'CARD'
-                      ? 'border-amber-600 bg-amber-50/40 shadow-xs'
+                    paymentMethod === 'CREDIT_CARD'
+                      ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -582,9 +660,10 @@ export const BookingPaymentPage = () => {
                   <input
                     type="radio"
                     name="paymentMethod"
-                    checked={paymentMethod === 'CARD'}
-                    onChange={() => setPaymentMethod('CARD')}
-                    className="accent-amber-600 w-4 h-4"
+                    value="CREDIT_CARD"
+                    checked={paymentMethod === 'CREDIT_CARD'}
+                    onChange={() => setPaymentMethod('CREDIT_CARD')}
+                    className="accent-amber-600 w-4 h-4 cursor-pointer"
                   />
                 </label>
 
@@ -592,8 +671,8 @@ export const BookingPaymentPage = () => {
                 <label
                   onClick={() => setPaymentMethod('RECEPTION')}
                   className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'RECEPTION' || paymentMethod === 'CASH'
-                      ? 'border-amber-600 bg-amber-50/40 shadow-xs'
+                    paymentMethod === 'RECEPTION'
+                      ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -613,9 +692,10 @@ export const BookingPaymentPage = () => {
                   <input
                     type="radio"
                     name="paymentMethod"
-                    checked={paymentMethod === 'RECEPTION' || paymentMethod === 'CASH'}
+                    value="RECEPTION"
+                    checked={paymentMethod === 'RECEPTION'}
                     onChange={() => setPaymentMethod('RECEPTION')}
-                    className="accent-amber-600 w-4 h-4"
+                    className="accent-amber-600 w-4 h-4 cursor-pointer"
                   />
                 </label>
               </div>
@@ -627,16 +707,17 @@ export const BookingPaymentPage = () => {
               </div>
             )}
 
-            {/* Nút bấm xác nhận đặt phòng & thanh toán */}
+            {/* Nút bấm xác nhận thanh toán: Bị mờ (disabled) khi thiếu thông tin hoặc sai định dạng */}
             <Button
+              id="btn-confirm-payment"
               type="submit"
               variant="primary"
               size="lg"
               isLoading={isSubmitting}
-              disabled={!isAgreed}
-              className="w-full py-4 text-base font-bold shadow-xl shadow-amber-600/25 cursor-pointer bg-[#C59D5F] hover:bg-[#b08b50] text-white"
+              disabled={!isFormValid || isSubmitting}
+              className="w-full py-4 text-base font-bold shadow-xl shadow-amber-600/25 cursor-pointer bg-[#C59D5F] hover:bg-[#b08b50] text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Xác nhận Đặt phòng & Thanh toán ({formatVND(totalAmount)})
+              Xác nhận thanh toán{totalAmount > 0 ? ` (${formatVND(totalAmount)})` : ''}
             </Button>
 
             <div className="flex items-center justify-center gap-2 text-xs text-slate-400 text-center">

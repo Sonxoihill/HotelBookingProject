@@ -70,6 +70,7 @@ export function App() {
 
           {/* Kết quả phản hồi từ Cổng thanh toán VNPay (Callback) */}
           <Route path="booking/vnpay-return" element={<VNPayReturnPage />} />
+          <Route path="api/v1/payment/vnpay-return" element={<VNPayReturnPage />} />
 
           {/* Đăng nhập */}
           <Route path="login" element={<LoginPage />} />

@@ -10,7 +10,7 @@ spring:
     # Cloud MySQL (Aiven Cloud) - Production Database Sạch
     url: ${PROD_DB_URL:jdbc:mysql://mysql-free-db-mysql-project.d.aivencloud.com:23328/defaultdb?sslmode=REQUIRED&useSSL=true&serverTimezone=UTC&characterEncoding=UTF-8}
     username: ${PROD_DB_USERNAME:avnadmin}
-    password: ${PROD_DB_PASSWORD:}
+    password: ${PROD_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

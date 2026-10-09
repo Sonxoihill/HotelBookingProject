@@ -2,9 +2,10 @@ import axiosInstance from './axiosInstance';
 
 /**
  * Service xử lý : Quản lý hồ sơ cá nhân
+ * Kết nối 100% API Backend thật qua /users/profile
  */
 export const userService = {
-  // Lấy thông tin hồ sơ người dùng
+  // Lấy thông tin hồ sơ người dùng từ Database
   getProfile: async () => {
     return await axiosInstance.get('/users/profile');
   },

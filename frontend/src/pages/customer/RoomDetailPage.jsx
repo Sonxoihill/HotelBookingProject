@@ -36,6 +36,7 @@ import { tokenStorage } from '../../utils/tokenStorage';
 import { roomService } from '../../services/roomService';
 import { reviewService } from '../../services/reviewService';
 import { serviceService } from '../../services/serviceService';
+import { userService } from '../../services/userService';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import Input from '../../components/common/Input';
@@ -331,11 +332,35 @@ export const RoomDetailPage = () => {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
+  // Lấy số điện thoại từ hồ sơ người dùng lưu trong localStorage / token
+  const storedUser = tokenStorage.getUser() || {};
+  const profilePhone = storedUser?.phone || '';
+
   // State quản lý thông tin đặt phòng
   const [checkIn, setCheckIn] = useState(queryCheckIn || defaultCheckIn);
   const [checkOut, setCheckOut] = useState(queryCheckOut || defaultCheckOut);
-  const [phone, setPhone] = useState(queryPhone || currentUser?.phone || '');
-  const [phoneTouched, setPhoneTouched] = useState(Boolean(queryPhone || currentUser?.phone));
+  const [phone, setPhone] = useState(profilePhone || queryPhone || '');
+  const [phoneTouched, setPhoneTouched] = useState(Boolean(profilePhone || queryPhone));
+
+  // Tự động điền số điện thoại theo số trong profile từ API khi người dùng đã đăng nhập
+  useEffect(() => {
+    const fetchProfilePhone = async () => {
+      if (tokenStorage.isAuthenticated()) {
+        try {
+          const res = await userService.getProfile();
+          const profile = res?.data || res;
+          if (profile?.phone) {
+            setPhone(profile.phone);
+            setPhoneTouched(true);
+            const current = tokenStorage.getUser() || {};
+            tokenStorage.setUser({ ...current, ...profile });
+          }
+        } catch (_) {}
+      }
+    };
+
+    fetchProfilePhone();
+  }, []);
 
   // 1. Validate Ngày nhận phòng & Ngày trả phòng
   const dateError = useMemo(() => {

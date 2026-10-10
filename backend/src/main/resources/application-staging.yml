@@ -22,3 +22,6 @@ logging:
     root: INFO
     com.hotel.booking: DEBUG
     org.hibernate.SQL: DEBUG
+
+vnpay:
+  return-url: ${VNPAY_RETURN_URL:https://hotelbookingproject-5wqz.onrender.com/api/v1/payment/vnpay-return}

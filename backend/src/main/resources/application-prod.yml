@@ -30,4 +30,4 @@ logging:
     org.flywaydb: INFO
 
 vnpay:
-  return-url: ${PROD_VNPAY_RETURN_URL:https://hotelbookingproject-5wqz.onrender.com/api/v1/payment/vnpay-return}
+  return-url: ${VNPAY_RETURN_URL:${PROD_VNPAY_RETURN_URL:https://hotelbookingproject-5wqz.onrender.com/api/v1/payment/vnpay-return}}

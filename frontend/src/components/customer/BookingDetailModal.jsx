@@ -20,6 +20,7 @@ import {
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import { formatVND, formatDate } from '../../utils/formatters';
+import { sanitizeText } from '../../utils/sanitize';
 
 export const BookingDetailModal = ({
   isOpen,
@@ -34,6 +35,19 @@ export const BookingDetailModal = ({
   const room = booking.room || {};
   const category = room.category || {};
   const user = booking.user || {};
+
+  // Lấy ghi chú thêm của đơn đặt phòng (từ entity hoặc localStorage đồng bộ)
+  const specialRequests =
+    booking.specialRequests ||
+    booking.notes ||
+    (() => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('hotel_booking_notes') || '{}');
+        return stored[booking.id] || '';
+      } catch {
+        return '';
+      }
+    })();
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -331,6 +345,24 @@ export const BookingDetailModal = ({
             </div>
           </div>
         </div>
+
+        {/* 6. Ghi chú thêm & Yêu cầu đặc biệt (đã sanitize và escape chống XSS/popup) */}
+        {specialRequests && (
+          <div className="border border-stone-200/80 rounded-2xl p-4 space-y-2 bg-stone-50/60">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText size={14} className="text-[#C59D5F]" />
+                <span>Ghi chú thêm & Yêu cầu đặc biệt</span>
+              </h4>
+              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                <ShieldCheck size={11} /> Đã kiểm duyệt an toàn
+              </span>
+            </div>
+            <p className="text-xs text-stone-700 italic bg-white p-3 rounded-xl border border-stone-200/60 leading-relaxed break-words">
+              "{sanitizeText(specialRequests)}"
+            </p>
+          </div>
+        )}
       </div>
     </Modal>
   );

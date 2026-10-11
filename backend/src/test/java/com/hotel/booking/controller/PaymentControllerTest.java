@@ -43,6 +43,9 @@ class PaymentControllerTest {
     private PaymentService paymentService;
 
     @MockBean
+    private com.hotel.booking.config.vnpay.VNPayConfig vnPayConfig;
+
+    @MockBean
     private JwtUtil jwtUtil;
 
     @MockBean
@@ -67,11 +70,13 @@ class PaymentControllerTest {
     }
 
     @Test
-    @DisplayName("API 2: GET /payment/vnpay-ipn - Trả về đúng format VNPay JSON: RspCode 00 và Confirm Success")
+    @DisplayName("API 2: GET /payment/vnpay-ipn - Trả về đúng format VNPay JSON: RspCode 00 và Confirm Success khi IP hợp lệ")
     void testProcessVNPayIpn_Success() throws Exception {
+        when(vnPayConfig.isAllowedIp(any())).thenReturn(true);
         when(paymentService.processVNPayIpn(any())).thenReturn(new VNPayIpnResponse("00", "Confirm Success"));
 
         mockMvc.perform(get("/payment/vnpay-ipn")
+                        .header("X-Forwarded-For", "113.160.92.202")
                         .param("vnp_TxnRef", "1")
                         .param("vnp_Amount", "100000000")
                         .param("vnp_ResponseCode", "00")
@@ -82,11 +87,29 @@ class PaymentControllerTest {
     }
 
     @Test
-    @DisplayName("API 2: GET /payment/vnpay-ipn - Checksum giả mạo trả về RspCode 97 và Invalid Checksum")
+    @DisplayName("API 2: GET /payment/vnpay-ipn (SCRUM-121) - IP lạ không thuộc VNPay bị từ chối trả về HTTP 403 Forbidden")
+    void testProcessVNPayIpn_ForbiddenIp() throws Exception {
+        when(vnPayConfig.isAllowedIp(eq("192.168.1.100"))).thenReturn(false);
+
+        mockMvc.perform(get("/payment/vnpay-ipn")
+                        .header("X-Forwarded-For", "192.168.1.100")
+                        .param("vnp_TxnRef", "1")
+                        .param("vnp_Amount", "100000000")
+                        .param("vnp_ResponseCode", "00")
+                        .param("vnp_SecureHash", "mock_hash"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.RspCode").value("99"))
+                .andExpect(jsonPath("$.Message").value(org.hamcrest.Matchers.containsString("Forbidden")));
+    }
+
+    @Test
+    @DisplayName("API 2: GET /payment/vnpay-ipn - Checksum giả mạo trả về RspCode 97 và Invalid Checksum khi IP hợp lệ")
     void testProcessVNPayIpn_InvalidChecksum() throws Exception {
+        when(vnPayConfig.isAllowedIp(any())).thenReturn(true);
         when(paymentService.processVNPayIpn(any())).thenReturn(new VNPayIpnResponse("97", "Invalid Checksum"));
 
         mockMvc.perform(get("/payment/vnpay-ipn")
+                        .header("X-Forwarded-For", "113.160.92.202")
                         .param("vnp_TxnRef", "1")
                         .param("vnp_Amount", "100000000")
                         .param("vnp_ResponseCode", "00")

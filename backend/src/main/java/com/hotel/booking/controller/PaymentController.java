@@ -16,9 +16,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.hotel.booking.config.vnpay.VNPayConfig;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
 import java.math.BigDecimal;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/payment")
 @RequiredArgsConstructor
@@ -26,6 +32,7 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final VNPayConfig vnPayConfig;
 
     @Operation(
             summary = "Tạo URL thanh toán VNPay Sandbox (SCRUM-94 API 1)",
@@ -52,18 +59,28 @@ public class PaymentController {
     }
 
     @Operation(
-            summary = "Webhook IPN nhận kết quả thanh toán từ VNPay (SCRUM-94 API 2)",
-            description = "Máy chủ VNPay gọi ngầm sang API này để thông báo kết quả giao dịch. Hệ thống verify checksum HMAC-SHA512 để chống giả mạo, cập nhật trạng thái đơn hàng (CONFIRMED nếu 00, FAILED nếu khác 00) và trả về định dạng chuẩn {\"RspCode\":\"00\",\"Message\":\"Confirm Success\"}."
+            summary = "Webhook IPN nhận kết quả thanh toán từ VNPay (SCRUM-94 API 2 & SCRUM-121)",
+            description = "Máy chủ VNPay gọi ngầm sang API này để thông báo kết quả giao dịch. Hệ thống kiểm tra IP nguồn hợp lệ (SCRUM-121), verify checksum HMAC-SHA512 để chống giả mạo, cập nhật trạng thái đơn hàng và trả về định dạng chuẩn {\"RspCode\":\"00\",\"Message\":\"Confirm Success\"}."
     )
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xử lý IPN thành công và trả về mã phản hồi cho VNPay")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xử lý IPN thành công và trả về mã phản hồi cho VNPay"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Truy cập bị từ chối do IP nguồn không thuộc danh sách máy chủ VNPay hợp lệ")
     })
     @GetMapping("/vnpay-ipn")
-    public VNPayIpnResponse processVNPayIpn(
+    public ResponseEntity<VNPayIpnResponse> processVNPayIpn(
             @Parameter(description = "Toàn bộ tham số VNPay gửi kèm query string")
-            @RequestParam Map<String, String> params
+            @RequestParam Map<String, String> params,
+            HttpServletRequest request
     ) {
-        return paymentService.processVNPayIpn(params);
+        String clientIp = VNPayUtil.getIpAddress(request);
+        if (!vnPayConfig.isAllowedIp(clientIp)) {
+            log.warn("VNPay IPN: Từ chối truy cập từ IP lạ không hợp lệ: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new VNPayIpnResponse("99", "Forbidden: Invalid IP " + clientIp));
+        }
+
+        VNPayIpnResponse response = paymentService.processVNPayIpn(params);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(

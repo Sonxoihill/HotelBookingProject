@@ -2,7 +2,9 @@ package com.hotel.booking.dto.booking;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -40,16 +42,22 @@ public class CreateBookingRequest {
     private String specialRequests;
 
     // Thông tin khách lưu trú bổ sung
+    @NotBlank(message = "Không được để trống trường Họ tên")
+    @Pattern(regexp = "^[\\p{L}][\\p{L}\\s]{0,98}[\\p{L}]$", message = "Họ tên không đúng định dạng")
     @JsonAlias({"customerName", "guestName"})
-    @Schema(description = "Họ và tên khách lưu trú", example = "Nguyễn Văn Trọng")
+    @Schema(description = "Họ và tên khách lưu trú", example = "Nguyễn Văn Trọng", requiredMode = Schema.RequiredMode.REQUIRED)
     private String fullName;
 
+    @NotBlank(message = "Không được để trống trường SĐT")
+    @Pattern(regexp = "^(0|\\+84)[35789]\\d{8}$", message = "SĐT không đúng định dạng")
     @JsonAlias({"customerPhone", "guestPhone"})
-    @Schema(description = "Số điện thoại liên hệ", example = "0987654321")
+    @Schema(description = "Số điện thoại liên hệ", example = "0987654321", requiredMode = Schema.RequiredMode.REQUIRED)
     private String phone;
 
+    @NotBlank(message = "Không được để trống trường Email")
+    @Pattern(regexp = "^[a-zA-Z0-9.]+@gmail\\.com$", message = "Email không đúng định dạng")
     @JsonAlias({"customerEmail", "guestEmail"})
-    @Schema(description = "Email nhận thư xác nhận đặt phòng và hóa đơn điện tử", example = "nvt29062005@gmail.com")
+    @Schema(description = "Email nhận thư xác nhận đặt phòng và hóa đơn điện tử", example = "nvt29062005@gmail.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
 }
 

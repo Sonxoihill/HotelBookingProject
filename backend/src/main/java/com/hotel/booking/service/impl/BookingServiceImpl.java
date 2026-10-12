@@ -46,9 +46,9 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public Booking createBooking(String email, CreateBookingRequest request) {
-        final String targetEmail = (request.getEmail() != null && !request.getEmail().trim().isEmpty())
-                ? request.getEmail().trim()
-                : (email != null && !email.trim().isEmpty() ? email.trim() : "guest@gmail.com");
+        final String targetEmail = (email != null && !email.trim().isEmpty())
+                ? email.trim()
+                : (request.getEmail() != null && !request.getEmail().trim().isEmpty() ? request.getEmail().trim() : "guest@gmail.com");
 
         User user = userRepository.findByEmail(targetEmail)
                 .orElseGet(() -> {

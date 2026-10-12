@@ -52,7 +52,11 @@ public class GlobalExceptionHandler {
         log.warn("Validation error: {}", ex.getMessage());
         Map<String, String> errors = new HashMap<>();
         for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
-            errors.put(fieldError.getField(), fieldError.getDefaultMessage());
+            String code = fieldError.getCode();
+            // Ưu tiên thông báo lỗi "Không được để trống" (NotBlank/NotNull) nếu trường vừa trống vừa sai format
+            if (!errors.containsKey(fieldError.getField()) || "NotBlank".equals(code) || "NotNull".equals(code)) {
+                errors.put(fieldError.getField(), fieldError.getDefaultMessage());
+            }
         }
         ApiResponse<Void> response = ApiResponse.error(ErrorCode.VALIDATION_ERROR.getDefaultMessage(), errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);

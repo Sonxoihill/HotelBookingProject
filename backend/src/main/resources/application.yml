@@ -68,3 +68,12 @@ vnpay:
   hash-secret: ${VNPAY_HASH_SECRET:XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN}
   pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
   return-url: ${VNPAY_RETURN_URL:http://localhost:5173/api/v1/payment/vnpay-return}
+  allowed-ips: ${VNPAY_ALLOWED_IPS:113.160.92.202,113.52.45.78,203.205.69.100,103.220.87.101,103.220.86.4,127.0.0.1,0:0:0:0:0:0:0:1,localhost}
+
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  booking:
+    capacity: ${RATE_LIMIT_BOOKING_CAPACITY:5}
+    refill-tokens: ${RATE_LIMIT_BOOKING_REFILL_TOKENS:5}
+    duration-seconds: ${RATE_LIMIT_BOOKING_DURATION_SECONDS:1}
+

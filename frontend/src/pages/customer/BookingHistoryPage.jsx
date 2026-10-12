@@ -34,6 +34,7 @@ import { tokenStorage } from '../../utils/tokenStorage';
 import BookingDetailModal from '../../components/customer/BookingDetailModal';
 import CancelBookingModal from '../../components/customer/CancelBookingModal';
 import ReviewModal from '../../components/customer/ReviewModal';
+import { sanitizeText } from '../../utils/sanitize';
 
 export const BookingHistoryPage = () => {
   const navigate = useNavigate();
@@ -49,8 +50,8 @@ export const BookingHistoryPage = () => {
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState(null);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
 
-  // Widget hiển thị số phòng trống khả dụng (lấy từ database thật)
-  const [availableRoomsCount, setAvailableRoomsCount] = useState(0);
+  // Tổng số phòng ban đầu của khách sạn (từ Database)
+  const [totalRoomsCount, setTotalRoomsCount] = useState(5);
 
   const showToast = (text, type = 'success') => {
     setToastMessage({ text, type });
@@ -79,33 +80,47 @@ export const BookingHistoryPage = () => {
         const rawReviews = myReviewsRes.status === 'fulfilled' ? (myReviewsRes.value?.data || myReviewsRes.value || []) : [];
         const reviewsList = Array.isArray(rawReviews) ? rawReviews : [];
 
-        // Gắn thông tin review thật từ database vào từng đơn đặt phòng (theo roomId)
+        // Lấy danh sách ghi chú đã lưu từ localStorage
+        const storedNotes = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('hotel_booking_notes') || '{}');
+          } catch {
+            return {};
+          }
+        })();
+
+        // Gắn thông tin review thật từ database và ghi chú an toàn vào từng đơn đặt phòng (theo roomId/bookingId)
         const enrichedBookings = bookingsList.map((b) => {
           const matchedReview = reviewsList.find((r) => r.roomId === b.room?.id);
-          if (matchedReview) {
-            return {
-              ...b,
-              review: {
-                id: matchedReview.id,
-                rating: matchedReview.rating,
-                comment: matchedReview.comment,
-                reviewedAt: matchedReview.createdAt,
-              },
-            };
-          }
-          return b;
+          const note = b.specialRequests || storedNotes[b.id] || '';
+          return {
+            ...b,
+            specialRequests: note,
+            ...(matchedReview
+              ? {
+                  review: {
+                    id: matchedReview.id,
+                    rating: matchedReview.rating,
+                    comment: matchedReview.comment,
+                    reviewedAt: matchedReview.createdAt,
+                  },
+                }
+              : {}),
+          };
         });
 
         setBookings(enrichedBookings);
 
-        // 3. Tải số lượng phòng trống thực tế từ Database (rooms table)
+        // 3. Tải tổng số lượng phòng ban đầu từ Database (rooms table)
         try {
           const roomsRes = await roomService.getPublicRooms({ size: 100 });
           const roomsList = roomsRes?.data?.content || roomsRes?.data || [];
-          const countAvailable = roomsList.filter((r) => r.status === 'AVAILABLE').length;
-          setAvailableRoomsCount(countAvailable);
+          const validRooms = roomsList.filter((r) => r.status !== 'MAINTENANCE');
+          const totalPhysical = validRooms.length > 0 ? validRooms.length : (roomsList.length > 0 ? roomsList.length : 5);
+          setTotalRoomsCount(totalPhysical);
         } catch (roomErr) {
-          console.error('Lỗi khi tải số phòng trống:', roomErr);
+          console.error('Lỗi khi tải tổng số phòng:', roomErr);
+          setTotalRoomsCount(5);
         }
       } catch (err) {
         console.error('Lỗi khi tải dữ liệu đặt phòng:', err);
@@ -172,9 +187,6 @@ export const BookingHistoryPage = () => {
             : b
         )
       );
-
-      // Tự động cập nhật lại số lượng phòng trống khả dụng (+1 phòng)
-      setAvailableRoomsCount((prev) => prev + 1);
 
       showToast(`Hủy đơn đặt phòng #${bookingId} thành công! Hệ thống đã tự động cập nhật lại số lượng phòng trống (+1 phòng khả dụng).`, 'success');
     } catch (err) {
@@ -265,6 +277,21 @@ export const BookingHistoryPage = () => {
     const cancelled = bookings.filter((b) => b.status === 'CANCELLED').length;
     return { total, pending, confirmed, completed, cancelled };
   }, [bookings]);
+
+  // Widget hiển thị số phòng trống khả dụng (Live):
+  // - Nếu phòng đang trong quá trình thanh toán (status === 'PENDING')
+  // - Hoặc phòng đã thanh toán thành công (status === 'CONFIRMED' / 'CHECKED_IN')
+  // -> Số phòng khả dụng phải trừ các phòng đấy đi!
+  // - Sau đó nếu khách hàng hủy phòng thành công (chuyển sang 'CANCELLED')
+  // -> Phòng đó được nhả ra và tự động cập nhật lại số phòng khả dụng (+1 phòng)
+  const availableRoomsCount = useMemo(() => {
+    // Đếm số lượng phòng đang bị giữ chỗ/đã thanh toán
+    const occupiedBookings = bookings.filter(
+      (b) => b.status === 'PENDING' || b.status === 'CONFIRMED' || b.status === 'CHECKED_IN'
+    );
+    const occupiedCount = occupiedBookings.length;
+    return Math.max(0, totalRoomsCount - occupiedCount);
+  }, [totalRoomsCount, bookings]);
 
   // Lọc danh sách theo tab và ô tìm kiếm
   const filteredBookings = useMemo(() => {
@@ -564,6 +591,16 @@ export const BookingHistoryPage = () => {
                           </span>
                         </div>
                       </div>
+
+                      {/* Tag ghi chú thêm của khách hàng (Đã sanitize chống XSS & script popup) */}
+                      {b.specialRequests && (
+                        <div className="p-2.5 bg-stone-50 border border-stone-200/70 rounded-xl text-xs text-stone-700 flex items-start gap-2">
+                          <FileText size={14} className="text-[#C59D5F] shrink-0 mt-0.5" />
+                          <div className="break-words leading-relaxed">
+                            <strong className="text-stone-900">Ghi chú thêm:</strong> {sanitizeText(b.specialRequests)}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Tag ghi chú lý do hủy nếu đơn đã hủy */}
                       {b.status === 'CANCELLED' && (

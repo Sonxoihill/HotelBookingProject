@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
-import { formatVND, formatDate } from '../../utils/formatters';
+import { formatVND } from '../../utils/formatters';
 import { tokenStorage } from '../../utils/tokenStorage';
 import { roomService } from '../../services/roomService';
 import { bookingService } from '../../services/bookingService';
@@ -20,7 +20,10 @@ import {
   Star,
   Loader2,
   Hotel,
+  AlertTriangle,
+  FileText,
 } from 'lucide-react';
+import { validateBookingNotes, sanitizeText } from '../../utils/sanitize';
 
 export const BookingPaymentPage = () => {
   const navigate = useNavigate();
@@ -163,8 +166,19 @@ export const BookingPaymentPage = () => {
   // 5. Điều khoản
   const isTermsValid = Boolean(isAgreed);
 
-  // Tổng hợp điều kiện hợp lệ toàn bộ form
-  const isFormValid = isFullNameValid && isPhoneValid && isEmailValid && isPaymentMethodValid && isTermsValid;
+  // 6. Validate Ghi chú thêm (Tối đa 100 ký tự & Chống mã độc)
+  const notesValidation = validateBookingNotes(formData.specialRequests);
+  const isNotesValid = notesValidation.isValid;
+  const notesError = notesValidation.error;
+
+  // Tổng hợp điều kiện hợp lệ toàn bộ form (Nếu có mã độc hoặc > 100 ký tự sẽ chặn không cho đặt phòng)
+  const isFormValid =
+    isFullNameValid &&
+    isPhoneValid &&
+    isEmailValid &&
+    isPaymentMethodValid &&
+    isTermsValid &&
+    isNotesValid;
 
   // Hàm hiển thị số sao sáng chuẩn xác theo điểm số (hỗ trợ cả nửa sao ví dụ 4.5/5)
   const renderRatingStars = (ratingValue, size = 13) => {
@@ -233,12 +247,23 @@ export const BookingPaymentPage = () => {
         setSubmitError('Vui lòng chọn một phương thức thanh toán!');
       } else if (!isTermsValid) {
         setSubmitError('Vui lòng đồng ý với điều khoản đặt phòng & chính sách để tiếp tục!');
+      } else if (!isNotesValid) {
+        if (notesValidation.hasMalware) {
+          setSubmitError(`Phát hiện mã độc trong phần ghi chú thêm (${notesValidation.error})! Hệ thống không cho phép đặt phòng.`);
+        } else if (notesValidation.isOverLimit) {
+          setSubmitError('Cảnh báo: Ghi chú đã vượt quá 100 ký tự');
+        } else {
+          setSubmitError(notesError || 'Phần ghi chú thêm không hợp lệ!');
+        }
       }
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Làm sạch (Sanitize) và thoát ký tự nguy hiểm của phần ghi chú thêm
+      const safeSpecialRequests = sanitizeText(formData.specialRequests);
+
       // FLOW 1: THANH TOÁN TRỰC TUYẾN QUA CỔNG VNPAY
       if (paymentMethod === 'VNPAY') {
         // Bước 1: Lưu đơn đặt phòng vào cơ sở dữ liệu MySQL thật qua API POST /bookings
@@ -248,7 +273,7 @@ export const BookingPaymentPage = () => {
           checkOut: checkOutDate,
           totalAmount: totalAmount,
           paymentMethod: 'VNPAY',
-          specialRequests: formData.specialRequests?.trim() || '',
+          specialRequests: safeSpecialRequests,
           fullName: fullNameTrimmed,
           phone: phoneTrimmed,
           email: emailTrimmed,
@@ -260,6 +285,15 @@ export const BookingPaymentPage = () => {
           throw new Error('Không nhận được mã đơn đặt phòng từ máy chủ.');
         }
 
+        // Lưu thông tin đặt phòng kèm ghi chú an toàn vào storage để xem lại đơn
+        if (safeSpecialRequests) {
+          try {
+            const stored = JSON.parse(localStorage.getItem('hotel_booking_notes') || '{}');
+            stored[bookingId] = safeSpecialRequests;
+            localStorage.setItem('hotel_booking_notes', JSON.stringify(stored));
+          } catch (_) { }
+        }
+
         // Lưu thông tin đặt phòng để hỗ trợ quay lại thử lại khi thanh toán thất bại
         sessionStorage.setItem(
           'last_booking_attempt',
@@ -269,6 +303,7 @@ export const BookingPaymentPage = () => {
             checkOut: checkOutDate,
             phone: phoneTrimmed,
             bookingId: bookingId,
+            specialRequests: safeSpecialRequests,
           })
         );
 
@@ -295,14 +330,28 @@ export const BookingPaymentPage = () => {
         checkOut: checkOutDate,
         totalAmount: totalAmount,
         paymentMethod: paymentMethod,
-        specialRequests: formData.specialRequests?.trim() || '',
+        specialRequests: safeSpecialRequests,
         fullName: fullNameTrimmed,
         phone: phoneTrimmed,
         email: emailTrimmed,
       });
 
       const created = res?.data || res;
-      setCreatedBooking(created);
+      const bookingId = created?.id;
+
+      // Lưu ghi chú an toàn vào localStorage để hiển thị khi view lại đơn
+      if (bookingId && safeSpecialRequests) {
+        try {
+          const stored = JSON.parse(localStorage.getItem('hotel_booking_notes') || '{}');
+          stored[bookingId] = safeSpecialRequests;
+          localStorage.setItem('hotel_booking_notes', JSON.stringify(stored));
+        } catch (_) { }
+      }
+
+      setCreatedBooking({
+        ...created,
+        specialRequests: safeSpecialRequests,
+      });
     } catch (err) {
       console.error('Lỗi khi lưu đơn đặt phòng vào CSDL:', err);
       setSubmitError(err.message || 'Có lỗi xảy ra khi tạo đơn đặt phòng.');
@@ -354,6 +403,25 @@ export const BookingPaymentPage = () => {
           Tổng thanh toán là <strong className="text-[#C59D5F]">{formatVND(createdBooking.totalAmount || totalAmount)}</strong>.
           Chúng tôi đã gửi thông tin xác nhận về email <span className="text-amber-600 font-medium">{formData.email}</span>.
         </p>
+
+        {/* Thông tin ghi chú thêm đã được sanitize khi view lại đơn */}
+        {createdBooking.specialRequests && (
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-1.5 max-w-md mx-auto">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                <FileText size={14} className="text-[#C59D5F]" />
+                Ghi chú kèm theo:
+              </span>
+              <span className="text-[10px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                <ShieldCheck size={12} /> Đã làm sạch & an toàn
+              </span>
+            </div>
+            <p className="text-xs text-slate-800 italic bg-white p-2.5 rounded-xl border border-slate-100 break-words">
+              "{sanitizeText(createdBooking.specialRequests)}"
+            </p>
+          </div>
+        )}
+
         <div className="pt-4 flex justify-center gap-3">
           <Button variant="primary" onClick={() => navigate('/my-bookings')}>
             Xem Đặt Phòng Của Tôi
@@ -584,19 +652,72 @@ export const BookingPaymentPage = () => {
                   />
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Yêu cầu của bạn (Yêu cầu đặc biệt)
-                  </label>
+                <div className="sm:col-span-2 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label
+                      htmlFor="specialRequests"
+                      className="text-xs font-bold text-slate-700 flex items-center gap-1.5"
+                    >
+                      <FileText size={14} className="text-[#C59D5F]" />
+                      <span>Ghi chú thêm & Yêu cầu đặc biệt</span>
+                      <span className="text-[11px] text-slate-400 font-normal">(Tối đa 100 ký tự)</span>
+                    </label>
+
+                    {/* Bộ đếm ký tự & Cảnh báo thời gian thực */}
+                    <div className="flex items-center gap-1.5 text-xs font-mono">
+                      <span
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full transition-all ${notesValidation.isOverLimit
+                          ? 'bg-rose-100 text-rose-700 font-extrabold ring-1 ring-rose-300'
+                          : notesValidation.hasMalware
+                            ? 'bg-rose-100 text-rose-700 font-extrabold ring-1 ring-rose-300'
+                            : notesValidation.charCount > 80
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                      >
+                        {notesValidation.charCount}/100 ký tự
+                      </span>
+                    </div>
+                  </div>
+
                   <textarea
-                    rows={3}
-                    placeholder="Ví dụ: Cần chuẩn bị thêm gối, tầng cao yên tĩnh, giờ check-in dự kiến..."
+                    id="specialRequests"
+                    rows={2}
+                    placeholder="Ví dụ: Cần chuẩn bị thêm gối, tầng cao yên tĩnh..."
                     value={formData.specialRequests}
                     onChange={(e) =>
                       setFormData({ ...formData, specialRequests: e.target.value })
                     }
-                    className="w-full text-xs border border-slate-200 rounded-xl p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 resize-none bg-slate-50/50"
+                    className={`w-full text-xs border rounded-xl p-3 text-slate-800 focus:outline-none transition-all resize-none ${!isNotesValid
+                      ? 'border-rose-500 bg-rose-50/20 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600'
+                      : formData.specialRequests && formData.specialRequests.trim().length > 0
+                        ? 'border-emerald-500/80 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600'
+                        : 'border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600'
+                      }`}
                   />
+
+                  {/* Cảnh báo lỗi khi phát hiện mã độc hoặc vượt quá 100 ký tự */}
+                  {!isNotesValid && (
+                    <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 animate-in fade-in">
+                      <AlertTriangle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <span className="font-bold block">
+                          {notesValidation.hasMalware ? 'Cảnh báo an toàn: Phát hiện mã độc!' : 'Cảnh báo độ dài ghi chú!'}
+                        </span>
+                        <p className="text-[11px] text-rose-700 leading-relaxed font-semibold">
+                          {notesError}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trạng thái hợp lệ khi đã nhập ghi chú an toàn */}
+                  {isNotesValid && formData.specialRequests && formData.specialRequests.trim().length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
+                      <ShieldCheck size={13} className="shrink-0" />
+                      <span>Ghi chú hợp lệ.</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -618,11 +739,10 @@ export const BookingPaymentPage = () => {
                 {/* 1. Cổng thanh toán VNPay (ATM, QR) */}
                 <label
                   onClick={() => setPaymentMethod('VNPAY')}
-                  className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'VNPAY'
-                      ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${paymentMethod === 'VNPAY'
+                    ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
+                    : 'border-slate-200 hover:border-slate-300'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center text-xs shrink-0">
@@ -650,11 +770,10 @@ export const BookingPaymentPage = () => {
                 {/* 2. Thẻ quốc tế Visa / Mastercard */}
                 <label
                   onClick={() => setPaymentMethod('CREDIT_CARD')}
-                  className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'CREDIT_CARD'
-                      ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${paymentMethod === 'CREDIT_CARD'
+                    ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
+                    : 'border-slate-200 hover:border-slate-300'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
@@ -682,11 +801,10 @@ export const BookingPaymentPage = () => {
                 {/* 3. Thanh toán trực tiếp tại quầy lễ tân */}
                 <label
                   onClick={() => setPaymentMethod('RECEPTION')}
-                  className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'RECEPTION'
-                      ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${paymentMethod === 'RECEPTION'
+                    ? 'border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600/20'
+                    : 'border-slate-200 hover:border-slate-300'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0">

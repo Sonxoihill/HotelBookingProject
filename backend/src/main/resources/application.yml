@@ -76,3 +76,4 @@ rate-limit:
     capacity: ${RATE_LIMIT_BOOKING_CAPACITY:5}
     refill-tokens: ${RATE_LIMIT_BOOKING_REFILL_TOKENS:5}
     duration-seconds: ${RATE_LIMIT_BOOKING_DURATION_SECONDS:1}
+

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ public class CreateBookingRequest {
     @Schema(description = "Phương thức thanh toán: VNPAY, CREDIT_CARD, RECEPTION", example = "VNPAY")
     private String paymentMethod;
 
+    @Size(max = 100, message = "Phần ghi chú thêm không được vượt quá 100 ký tự")
     @Schema(description = "Yêu cầu đặc biệt của khách hàng", example = "Phòng tầng cao, view ngắm biển, không hút thuốc")
     private String specialRequests;
 

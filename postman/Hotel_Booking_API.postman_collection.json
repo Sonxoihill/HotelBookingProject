@@ -1,0 +1,807 @@
+{
+  "info": {
+    "_postman_id": "hotel-booking-api-collection-v1",
+    "name": "Hotel Booking Management System API",
+    "description": "Postman Collection cho hệ thống Quản lý & Đặt phòng Khách sạn.\nBao gồm đầy đủ các API tìm kiếm phòng (UC04), xem chi tiết phòng (UC05), xác thực, đặt phòng, dịch vụ, đánh giá và quản trị.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01. Authentication",
+      "item": [
+        {
+          "name": "Đăng ký tài khoản (Register)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Khách\",\n  \"email\": \"customer@example.com\",\n  \"password\": \"123456\",\n  \"confirmPassword\": \"123456\",\n  \"phone\": \"0987654321\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Đăng ký tài khoản người dùng mới."
+          },
+          "response": []
+        },
+        {
+          "name": "Đăng nhập (Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set(\"token\", jsonData.data.token);",
+                  "    console.log(\"Saved JWT Token to environment: \" + jsonData.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@example.com\",\n  \"password\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Đăng nhập tài khoản và tự động lưu `token` vào Environment."
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy thông tin tài khoản hiện tại (Get Me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Lấy thông tin người dùng đang đăng nhập thông qua JWT Token."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02. Room Management (Subtask 1.2 & 1.3)",
+      "item": [
+        {
+          "name": "Tìm kiếm & Lọc phòng trống (UC04)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/search?checkIn=2026-10-10&checkOut=2026-10-12&minPrice=500000&maxPrice=3000000&capacity=2&categoryId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "search"],
+              "query": [
+                {
+                  "key": "checkIn",
+                  "value": "2026-10-10",
+                  "description": "Ngày nhận phòng (Định dạng YYYY-MM-DD)"
+                },
+                {
+                  "key": "checkOut",
+                  "value": "2026-10-12",
+                  "description": "Ngày trả phòng (Định dạng YYYY-MM-DD)"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "500000",
+                  "description": "Giá tối thiểu (VNĐ)"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "3000000",
+                  "description": "Giá tối đa (VNĐ)"
+                },
+                {
+                  "key": "capacity",
+                  "value": "2",
+                  "description": "Sức chứa tối thiểu (Số người)"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "1",
+                  "description": "ID danh mục / hạng phòng"
+                }
+              ]
+            },
+            "description": "Subtask 1.2 (UC04): Tìm kiếm danh sách phòng trống theo ngày nhận, ngày trả, khoảng giá, hạng phòng và sức chứa."
+          },
+          "response": []
+        },
+        {
+          "name": "Xem chi tiết phòng (UC05)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "1"]
+            },
+            "description": "Subtask 1.3 (UC05): Lấy thông tin chi tiết của phòng theo ID, bao gồm tiện ích, ảnh mô tả, giá và đánh giá của khách hàng."
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy danh sách phòng công khai (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/public?page=0&size=6&sort=id,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "public"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "6"
+                },
+                {
+                  "key": "sort",
+                  "value": "id,asc"
+                }
+              ]
+            },
+            "description": "Lấy danh sách các phòng khả dụng hiển thị trang chủ."
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy toàn bộ danh sách phòng (Phân trang)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms?page=0&size=12&sort=id,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "12"
+                },
+                {
+                  "key": "sort",
+                  "value": "id,asc"
+                }
+              ]
+            },
+            "description": "Lấy toàn bộ danh sách phòng có phân trang 12 phòng/trang."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03. Booking Management",
+      "item": [
+        {
+          "name": "Tạo đơn đặt phòng mới (Create Booking)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": 2,\n  \"checkIn\": \"2026-11-20\",\n  \"checkOut\": \"2026-11-22\",\n  \"totalAmount\": 1540000,\n  \"paymentMethod\": \"VNPAY\",\n  \"fullName\": \"Nguyễn Văn Trọng\",\n  \"phone\": \"0987654321\",\n  \"email\": \"nvt29062005@gmail.com\",\n  \"specialRequests\": \"Tầng cao, view biển, không hút thuốc\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings"]
+            },
+            "description": "Tạo đơn đặt phòng mới (SCRUM-93). Hệ thống giữ phòng (chuyển sang ON_HOLD), tạo đơn trạng thái PENDING để chuẩn bị thanh toán VNPay."
+          },
+          "response": [
+            {
+              "name": "200 Đặt phòng thành công (PENDING - ON_HOLD)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"roomId\": 2,\n  \"checkIn\": \"2026-11-20\",\n  \"checkOut\": \"2026-11-22\",\n  \"totalAmount\": 1540000,\n  \"paymentMethod\": \"VNPAY\",\n  \"fullName\": \"Nguyễn Văn Trọng\",\n  \"phone\": \"0987654321\",\n  \"email\": \"nvt29062005@gmail.com\",\n  \"specialRequests\": \"Tầng cao, view biển, không hút thuốc\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/bookings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["bookings"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Đặt phòng thành công!\",\n  \"data\": {\n    \"id\": 1,\n    \"user\": {\n      \"id\": 1,\n      \"email\": \"nvt29062005@gmail.com\",\n      \"fullName\": \"Nguyễn Văn Trọng\",\n      \"phone\": \"0987654321\",\n      \"role\": \"GUEST\",\n      \"status\": \"ACTIVE\"\n    },\n    \"room\": {\n      \"id\": 2,\n      \"roomNumber\": \"102\",\n      \"status\": \"ON_HOLD\",\n      \"pricePerNight\": 700000.00\n    },\n    \"checkIn\": \"2026-11-20\",\n    \"checkOut\": \"2026-11-22\",\n    \"totalAmount\": 1540000.00,\n    \"status\": \"PENDING\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Lấy lịch sử đặt phòng của tôi (My History)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bookings/my-history",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "my-history"]
+            },
+            "description": "Lấy danh sách các đơn đặt phòng của tài khoản đang đăng nhập."
+          },
+          "response": []
+        },
+        {
+          "name": "Hủy đơn đặt phòng (Cancel Booking)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Có việc bận đột xuất nên muốn đổi kế hoạch du lịch\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings/1/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "1", "cancel"]
+            },
+            "description": "Hủy đơn đặt phòng theo ID."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04. Hotel Services",
+      "item": [
+        {
+          "name": "Lấy danh sách dịch vụ khách sạn",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            },
+            "description": "Lấy toàn bộ dịch vụ phụ trợ đang hoạt động của khách sạn."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05. Reviews",
+      "item": [
+        {
+          "name": "Xem đánh giá của phòng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/room/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviews", "room", "1"]
+            },
+            "description": "Lấy điểm đánh giá trung bình và các nhận xét của phòng."
+          },
+          "response": []
+        },
+        {
+          "name": "Gửi đánh giá phòng",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": 1,\n  \"rating\": 5,\n  \"comment\": \"Phòng rất sạch đẹp, view ngắm biển tuyệt vời, nhân viên nhiệt tình!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviews"]
+            },
+            "description": "Gửi đánh giá phòng lưu trú."
+          },
+          "response": []
+        },
+        {
+          "name": "Xem đánh giá của bản thân",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/my-reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviews", "my-reviews"]
+            },
+            "description": "Lấy danh sách các đánh giá do chính mình đã đăng."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06. User Management",
+      "item": [
+        {
+          "name": "Lấy thông tin hồ sơ cá nhân",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Lấy thông tin hồ sơ tài khoản hiện tại."
+          },
+          "response": []
+        },
+        {
+          "name": "Cập nhật hồ sơ cá nhân",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Khách VIP\",\n  \"phone\": \"0987654321\",\n  \"address\": \"123 Trần Phú, Nha Trang\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Cập nhật họ tên, điện thoại, địa chỉ."
+          },
+          "response": []
+        },
+        {
+          "name": "Đổi mật khẩu",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"123456\",\n  \"newPassword\": \"NewPassword123@\",\n  \"confirmPassword\": \"NewPassword123@\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "change-password"]
+            },
+            "description": "Đổi mật khẩu người dùng."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07. Admin & Receptionist",
+      "item": [
+        {
+          "name": "Ping Quyền Quản trị viên (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/ping",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "ping"]
+            },
+            "description": "Kiểm tra quyền ROLE_ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Ping Quyền Quầy Lễ tân (RECEPTIONIST)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/ping",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "ping"]
+            },
+            "description": "Kiểm tra quyền ROLE_RECEPTIONIST hoặc ROLE_ADMIN."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "08. Health & System",
+      "item": [
+        {
+          "name": "Kiểm tra sức khỏe Backend & CSDL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Kiểm tra kết nối MySQL, đếm tổng số bản ghi Users, Rooms, Bookings..."
+          },
+          "response": []
+        },
+        {
+          "name": "OpenAPI Specification (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v3/api-docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["v3", "api-docs"]
+            },
+            "description": "Lấy OpenAPI 3.0 specification định dạng JSON."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "09. Payment & VNPay Gateway (SCRUM-94)",
+      "item": [
+        {
+          "name": "Tạo URL thanh toán VNPay (SCRUM-94 API 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment/create-url?bookingId=1&amount=1540000",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment", "create-url"],
+              "query": [
+                {
+                  "key": "bookingId",
+                  "value": "1",
+                  "description": "ID đơn đặt phòng vừa tạo (bắt buộc)"
+                },
+                {
+                  "key": "amount",
+                  "value": "1540000",
+                  "description": "Số tiền cần thanh toán (VNĐ, tùy chọn - nếu bỏ trống sẽ lấy từ booking)"
+                }
+              ]
+            },
+            "description": "API 1 (SCRUM-94): Nhận bookingId và amount, băm HMAC-SHA512 với vnp_HashSecret, trả về URL thanh toán VNPay Sandbox để Frontend chuyển hướng khách hàng."
+          },
+          "response": [
+            {
+              "name": "200 Tạo URL thành công",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payment/create-url?bookingId=1&amount=1540000",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment", "create-url"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Tạo URL thanh toán VNPay thành công\",\n  \"data\": {\n    \"paymentUrl\": \"https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=154000000&vnp_Command=pay&vnp_CreateDate=20261007223000&vnp_CurrCode=VND&vnp_IpAddr=127.0.0.1&vnp_Locale=vn&vnp_OrderInfo=Thanh+toan+dat+phong+%231&vnp_OrderType=other&vnp_ReturnUrl=http%3A%2F%2Flocalhost%3A8080%2Fapi%2Fv1%2Fpayment%2Fvnpay-return&vnp_TmnCode=CGXZLS0Z&vnp_TxnRef=1_1728315000000&vnp_Version=2.1.0&vnp_SecureHash=mock_hash\",\n    \"url\": \"https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=154000000&vnp_Command=pay&vnp_CreateDate=20261007223000&vnp_CurrCode=VND&vnp_IpAddr=127.0.0.1&vnp_Locale=vn&vnp_OrderInfo=Thanh+toan+dat+phong+%231&vnp_OrderType=other&vnp_ReturnUrl=http%3A%2F%2Flocalhost%3A8080%2Fapi%2Fv1%2Fpayment%2Fvnpay-return&vnp_TmnCode=CGXZLS0Z&vnp_TxnRef=1_1728315000000&vnp_Version=2.1.0&vnp_SecureHash=mock_hash\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Webhook IPN nhận kết quả thanh toán từ VNPay (SCRUM-94 API 2)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment/vnpay-ipn?vnp_Amount=154000000&vnp_BankCode=NCB&vnp_BankTranNo=VNP14123456&vnp_CardType=ATM&vnp_OrderInfo=Thanh+toan+dat+phong+%231&vnp_PayDate=20261007221355&vnp_ResponseCode=00&vnp_TmnCode=CGXZLS0Z&vnp_TransactionNo=14123456&vnp_TransactionStatus=00&vnp_TxnRef=1_1728315000000&vnp_SecureHash=mock_hash",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment", "vnpay-ipn"],
+              "query": [
+                {
+                  "key": "vnp_Amount",
+                  "value": "154000000"
+                },
+                {
+                  "key": "vnp_BankCode",
+                  "value": "NCB"
+                },
+                {
+                  "key": "vnp_BankTranNo",
+                  "value": "VNP14123456"
+                },
+                {
+                  "key": "vnp_CardType",
+                  "value": "ATM"
+                },
+                {
+                  "key": "vnp_OrderInfo",
+                  "value": "Thanh toan dat phong #1"
+                },
+                {
+                  "key": "vnp_PayDate",
+                  "value": "20261007221355"
+                },
+                {
+                  "key": "vnp_ResponseCode",
+                  "value": "00",
+                  "description": "00: Thành công, khác 00 (ví dụ 24): Hủy/Thất bại"
+                },
+                {
+                  "key": "vnp_TmnCode",
+                  "value": "CGXZLS0Z"
+                },
+                {
+                  "key": "vnp_TransactionNo",
+                  "value": "14123456"
+                },
+                {
+                  "key": "vnp_TransactionStatus",
+                  "value": "00"
+                },
+                {
+                  "key": "vnp_TxnRef",
+                  "value": "1_1728315000000",
+                  "description": "Mã tham chiếu đơn hàng {bookingId}_{timestamp}"
+                },
+                {
+                  "key": "vnp_SecureHash",
+                  "value": "mock_hash"
+                }
+              ]
+            },
+            "description": "API 2 (SCRUM-94): Webhook nhận thông báo ngầm từ VNPay. Verify checksum, cập nhật đơn sang CONFIRMED (hoặc FAILED), tự động kích hoạt gửi Email xác nhận (SCRUM-95) và trả về format chuẩn cho VNPay."
+          },
+          "response": [
+            {
+              "name": "200 Trả về mã phản hồi chuẩn cho VNPay",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payment/vnpay-ipn?vnp_ResponseCode=00",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment", "vnpay-ipn"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"RspCode\": \"00\",\n  \"Message\": \"Confirm Success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Xử lý kết quả trả về từ trình duyệt (VNPay Return)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment/vnpay-return?vnp_Amount=154000000&vnp_BankCode=NCB&vnp_BankTranNo=VNP14123456&vnp_CardType=ATM&vnp_OrderInfo=Thanh+toan+dat+phong+%231&vnp_PayDate=20261007221355&vnp_ResponseCode=00&vnp_TmnCode=CGXZLS0Z&vnp_TransactionNo=14123456&vnp_TransactionStatus=00&vnp_TxnRef=1_1728315000000&vnp_SecureHash=mock_hash",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment", "vnpay-return"],
+              "query": [
+                {
+                  "key": "vnp_Amount",
+                  "value": "154000000"
+                },
+                {
+                  "key": "vnp_BankCode",
+                  "value": "NCB"
+                },
+                {
+                  "key": "vnp_BankTranNo",
+                  "value": "VNP14123456"
+                },
+                {
+                  "key": "vnp_CardType",
+                  "value": "ATM"
+                },
+                {
+                  "key": "vnp_OrderInfo",
+                  "value": "Thanh toan dat phong #1"
+                },
+                {
+                  "key": "vnp_PayDate",
+                  "value": "20261007221355"
+                },
+                {
+                  "key": "vnp_ResponseCode",
+                  "value": "00"
+                },
+                {
+                  "key": "vnp_TmnCode",
+                  "value": "CGXZLS0Z"
+                },
+                {
+                  "key": "vnp_TransactionNo",
+                  "value": "14123456"
+                },
+                {
+                  "key": "vnp_TransactionStatus",
+                  "value": "00"
+                },
+                {
+                  "key": "vnp_TxnRef",
+                  "value": "1_1728315000000"
+                },
+                {
+                  "key": "vnp_SecureHash",
+                  "value": "mock_hash"
+                }
+              ]
+            },
+            "description": "Callback URL khi người dùng thanh toán xong trên cổng VNPay và được điều hướng về frontend/backend."
+          },
+          "response": [
+            {
+              "name": "200 Kết quả thanh toán",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payment/vnpay-return?vnp_ResponseCode=00",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment", "vnpay-return"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Xử lý kết quả thanh toán VNPay thành công\",\n  \"data\": {\n    \"bookingId\": 1,\n    \"paymentStatus\": \"SUCCESS\",\n    \"vnpResponseCode\": \"00\",\n    \"transactionNo\": \"14123456\",\n    \"message\": \"Giao dịch thanh toán thành công!\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

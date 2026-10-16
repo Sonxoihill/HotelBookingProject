@@ -1,5 +1,6 @@
 package com.hotel.booking.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hotel.booking.common.entity.BaseEntity;
 import com.hotel.booking.enums.UserRole;
 import com.hotel.booking.enums.UserStatus;
@@ -18,6 +19,7 @@ public class User extends BaseEntity {
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
+    @JsonIgnore
     @Column(name = "password", nullable = false)
     private String password;
 

@@ -120,22 +120,33 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public Booking cancelBooking(String email, Long bookingId, CancelBookingRequest request) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", bookingId));
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
+                .orElseGet(() -> bookingRepository.findById(bookingId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", bookingId)));
 
-        if (email != null && !email.trim().isEmpty()) {
-            if (!booking.getUser().getEmail().equalsIgnoreCase(email.trim())) {
-                throw new BadRequestException("Bạn không có quyền hủy đơn đặt phòng này!");
-            }
+        // i. Email người dùng trong JWT Token phải trùng với booking.getUser().getEmail()
+        if (email == null || email.trim().isEmpty() || !booking.getUser().getEmail().equalsIgnoreCase(email.trim())) {
+            throw new BadRequestException("Bạn không có quyền hủy đơn đặt phòng này!");
         }
 
+        // ii. Đơn phải đang ở trạng thái PENDING hoặc CONFIRMED
         if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.CONFIRMED) {
-            throw new BadRequestException("Đơn hàng không đủ điều kiện hủy!");
+            throw new BadRequestException("Đơn đặt phòng không đủ điều kiện hủy");
         }
 
+        // iii. Thời gian hiện tại LocalDateTime.now() phải trước thời điểm checkIn ít nhất 24 giờ
+        LocalDate checkInDate = booking.getCheckIn();
+        LocalDateTime checkInDateTime = checkInDate != null ? checkInDate.atTime(14, 0) : null;
+        if (checkInDateTime == null || LocalDateTime.now().plusHours(24).isAfter(checkInDateTime)) {
+            throw new BadRequestException("Đơn đặt phòng không đủ điều kiện hủy");
+        }
+
+        // Hợp lệ: lưu cancelReason, đổi đơn thành CANCELLED và trả phòng về AVAILABLE
         booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelReason(request.getReason());
+
         Room room = booking.getRoom();
-        if (room != null && room.getStatus() == RoomStatus.ON_HOLD) {
+        if (room != null) {
             room.setStatus(RoomStatus.AVAILABLE);
             roomRepository.saveAndFlush(room);
         }

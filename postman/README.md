@@ -23,11 +23,29 @@ Swagger UI được tích hợp thông qua thư viện `springdoc-openapi-starte
     - `GET /rooms/public`: Danh sách phòng công khai hiển thị trang chủ.
     - `GET /rooms`: Toàn bộ danh sách phòng có phân trang.
   - **Authentication**: `POST /auth/register`, `POST /auth/login`, `GET /auth/me`.
-  - **Booking Management**: `POST /bookings`, `GET /bookings/my-history`, `PATCH /bookings/{id}/cancel`.
+  - **Booking Management**: 
+    - `POST /bookings` (SCRUM-93): Tạo đơn đặt phòng & khóa phòng ON_HOLD.
+    - `GET /bookings/my-history`: Lịch sử đặt phòng.
+    - `PATCH /bookings/{id}/cancel` (UC08): Khách hủy đơn đặt phòng trước giờ check-in (14:00) ít nhất 24 giờ.
+  - **Receptionist (Sprint 6 - UC10 & UC11)**:
+    - `GET /receptionist/rooms/grid` (UC10): Sơ đồ phòng trực quan (Room Grid) theo tầng & trạng thái.
+    - `PATCH /receptionist/rooms/{id}/clean`: Xác nhận dọn phòng sạch sẽ (DIRTY -> AVAILABLE).
+    - `GET /receptionist/bookings` (UC11): Danh sách quản lý đơn đặt phòng tại quầy lễ tân.
+    - `PATCH /receptionist/bookings/{id}/approve` (UC11): Lễ tân duyệt đơn đặt phòng PENDING.
+    - `PATCH /receptionist/bookings/{id}/cancel` (UC11): Lễ tân hủy đơn theo yêu cầu kèm lý do.
+    - `PATCH /receptionist/bookings/{id}/check-in` (UC11): Khách làm thủ tục nhận phòng.
+    - `GET /receptionist/bookings/{id}/checkout-summary` (UC11): Bảng kê chi phí quyết toán trước khi trả phòng.
+    - `POST /receptionist/bookings/{id}/check-out` (UC11): Khách làm thủ tục trả phòng và thu ngân.
+    - `POST /receptionist/bookings/{bookingId}/services`: Ghi nhận dịch vụ phát sinh vào đơn lưu trú.
+    - `GET /receptionist/bookings/{bookingId}/services`: Lấy danh sách dịch vụ của đơn đặt phòng.
   - **Hotel Services**: `GET /services`.
-  - **Reviews**: `GET /reviews/room/{roomId}`, `POST /reviews`, `GET /reviews/my-reviews`.
+  - **Reviews**: 
+    - `GET /reviews/room/{roomId}`: Điểm đánh giá trung bình & danh sách đánh giá của phòng (chống XSS).
+    - `POST /reviews` (UC07): Đánh giá phòng gắn với đơn đặt phòng sau khi đã hoàn tất trả phòng (`CHECKED_OUT`), mỗi đơn 1 lần, số sao từ 1 đến 5.
+    - `GET /reviews/my-reviews`: Lịch sử các đánh giá của bản thân.
+  - **Payment & VNPay (SCRUM-94)**: `POST /payment/create-payment`, `GET /payment/vnpay-ipn`, `GET /payment/vnpay-return`.
   - **User Management**: `GET /users/profile`, `PUT /users/profile`, `PUT /users/change-password`.
-  - **Admin & Receptionist**: `GET /admin/ping`, `GET /receptionist/ping`.
+  - **Admin & Receptionist Ping**: `GET /admin/ping`, `GET /receptionist/ping`.
   - **Health**: `GET /health`, `GET /health/test-error`, `POST /health/test-validation`.
 - **Hỗ trợ Authorize bằng JWT Bearer Token**:
   - Bấm nút **Authorize 🔓** góc trên bên phải Swagger UI.

@@ -158,7 +158,7 @@ export const BookingHistoryPage = () => {
   const handleRequestCancel = (booking) => {
     const isEligible = checkCanCancelBooking(booking);
     if (!isEligible) {
-      showToast('Đơn hàng không đủ điều kiện hủy (chỉ áp dụng cho đơn Đang xử lý hoặc Xác nhận còn hạn trước ngày nhận phòng).', 'error');
+      showToast('Đơn đặt phòng không đủ điều kiện hủy (chỉ áp dụng cho đơn Đang xử lý hoặc Xác nhận còn hạn trước ngày nhận phòng).', 'error');
       return;
     }
     setSelectedBookingForCancel(booking);

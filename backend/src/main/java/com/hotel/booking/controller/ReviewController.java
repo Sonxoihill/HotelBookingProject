@@ -27,13 +27,13 @@ public class ReviewController {
     private final JwtUtil jwtUtil;
 
     @Operation(
-            summary = "Gửi đánh giá và nhận xét cho phòng",
-            description = "Gửi đánh giá (số sao 1-5 và bình luận) cho phòng đã từng lưu trú.",
+            summary = "Gửi đánh giá và nhận xét sau lưu trú (UC07)",
+            description = "Gửi đánh giá cho đơn đặt phòng đã hoàn tất trả phòng (CHECKED_OUT). Nhận bookingId (hoặc roomId), rating từ 1 đến 5 sao và bình luận. Kiểm tra đơn phải thuộc sở hữu người dùng đăng nhập và chưa từng được đánh giá trước đó.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đánh giá phòng thành công"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu đánh giá không hợp lệ")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đánh giá của bạn đã được ghi nhận thành công!"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu đánh giá không hợp lệ, chưa trả phòng hoặc đơn đã được đánh giá")
     })
     @PostMapping
     public ApiResponse<ReviewResponse> createReview(

@@ -72,13 +72,14 @@ public class BookingController {
     }
 
     @Operation(
-            summary = "Hủy đơn đặt phòng",
-            description = "Hủy đơn đặt phòng theo ID với lý do hủy.",
+            summary = "Khách hàng hủy đơn đặt phòng (UC08)",
+            description = "Hủy đơn đặt phòng theo ID. Yêu cầu: Email trong JWT Token phải trùng với chủ đơn, đơn phải đang ở trạng thái PENDING hoặc CONFIRMED, và thời gian hiện tại phải trước thời điểm check-in ít nhất 24 giờ. Trả phòng về AVAILABLE khi hủy thành công.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Hủy đơn đặt phòng thành công"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Đơn không đủ điều kiện hủy hoặc không tìm thấy")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Hủy đơn đặt phòng thành công!"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Đơn đặt phòng không đủ điều kiện hủy hoặc không có quyền"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy đơn đặt phòng")
     })
     @PatchMapping("/{id}/cancel")
     public ApiResponse<Booking> cancelBooking(

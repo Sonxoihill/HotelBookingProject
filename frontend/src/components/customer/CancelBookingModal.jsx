@@ -47,7 +47,7 @@ export const CancelBookingModal = ({
     setErrorMessage('');
 
     if (!isEligible) {
-      setErrorMessage('Đơn hàng không đủ điều kiện hủy!');
+      setErrorMessage('Đơn đặt phòng không đủ điều kiện hủy!');
       return;
     }
 
@@ -129,7 +129,7 @@ export const CancelBookingModal = ({
         {!isEligible && (
           <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-800 flex items-center gap-2">
             <XCircle size={16} className="text-rose-600 shrink-0" />
-            <span>Đơn hàng không đủ điều kiện hủy! (Đơn không ở trạng thái Đang xử lý / Xác nhận hoặc đã quá thời hạn cho phép hủy).</span>
+            <span>Đơn đặt phòng không đủ điều kiện hủy! (Đơn không ở trạng thái Đang xử lý / Xác nhận hoặc đã quá thời hạn cho phép hủy).</span>
           </div>
         )}
 

@@ -84,4 +84,30 @@ class SecurityAuthorizationTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.role").value("RECEPTIONIST"));
     }
+
+    @Test
+    @DisplayName("Tài khoản RECEPTIONIST truy cập /receptionist/rooms/grid (UC09) -> Cho phép truy cập HTTP 200 OK")
+    void testReceptionistAccessToRoomGridEndpoint() throws Exception {
+        String recToken = jwtUtils.generateToken("receptionist@gmail.com", "RECEPTIONIST");
+
+        mockMvc.perform(get("/receptionist/rooms/grid")
+                        .header("Authorization", "Bearer " + recToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @DisplayName("Tài khoản CUSTOMER truy cập /receptionist/rooms/grid -> Bị chặn với HTTP 403 Forbidden")
+    void testCustomerAccessToRoomGridEndpoint() throws Exception {
+        String customerToken = jwtUtils.generateToken("guest@gmail.com", "CUSTOMER");
+
+        mockMvc.perform(get("/receptionist/rooms/grid")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Bạn không có quyền thực hiện hành động này"));
+    }
 }

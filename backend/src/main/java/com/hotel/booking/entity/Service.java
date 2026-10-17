@@ -29,4 +29,8 @@ public class Service extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private ServiceStatus status = ServiceStatus.ACTIVE;
+
+    @Column(name = "unit", length = 50)
+    @Builder.Default
+    private String unit = "Lần";
 }

@@ -52,5 +52,40 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
             @org.springframework.data.repository.query.Param("categoryId") Long categoryId,
             @org.springframework.data.repository.query.Param("capacity") Integer capacity
     );
+
+    @Query("SELECT new com.hotel.booking.dto.receptionist.RoomGridResponse(" +
+            "r.id, " +
+            "r.roomNumber, " +
+            "r.floor, " +
+            "r.status, " +
+            "c.name, " +
+            "c.id, " +
+            "c.basePrice, " +
+            "c.capacity, " +
+            "c.bedType, " +
+            "c.imageUrl, " +
+            "b.id, " +
+            "b.status, " +
+            "u.fullName, " +
+            "u.phone, " +
+            "b.actualCheckIn, " +
+            "b.checkIn, " +
+            "b.checkOut, " +
+            "b.notes, " +
+            "b.totalAmount, " +
+            "b.paidAmount" +
+            ") " +
+            "FROM Room r " +
+            "JOIN r.category c " +
+            "LEFT JOIN Booking b ON b.room = r " +
+            "    AND b.status IN (com.hotel.booking.enums.BookingStatus.CHECKED_IN, com.hotel.booking.enums.BookingStatus.CONFIRMED) " +
+            "LEFT JOIN b.user u " +
+            "WHERE (:floor IS NULL OR r.floor = :floor) " +
+            "  AND (:status IS NULL OR r.status = :status) " +
+            "ORDER BY r.floor ASC, r.roomNumber ASC")
+    List<com.hotel.booking.dto.receptionist.RoomGridResponse> findRoomGrid(
+            @Param("floor") Integer floor,
+            @Param("status") RoomStatus status
+    );
 }
 

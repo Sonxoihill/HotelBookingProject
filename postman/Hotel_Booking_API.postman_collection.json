@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "hotel-booking-api-collection-v1",
     "name": "Hotel Booking Management System API",
-    "description": "Postman Collection cho hệ thống Quản lý & Đặt phòng Khách sạn.\nBao gồm đầy đủ các API tìm kiếm phòng (UC04), xem chi tiết phòng (UC05), xác thực, đặt phòng, dịch vụ, đánh giá và quản trị.",
+    "description": "Postman Collection cho hệ thống Quản lý & Đặt phòng Khách sạn.\nBao gồm đầy đủ các API tìm kiếm phòng (UC04), xem chi tiết phòng (UC05), xác thực, đặt phòng, hủy đơn 24h (UC08), đánh giá gắn liền đơn trả phòng (UC07), dịch vụ phát sinh, cổng thanh toán VNPay (SCRUM-94), và phân hệ Lễ tân (Sơ đồ phòng UC10, Quản lý vòng đời đơn & Check-in/Check-out UC11).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -294,7 +294,7 @@
           "response": []
         },
         {
-          "name": "Hủy đơn đặt phòng (Cancel Booking)",
+          "name": "Khách hủy đơn đặt phòng (UC08 - Cancel Booking)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -316,7 +316,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["bookings", "1", "cancel"]
             },
-            "description": "Hủy đơn đặt phòng theo ID."
+            "description": "UC08: Khách hàng hủy đơn đặt phòng trực tuyến. Yêu cầu 3 điều kiện: (1) Email trong JWT phải trùng với người đặt đơn (400 nếu sai), (2) Đơn phải ở trạng thái PENDING hoặc CONFIRMED, (3) Thời điểm hiện tại phải trước mốc check-in (14:00 ngày check-in) ít nhất 24 giờ. Hợp lệ sẽ giải phóng phòng về AVAILABLE."
           },
           "response": []
         }
@@ -359,7 +359,7 @@
           "response": []
         },
         {
-          "name": "Gửi đánh giá phòng",
+          "name": "Gửi đánh giá phòng sau lưu trú (UC07)",
           "request": {
             "method": "POST",
             "header": [
@@ -374,14 +374,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"roomId\": 1,\n  \"rating\": 5,\n  \"comment\": \"Phòng rất sạch đẹp, view ngắm biển tuyệt vời, nhân viên nhiệt tình!\"\n}"
+              "raw": "{\n  \"bookingId\": 1,\n  \"rating\": 5,\n  \"comment\": \"Phòng rất sạch đẹp, view ngắm biển tuyệt vời, nhân viên nhiệt tình!\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/reviews",
               "host": ["{{baseUrl}}"],
               "path": ["reviews"]
             },
-            "description": "Gửi đánh giá phòng lưu trú."
+            "description": "UC07: Gửi đánh giá phòng gắn với đơn đặt phòng. Yêu cầu: Đơn phải thuộc tài khoản đăng nhập, trạng thái hoàn tất trả phòng (CHECKED_OUT), số sao từ 1 đến 5, và mỗi đơn chỉ được đánh giá 1 lần (existsByBookingId)."
           },
           "response": []
         },
@@ -485,7 +485,7 @@
       ]
     },
     {
-      "name": "07. Admin & Receptionist",
+      "name": "07. Admin & Receptionist (Sprint 6 - UC10 & UC11)",
       "item": [
         {
           "name": "Ping Quyền Quản trị viên (ADMIN)",
@@ -522,6 +522,252 @@
               "path": ["receptionist", "ping"]
             },
             "description": "Kiểm tra quyền ROLE_RECEPTIONIST hoặc ROLE_ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Sơ đồ phòng trực quan - Room Grid (UC10)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/rooms/grid?floor=1&status=AVAILABLE",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "rooms", "grid"],
+              "query": [
+                {
+                  "key": "floor",
+                  "value": "1",
+                  "description": "Lọc theo tầng (tùy chọn)"
+                },
+                {
+                  "key": "status",
+                  "value": "AVAILABLE",
+                  "description": "Lọc theo trạng thái phòng (AVAILABLE, RESERVED, OCCUPIED, DIRTY, MAINTENANCE)"
+                }
+              ]
+            },
+            "description": "UC10: Lấy danh sách phòng theo sơ đồ trực quan (Room Grid), hỗ trợ lọc theo tầng và trạng thái phòng."
+          },
+          "response": []
+        },
+        {
+          "name": "Xác nhận dọn phòng sạch sẽ (Clean Room)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/rooms/1/clean",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "rooms", "1", "clean"]
+            },
+            "description": "Lễ tân xác nhận buồng phòng đã dọn dẹp sạch sẽ, chuyển trạng thái phòng từ DIRTY về AVAILABLE."
+          },
+          "response": []
+        },
+        {
+          "name": "Danh sách đơn đặt phòng lễ tân (UC11)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings?keyword=Nguyen&status=CONFIRMED&page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings"],
+              "query": [
+                {
+                  "key": "keyword",
+                  "value": "Nguyen",
+                  "description": "Tìm kiếm theo tên khách hàng, số điện thoại, email hoặc số phòng"
+                },
+                {
+                  "key": "status",
+                  "value": "CONFIRMED",
+                  "description": "Lọc theo trạng thái đơn (PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED)"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "UC11: Lấy danh sách quản lý đơn đặt phòng tại quầy lễ tân có tìm kiếm và phân trang."
+          },
+          "response": []
+        },
+        {
+          "name": "Lễ tân duyệt đơn đặt phòng (Approve - UC11)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/1/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings", "1", "approve"]
+            },
+            "description": "UC11: Duyệt đơn đặt phòng (chỉ áp dụng đơn PENDING). Đơn chuyển sang CONFIRMED, phòng chuyển sang RESERVED."
+          },
+          "response": []
+        },
+        {
+          "name": "Lễ tân hủy đơn đặt phòng (Cancel - UC11)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Khách gọi điện thông báo hủy do thay đổi chuyến bay đột xuất\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/1/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings", "1", "cancel"]
+            },
+            "description": "UC11: Lễ tân hủy đơn đặt phòng theo yêu cầu. Bắt buộc nhập lý do hủy. Đơn chuyển sang CANCELLED, phòng nhả về AVAILABLE."
+          },
+          "response": []
+        },
+        {
+          "name": "Khách nhận phòng (Check-in - UC11)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/1/check-in",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings", "1", "check-in"]
+            },
+            "description": "UC11: Làm thủ tục nhận phòng cho khách (đơn phải ở trạng thái CONFIRMED). Đơn chuyển sang CHECKED_IN, phòng chuyển sang OCCUPIED."
+          },
+          "response": []
+        },
+        {
+          "name": "Tóm tắt quyết toán trả phòng (Checkout Summary - UC11)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/1/checkout-summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings", "1", "checkout-summary"]
+            },
+            "description": "UC11: Xem bảng kê quyết toán trước khi check-out (tiền phòng, danh sách dịch vụ phát sinh, phụ thu và tổng thanh toán còn lại)."
+          },
+          "response": []
+        },
+        {
+          "name": "Khách trả phòng & Quyết toán (Check-out - UC11)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentMethod\": \"CASH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/1/check-out",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings", "1", "check-out"]
+            },
+            "description": "UC11: Hoàn tất thủ tục trả phòng và thu ngân (đơn phải ở CHECKED_IN). Đơn chuyển sang CHECKED_OUT, phòng chuyển sang DIRTY để chờ dọn dẹp."
+          },
+          "response": []
+        },
+        {
+          "name": "Ghi nhận dịch vụ phát sinh vào đơn phòng (Add Service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": 1,\n  \"quantity\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/1/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings", "1", "services"]
+            },
+            "description": "Ghi nhận dịch vụ khách sử dụng trong thời gian lưu trú (đơn phải đang CHECKED_IN). Tự động cộng tiền vào đơn đặt phòng."
+          },
+          "response": []
+        },
+        {
+          "name": "Xem danh sách dịch vụ của đơn đặt phòng (Get Services)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/1/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["receptionist", "bookings", "1", "services"]
+            },
+            "description": "Lấy danh sách các dịch vụ phát sinh đã nạp vào đơn đặt phòng."
           },
           "response": []
         }

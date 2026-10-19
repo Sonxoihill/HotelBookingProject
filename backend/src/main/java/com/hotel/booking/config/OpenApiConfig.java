@@ -24,18 +24,20 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("Hotel Booking Management System API")
                         .description("Tài liệu API hệ thống Quản lý và Đặt phòng Khách sạn (Spring Boot 3 + Springdoc OpenAPI).\n\n"
-                                + "Bao gồm đầy đủ các module:\n"
+                                + "Bao gồm đầy đủ các module nghiệp vụ:\n"
                                 + "- **Room Management**: Tìm kiếm & lọc phòng (UC04), xem chi tiết phòng (UC05), danh sách phòng\n"
-                                + "- **Authentication**: Đăng ký, đăng nhập, lấy thông tin cá nhân\n"
-                                + "- **Bookings**: Đặt phòng (giữ chỗ ON_HOLD, pessimistic locking), hủy phòng, xem lịch sử đặt phòng\n"
+                                + "- **Authentication**: Đăng ký, đăng nhập, lấy thông tin cá nhân, phân quyền RBAC\n"
+                                + "- **Bookings**: Đặt phòng (giữ chỗ ON_HOLD, pessimistic locking), hủy phòng trước 24h (UC08), xem lịch sử đặt phòng\n"
                                 + "- **Payment & VNPay Sandbox**: Tích hợp cổng thanh toán VNPay Sandbox (SCRUM-94), tạo URL thanh toán, xử lý Webhook IPN và Return URL\n"
                                 + "- **Confirmation Email**: Tự động gửi email xác nhận đặt phòng kèm chi tiết hóa đơn qua Google SMTP bất đồng bộ (SCRUM-95)\n"
-                                + "- **Reviews**: Đánh giá phòng, xem đánh giá của phòng và của cá nhân\n"
-                                + "- **Services**: Danh sách dịch vụ khách sạn\n"
-                                + "- **Users**: Quản lý hồ sơ, đổi mật khẩu\n"
-                                + "- **Admin & Receptionist**: Xác thực và quản trị hệ thống quầy lễ tân\n"
+                                + "- **Reviews**: Đánh giá phòng sau lưu trú (UC07) - Kiểm tra trạng thái CHECKED_OUT và ngăn chặn đánh giá trùng lặp\n"
+                                + "- **Receptionist Room Grid & Housekeeping**: Sơ đồ phòng thời gian thực (UC09) và xác nhận dọn dẹp phòng DIRTY -> AVAILABLE (UC12)\n"
+                                + "- **Receptionist Booking Lifecycle**: Quản lý đơn tại quầy Lễ tân (UC10) - Danh sách & lọc, Duyệt (CONFIRMED/RESERVED), Hủy (CANCELLED/AVAILABLE), Check-in (CHECKED_IN/OCCUPIED), Tóm tắt hóa đơn trước Check-out, và Check-out (CHECKED_OUT/DIRTY)\n"
+                                + "- **Receptionist Extra Services**: Ghi nhận dịch vụ phát sinh vào Folio phòng đang lưu trú (UC11) và cập nhật tổng tiền hóa đơn tự động\n"
+                                + "- **Services & Catalog**: Danh mục dịch vụ khách sạn có đơn vị tính\n"
+                                + "- **Users**: Quản lý hồ sơ cá nhân, đổi mật khẩu\n"
                                 + "- **Health**: Kiểm tra trạng thái hoạt động hệ thống")
-                        .version("1.0.0")
+                        .version("1.1.0")
                         .contact(new Contact()
                                 .name("Hotel Booking Engineering Team")
                                 .email("support@hotelbooking.com"))

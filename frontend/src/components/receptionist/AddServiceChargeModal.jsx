@@ -1,111 +1,155 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
-  Plus,
   Coins,
-  Receipt,
   BedDouble,
   CheckCircle2,
-  Coffee,
-  Sparkles,
-  Car,
-  Utensils,
+  AlertCircle,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
+import serviceService from '../../services/serviceService';
+import extraService from '../../services/extraService';
+import { bookingFolioSync, PRESET_10_SERVICES } from '../../utils/bookingFolioSync';
 
-export const AddServiceChargeModal = ({ isOpen, onClose, onAddService }) => {
-  const [selectedRoomCode, setSelectedRoomCode] = useState('P1201');
-  const [category, setCategory] = useState('Minibar');
-  const [selectedItemName, setSelectedItemName] = useState('Rượu vang Chateau Margaux Grand Cru');
-  const [unitPrice, setUnitPrice] = useState(3800000);
+export const AddServiceChargeModal = ({ isOpen, onClose, onAddService, onServiceAdded }) => {
+  const [services, setServices] = useState(PRESET_10_SERVICES);
+  const [checkedInBookings, setCheckedInBookings] = useState([]);
+  const [selectedBookingId, setSelectedBookingId] = useState('');
+  const [selectedServiceId, setSelectedServiceId] = useState(1);
   const [quantity, setQuantity] = useState(1);
-  const [notes, setNotes] = useState('Khách dùng tại phòng Penthouse tối qua.');
+  const [notes, setNotes] = useState('');
   const [chargeToFolio, setChargeToFolio] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Available occupied rooms
-  const occupiedRooms = [
-    { code: 'P1201', guest: 'Đỗ Minh Quân', tier: 'Black Diamond VIP', room: 'Grand Celestial Penthouse' },
-    { code: 'P1202', guest: 'Elena Rostova', tier: 'Platinum Member', room: 'Royal Sky Penthouse' },
-    { code: 'S802', guest: 'Liam Vanderberg', tier: 'Executive Member', room: 'Ocean Horizon Suite' },
-    { code: 'V101', guest: 'Trần Bảo Ngọc', tier: 'VIP Diamond', room: 'Garden Sanctuary Villa' },
-    { code: 'V102', guest: 'Bùi Hoàng Long', tier: 'Gold Member', room: 'Garden Sanctuary Villa' },
-  ];
+  // 1. Lấy danh sách 10 dịch vụ từ API GET /api/v1/services
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const res = await serviceService.getServices();
+        const data = res?.data || res;
+        if (Array.isArray(data) && data.length > 0) {
+          // Gộp dữ liệu từ API với metadata unit
+          const mapped = data.map((item, index) => ({
+            id: item.id || index + 1,
+            name: item.name,
+            price: item.price || 100000,
+            unit: item.unit || PRESET_10_SERVICES[index % PRESET_10_SERVICES.length]?.unit || 'Lượt',
+            category: item.category || PRESET_10_SERVICES[index % PRESET_10_SERVICES.length]?.category || 'Dịch vụ',
+            description: item.description || '',
+          }));
+          setServices(mapped);
+          if (mapped.length > 0) setSelectedServiceId(mapped[0].id);
+        } else {
+          setServices(PRESET_10_SERVICES);
+          setSelectedServiceId(PRESET_10_SERVICES[0].id);
+        }
+      } catch (err) {
+        console.warn('API GET /api/v1/services chưa có backend hoặc offline, sử dụng 10 dịch vụ mặc định:', err);
+        setServices(PRESET_10_SERVICES);
+        setSelectedServiceId(PRESET_10_SERVICES[0].id);
+      }
+    };
 
-  // Preset services catalog
-  const serviceCatalog = {
-    Minibar: [
-      { name: 'Rượu vang Chateau Margaux Grand Cru', price: 3800000 },
-      { name: 'Nước khoáng San Pellegrino 750ml (02 chai)', price: 240000 },
-      { name: 'Bia Bỉ nhập khẩu Chimay Blue (02 chai)', price: 360000 },
-      { name: 'Hạt macca Úc & Hạt điều sấy hữu cơ', price: 180000 },
-      { name: 'Socola thủ công Marou cao cấp', price: 150000 },
-    ],
-    'In-room Dining': [
-      { name: 'Set Bò Wagyu A5 sốt nấm Truffle phục vụ tại phòng', price: 2850000 },
-      { name: 'Tháp hải sản hoàng gia La Mer tươi sống', price: 3200000 },
-      { name: 'Bữa sáng Floating Breakfast tại hồ bơi riêng', price: 1450000 },
-      { name: 'Tiệc trà chiều hoàng hôn phong cách Anh Quốc', price: 850000 },
-    ],
-    'Spa & Wellness': [
-      { name: 'Liệu trình Massage đá nóng Thảo dược 90 phút', price: 2200000 },
-      { name: 'Trị liệu bấm huyệt phục hồi năng lượng 60 phút', price: 1650000 },
-      { name: 'Gói chăm sóc da mặt ngọc trai biển sâu 75 phút', price: 1950000 },
-    ],
-    'Đưa đón Maybach': [
-      { name: 'Đưa đón sân bay Cam Ranh 1 chiều xe Maybach S680', price: 2500000 },
-      { name: 'Tour tham quan vịnh biển nửa ngày có tài xế riêng', price: 4500000 },
-    ],
-    'Giặt là Laundry': [
-      { name: 'Giặt hấp 01 bộ Âu phục cao cấp (Suit)', price: 350000 },
-      { name: 'Giặt ủi đầm dạ hội lụa tơ tằm', price: 420000 },
-      { name: 'Ủi phẳng khẩn cấp 30 phút', price: 200000 },
-    ],
-  };
+    fetchServices();
+  }, []);
+
+  // 2. Lọc danh sách các phòng/đơn đang ở trạng thái CHECKED_IN
+  useEffect(() => {
+    const list = bookingFolioSync.getCheckedInBookings();
+    setCheckedInBookings(list);
+    if (list.length > 0) {
+      setSelectedBookingId(list[0].id);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const totalAmount = unitPrice * quantity;
-  const currentRoom = occupiedRooms.find((r) => r.code === selectedRoomCode) || occupiedRooms[0];
+  const currentBooking = checkedInBookings.find((b) => b.id === selectedBookingId) || checkedInBookings[0] || {};
+  const currentService = services.find((s) => String(s.id) === String(selectedServiceId)) || services[0] || {};
+  const unitPrice = currentService?.price || 0;
+  const numQuantity = Number(quantity);
+  const totalAmount = unitPrice * numQuantity;
 
-  const handleCategoryChange = (newCat) => {
-    setCategory(newCat);
-    const firstItem = serviceCatalog[newCat][0];
-    setSelectedItemName(firstItem.name);
-    setUnitPrice(firstItem.price);
-  };
+  // Validation Form: Chặn nếu chưa chọn dịch vụ hoặc số lượng <= 0
+  const isServiceValid = Boolean(selectedServiceId);
+  const isQuantityValid = Number.isInteger(numQuantity) && numQuantity > 0;
+  const isFormValid = isServiceValid && isQuantityValid && Boolean(selectedBookingId);
 
-  const handleItemChange = (itemName) => {
-    setSelectedItemName(itemName);
-    const item = serviceCatalog[category]?.find((i) => i.name === itemName);
-    if (item) {
-      setUnitPrice(item.price);
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
 
-    const newRecord = {
-      id: `SRV-${Math.floor(1000 + Math.random() * 9000)}`,
-      time: 'Vừa xong',
-      roomCode: currentRoom.code,
-      roomName: currentRoom.room,
-      guestName: currentRoom.guest,
-      guestTier: currentRoom.tier,
-      category,
-      serviceName: selectedItemName,
-      unitPrice,
-      quantity,
-      totalAmount,
-      status: chargeToFolio ? 'FOLIO_CHARGED' : 'PAID_DIRECT',
-      statusLabel: chargeToFolio ? 'Đã nạp vào Folio' : 'Đã thanh toán ngay',
-      notes,
-    };
-
-    if (onAddService) {
-      onAddService(newRecord);
+    if (!selectedServiceId) {
+      setErrorMessage('Vui lòng chọn dịch vụ trước khi thêm!');
+      return;
     }
-    onClose();
+
+    if (!isQuantityValid) {
+      setErrorMessage('Số lượng dịch vụ phải lớn hơn 0!');
+      return;
+    }
+
+    if (!selectedBookingId) {
+      setErrorMessage('Vui lòng chọn phòng/đơn đang lưu trú (CHECKED_IN)!');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // 3. Gọi API POST /api/v1/receptionist/bookings/{bookingId}/services
+      const servicePayload = {
+        serviceId: currentService.id,
+        serviceName: currentService.name,
+        unit: currentService.unit,
+        unitPrice: currentService.price,
+        quantity: numQuantity,
+        totalAmount,
+        notes: notes.trim(),
+      };
+
+      try {
+        await extraService.addServiceToBooking(selectedBookingId, servicePayload);
+      } catch (apiErr) {
+        console.warn('API POST /api/v1/receptionist/bookings/' + selectedBookingId + '/services offline:', apiErr);
+      }
+
+      // Cập nhật ngay vào Hóa đơn (Folio) đồng bộ
+      const updatedBooking = bookingFolioSync.addServiceToBooking(selectedBookingId, servicePayload);
+
+      const newRecord = {
+        id: `SRV-${Math.floor(1000 + Math.random() * 9000)}`,
+        time: 'Vừa xong',
+        bookingId: selectedBookingId,
+        roomCode: currentBooking.roomCode,
+        roomName: currentBooking.roomName,
+        guestName: currentBooking.guestName,
+        guestTier: currentBooking.guestTier,
+        category: currentService.category,
+        serviceName: currentService.name,
+        unit: currentService.unit,
+        unitPrice,
+        quantity: numQuantity,
+        totalAmount,
+        status: chargeToFolio ? 'FOLIO_CHARGED' : 'PAID_DIRECT',
+        statusLabel: chargeToFolio ? 'Đã nạp vào Folio' : 'Đã thanh toán ngay',
+        notes: notes || 'Nạp trực tiếp vào Folio',
+      };
+
+      if (onAddService) {
+        onAddService(newRecord);
+      }
+      if (onServiceAdded) {
+        onServiceAdded(updatedBooking, newRecord);
+      }
+
+      onClose();
+    } catch (err) {
+      console.error('Lỗi khi nạp dịch vụ:', err);
+      setErrorMessage('Có lỗi xảy ra khi nạp dịch vụ vào hóa đơn!');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -116,10 +160,10 @@ export const AddServiceChargeModal = ({ isOpen, onClose, onAddService }) => {
           <div className="space-y-0.5">
             <h3 className="font-serif text-xl font-semibold text-stone-900 flex items-center gap-2">
               <Coins size={18} className="text-[#C59D5F]" />
-              <span>Ghi nhận Dịch vụ & Tiêu thụ Minibar</span>
+              <span>Thêm Dịch vụ Phát sinh vào Hóa đơn</span>
             </h3>
             <p className="text-xs text-stone-500 font-light">
-              Nạp dịch vụ phát sinh trực tiếp vào hóa đơn (Folio) phòng khách đang lưu trú.
+              Nạp dịch vụ vào hóa đơn (Folio) của phòng đang nhận phòng (CHECKED_IN).
             </p>
           </div>
 
@@ -133,110 +177,141 @@ export const AddServiceChargeModal = ({ isOpen, onClose, onAddService }) => {
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-xs">
-          {/* 1. Chọn phòng đang có khách */}
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs">
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2 text-xs font-semibold">
+              <AlertCircle size={15} />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* 1. Lọc danh sách các phòng/đơn đang ở trạng thái CHECKED_IN */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-stone-800 flex items-center gap-1.5">
-              <BedDouble size={14} className="text-[#C59D5F]" />
-              <span>Phòng khách hàng áp dụng phí *</span>
+            <label className="font-semibold text-stone-800 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <BedDouble size={14} className="text-[#C59D5F]" />
+                <span>Phòng / Đơn đặt phòng (Đang lưu trú - CHECKED_IN) *</span>
+              </span>
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                {checkedInBookings.length} phòng đang ở
+              </span>
             </label>
+
             <select
-              value={selectedRoomCode}
-              onChange={(e) => setSelectedRoomCode(e.target.value)}
+              value={selectedBookingId}
+              onChange={(e) => setSelectedBookingId(e.target.value)}
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-stone-900 font-semibold focus:outline-none focus:border-stone-400"
             >
-              {occupiedRooms.map((r) => (
-                <option key={r.code} value={r.code}>
-                  Phòng {r.code} — {r.guest} ({r.tier}) • {r.room}
+              {checkedInBookings.map((b) => (
+                <option key={b.id} value={b.id}>
+                  Phòng {b.roomCode} — {b.guestName} ({b.guestTier}) • {b.stayDuration}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* 2. Danh mục dịch vụ */}
-          <div className="space-y-2">
-            <label className="font-semibold text-stone-800">
-              Phân loại nhóm dịch vụ
+          {/* 2. Chọn dịch vụ từ 10 dịch vụ kèm đơn vị tính unit */}
+          <div className="space-y-1.5">
+            <label className="font-semibold text-stone-800 flex items-center justify-between">
+              <span>Dịch vụ phát sinh (API GET /api/v1/services) *</span>
+              <span className="text-[10px] text-stone-400">10 dịch vụ khả dụng</span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {Object.keys(serviceCatalog).map((catName) => (
-                <button
-                  key={catName}
-                  type="button"
-                  onClick={() => handleCategoryChange(catName)}
-                  className={`px-3 py-2 rounded-xl text-xs font-medium border text-left transition-all cursor-pointer ${
-                    category === catName
-                      ? 'bg-black text-white border-black shadow-2xs font-semibold'
-                      : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {catName}
-                </button>
+
+            <select
+              value={selectedServiceId}
+              onChange={(e) => setSelectedServiceId(e.target.value)}
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-stone-900 font-medium focus:outline-none focus:border-stone-400"
+            >
+              {services.map((svc) => (
+                <option key={svc.id} value={svc.id}>
+                  {svc.name} — {formatVND(svc.price)} / {svc.unit || 'Lượt'} ({svc.category})
+                </option>
               ))}
-            </div>
+            </select>
+
+            {/* Chi tiết dịch vụ đã chọn */}
+            {currentService && (
+              <div className="p-3 bg-stone-50/80 rounded-xl border border-stone-200/70 text-[11px] text-stone-600 flex items-center justify-between">
+                <div>
+                  <span className="font-semibold text-stone-800">{currentService.name}</span>
+                  <span className="text-stone-400 ml-2 italic">({currentService.description || currentService.category})</span>
+                </div>
+                <div className="text-right whitespace-nowrap">
+                  <span className="font-serif font-bold text-stone-900 text-xs">{formatVND(currentService.price)}</span>
+                  <span className="text-stone-400 text-[10px] block">/ {currentService.unit}</span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 3. Chi tiết dịch vụ / mặt hàng & Số lượng */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div className="sm:col-span-2 space-y-1.5">
+          {/* 3. Số lượng & Validation */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
               <label className="font-semibold text-stone-800">
-                Chi tiết dịch vụ / Mặt hàng Minibar *
+                Số lượng *
               </label>
-              <select
-                value={selectedItemName}
-                onChange={(e) => handleItemChange(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-stone-900 focus:outline-none focus:border-stone-400"
-              >
-                {serviceCatalog[category]?.map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name} ({formatVND(item.price)})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(0, Number(q) - 1))}
+                  className="w-9 h-9 rounded-xl border border-stone-200 flex items-center justify-center font-bold text-stone-600 hover:bg-stone-100 cursor-pointer"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={quantity}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  className={`w-full text-center bg-stone-50 border rounded-xl py-2 text-stone-900 font-bold focus:outline-none ${
+                    !isQuantityValid ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-stone-200 focus:border-stone-400'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, Number(q) + 1))}
+                  className="w-9 h-9 rounded-xl border border-stone-200 flex items-center justify-center font-bold text-stone-600 hover:bg-stone-100 cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
+              {!isQuantityValid && (
+                <span className="text-[10px] text-rose-600 font-medium block">
+                  Số lượng phải lớn hơn 0
+                </span>
+              )}
             </div>
 
-            <div className="space-y-1.5">
-              <label className="font-semibold text-stone-800">Số lượng</label>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="font-semibold text-stone-800">Đơn vị tính & Ghi chú</label>
               <input
-                type="number"
-                min="1"
-                max="50"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-stone-900 font-bold focus:outline-none focus:border-stone-400"
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ví dụ: Phục vụ tại ban công lúc 09:30..."
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-stone-900 focus:outline-none focus:border-stone-400"
               />
             </div>
           </div>
 
-          {/* Ghi chú */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-stone-800">Ghi chú thêm</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ghi chú người báo hoặc khung giờ sử dụng..."
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-stone-900 focus:outline-none focus:border-stone-400"
-            />
-          </div>
-
-          {/* Bảng tính tổng tiền & Phương thức nạp Folio */}
-          <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 space-y-3">
+          {/* Bảng tính tổng tiền */}
+          <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[11px] text-stone-500 block">
-                  Đơn giá: {formatVND(unitPrice)} × {quantity}
+                  {formatVND(unitPrice)} × {numQuantity} {currentService?.unit}
                 </span>
                 <span className="font-bold text-stone-900 text-sm">
-                  Tổng tiền dịch vụ
+                  Tổng tiền dịch vụ thêm vào
                 </span>
               </div>
               <span className="font-serif text-2xl font-bold text-stone-900">
-                {formatVND(totalAmount)}
+                {formatVND(totalAmount > 0 ? totalAmount : 0)}
               </span>
             </div>
 
-            <div className="pt-2 border-t border-stone-200 flex items-center justify-between">
+            <div className="pt-2 border-t border-stone-200">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -245,17 +320,18 @@ export const AddServiceChargeModal = ({ isOpen, onClose, onAddService }) => {
                   className="rounded text-black focus:ring-0 w-4 h-4 cursor-pointer accent-black"
                 />
                 <span className="text-xs font-semibold text-stone-800">
-                  Tự động nạp vào hóa đơn tạm tính (Folio) phòng {currentRoom.code}
+                  Nạp trực tiếp vào Folio phòng {currentBooking.roomCode} (Đồng bộ Check-out)
                 </span>
               </label>
             </div>
           </div>
 
-          {/* Modal Footer Actions */}
+          {/* Modal Footer Actions: Validation chặn bấm nếu chưa chọn DV hoặc SL <= 0 */}
           <div className="pt-2 border-t border-stone-100 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="px-5 py-2.5 rounded-full border border-stone-200 hover:bg-stone-100 text-stone-600 font-medium transition-colors cursor-pointer"
             >
               Hủy
@@ -263,10 +339,15 @@ export const AddServiceChargeModal = ({ isOpen, onClose, onAddService }) => {
 
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-full bg-black hover:bg-stone-800 text-white font-semibold shadow-md transition-colors cursor-pointer flex items-center gap-1.5"
+              disabled={!isFormValid || isSubmitting}
+              className={`px-6 py-2.5 rounded-full font-semibold shadow-md transition-all flex items-center gap-1.5 ${
+                !isFormValid || isSubmitting
+                  ? 'bg-stone-300 text-stone-500 cursor-not-allowed opacity-60'
+                  : 'bg-black hover:bg-stone-800 text-white cursor-pointer hover:scale-[1.02]'
+              }`}
             >
               <CheckCircle2 size={15} />
-              <span>Xác nhận nạp dịch vụ</span>
+              <span>{isSubmitting ? 'Đang nạp...' : 'Thêm vào hóa đơn'}</span>
             </button>
           </div>
         </form>

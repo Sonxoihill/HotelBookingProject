@@ -33,6 +33,11 @@ export const bookingService = {
     return await axiosInstance.post(`/receptionist/bookings/${bookingId}/check-out`, checkOutData);
   },
 
+  // Phase 2: Lễ tân thêm dịch vụ phát sinh vào đơn phòng (POST /api/v1/receptionist/bookings/{bookingId}/services)
+  addServiceToBooking: async (bookingId, serviceData) => {
+    return await axiosInstance.post(`/receptionist/bookings/${bookingId}/services`, serviceData);
+  },
+
   // Hủy đơn đặt phòng
   cancelBooking: async (bookingId, reason) => {
     return await axiosInstance.patch(`/bookings/${bookingId}/cancel`, { reason });

@@ -63,10 +63,15 @@ export const BookingHistoryPage = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // 1. Tải thông tin người dùng
-        const profileRes = await userService.getProfile();
-        const profile = profileRes?.data || profileRes;
-        setUserProfile(profile);
+        // 1. Tải thông tin người dùng an toàn (không để lỗi profile chặn danh sách đặt phòng)
+        try {
+          const profileRes = await userService.getProfile();
+          const profile = profileRes?.data || profileRes;
+          setUserProfile(profile);
+        } catch (profileErr) {
+          console.warn('Không tải được profile người dùng, sử dụng dữ liệu cục bộ:', profileErr);
+          setUserProfile(tokenStorage.getUser() || null);
+        }
 
         // 2. Tải danh sách đơn đặt phòng và danh sách đánh giá của tôi từ Database
         const [bookingsRes, myReviewsRes] = await Promise.allSettled([
@@ -74,11 +79,30 @@ export const BookingHistoryPage = () => {
           reviewService.getMyReviews(),
         ]);
 
-        const rawBookings = bookingsRes.status === 'fulfilled' ? (bookingsRes.value?.data || bookingsRes.value || []) : [];
-        const bookingsList = Array.isArray(rawBookings) ? rawBookings : [];
+        if (bookingsRes.status === 'rejected') {
+          console.error('Lỗi khi tải danh sách đơn đặt phòng của tôi:', bookingsRes.reason);
+        }
+
+        let bookingsList = [];
+        if (bookingsRes.status === 'fulfilled') {
+          const val = bookingsRes.value;
+          if (Array.isArray(val)) {
+            bookingsList = val;
+          } else if (Array.isArray(val?.data)) {
+            bookingsList = val.data;
+          } else if (Array.isArray(val?.data?.content)) {
+            bookingsList = val.data.content;
+          } else if (Array.isArray(val?.data?.items)) {
+            bookingsList = val.data.items;
+          } else if (Array.isArray(val?.content)) {
+            bookingsList = val.content;
+          } else if (Array.isArray(val?.items)) {
+            bookingsList = val.items;
+          }
+        }
 
         const rawReviews = myReviewsRes.status === 'fulfilled' ? (myReviewsRes.value?.data || myReviewsRes.value || []) : [];
-        const reviewsList = Array.isArray(rawReviews) ? rawReviews : [];
+        const reviewsList = Array.isArray(rawReviews) ? rawReviews : (rawReviews.content || rawReviews.items || []);
 
         // Lấy danh sách ghi chú đã lưu từ localStorage
         const storedNotes = (() => {
@@ -91,10 +115,12 @@ export const BookingHistoryPage = () => {
 
         // Gắn thông tin review thật từ database và ghi chú an toàn vào từng đơn đặt phòng (theo roomId/bookingId)
         const enrichedBookings = bookingsList.map((b) => {
-          const matchedReview = reviewsList.find((r) => r.roomId === b.room?.id);
+          const matchedReview = reviewsList.find((r) => (r.bookingId && r.bookingId === b.id) || (r.roomId && r.roomId === b.room?.id));
           const note = b.specialRequests || storedNotes[b.id] || '';
+          const hasReviewed = Boolean(b.hasReviewed || matchedReview);
           return {
             ...b,
+            hasReviewed,
             specialRequests: note,
             ...(matchedReview
               ? {
@@ -138,27 +164,17 @@ export const BookingHistoryPage = () => {
   }, [navigate]);
 
   // Kiểm tra điều kiện đơn hàng có được phép hủy hay không:
-  // 1. Phải ở trạng thái "Đang xử lý" (PENDING) hoặc "Xác nhận" (CONFIRMED)
-  // 2. Chưa quá thời hạn cho phép hủy (trước ngày Check-in)
+  // 1. Chỉ cho phép bấm nút "Yêu cầu hủy đơn" khi trạng thái đơn là PENDING hoặc CONFIRMED
   const checkCanCancelBooking = (booking) => {
     if (!booking) return false;
-    const isValidStatus = booking.status === 'PENDING' || booking.status === 'CONFIRMED';
-    if (!isValidStatus) return false;
-
-    if (!booking.checkIn) return true;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const checkInDate = new Date(booking.checkIn);
-    checkInDate.setHours(0, 0, 0, 0);
-
-    return checkInDate >= now;
+    return booking.status === 'PENDING' || booking.status === 'CONFIRMED';
   };
 
-  // Xử lý khi khách bấm nút "Yêu cầu hủy"
+  // Xử lý khi khách bấm nút "Yêu cầu hủy đơn"
   const handleRequestCancel = (booking) => {
-    const isEligible = checkCanCancelBooking(booking);
-    if (!isEligible) {
-      showToast('Đơn đặt phòng không đủ điều kiện hủy (chỉ áp dụng cho đơn Đang xử lý hoặc Xác nhận còn hạn trước ngày nhận phòng).', 'error');
+    if (!booking) return;
+    if (booking.status !== 'PENDING' && booking.status !== 'CONFIRMED') {
+      showToast('Chỉ cho phép yêu cầu hủy đơn khi trạng thái là Đang xử lý (PENDING) hoặc Xác nhận (CONFIRMED).', 'error');
       return;
     }
     setSelectedBookingForCancel(booking);
@@ -167,14 +183,11 @@ export const BookingHistoryPage = () => {
   // Xác nhận hủy đơn thành công
   const handleConfirmCancel = async ({ bookingId, reason }) => {
     try {
-      // Gọi service API (nếu có hỗ trợ phía backend)
-      try {
-        await bookingService.cancelBooking(bookingId, reason);
-      } catch (e) {
-        console.warn('API cancel booking warning (running frontend state):', e);
-      }
+      // Gọi API Backend thật dành cho khách hàng: PATCH /bookings/{id}/cancel (UC08)
+      const res = await bookingService.cancelMyBooking(bookingId, reason);
+      const updated = res?.data || res;
 
-      // Cập nhật trạng thái đơn trong state frontend thành "Đã hủy"
+      // Cập nhật trạng thái đơn trong state frontend thành "Đã hủy" đồng bộ với Database
       setBookings((prev) =>
         prev.map((b) =>
           b.id === bookingId
@@ -182,34 +195,42 @@ export const BookingHistoryPage = () => {
                 ...b,
                 status: 'CANCELLED',
                 cancellationReason: reason,
-                cancelledAt: new Date().toISOString(),
+                cancelledAt: updated?.updatedAt || new Date().toISOString(),
               }
             : b
         )
       );
 
-      showToast(`Hủy đơn đặt phòng #${bookingId} thành công! Hệ thống đã tự động cập nhật lại số lượng phòng trống (+1 phòng khả dụng).`, 'success');
+      showToast(`Hủy đơn đặt phòng #${bookingId} thành công! Đơn đã chuyển sang trạng thái Đã hủy.`, 'success');
     } catch (err) {
-      showToast(err.message || 'Không thể hủy đơn đặt phòng.', 'error');
+      console.error('Lỗi khi hủy đơn đặt phòng:', err);
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Không thể hủy đơn đặt phòng.';
+      showToast(errorMsg, 'error');
+      throw err;
     }
   };
 
   // Xử lý gửi Đánh giá & Phản hồi và lưu vào Database MySQL
-  const handleConfirmReview = async ({ bookingId, rating, comment }) => {
+  const handleConfirmReview = async ({ bookingId, roomId, rating, comment }) => {
     try {
       const res = await reviewService.createReview({
         bookingId,
+        roomId,
         rating,
         comment,
       });
       const createdReview = res?.data || res;
 
-      // Cập nhật đánh giá trực tiếp vào đơn hàng trong danh sách
+      // Cập nhật đánh giá trực tiếp vào đơn hàng trong danh sách: khóa nút đánh giá
       setBookings((prev) =>
         prev.map((b) =>
           b.id === bookingId
             ? {
                 ...b,
+                hasReviewed: true,
                 review: {
                   id: createdReview.id,
                   rating: createdReview.rating || rating,
@@ -220,10 +241,12 @@ export const BookingHistoryPage = () => {
             : b
         )
       );
-      showToast(`Đã gửi đánh giá ${rating} sao cho đơn đặt phòng #${bookingId}! Đánh giá đã được lưu vào cơ sở dữ liệu hệ thống.`, 'success');
+      showToast(`Đã gửi đánh giá ${rating} sao cho đơn đặt phòng #${bookingId}! Cảm ơn quý khách.`, 'success');
     } catch (err) {
       console.error('Lỗi khi gửi đánh giá lên CSDL:', err);
-      showToast(err.message || 'Không thể lưu đánh giá vào cơ sở dữ liệu.', 'error');
+      const errorMsg = err?.response?.data?.message || err?.message || 'Không thể lưu đánh giá vào cơ sở dữ liệu.';
+      showToast(errorMsg, 'error');
+      throw err;
     }
   };
 
@@ -614,7 +637,7 @@ export const BookingHistoryPage = () => {
 
                       {/* Tag đánh giá nếu đã đánh giá */}
                       {b.review && (
-                        <div className="p-2.5 bg-amber-50/70 border border-amber-200/70 rounded-xl text-xs text-amber-900 flex items-center justify-between">
+                        <div className="p-2.5 bg-amber-50/70 border border-amber-200/70 rounded-xl text-xs text-amber-900 flex items-center justify-between font-sans">
                           <div className="flex items-center gap-2 font-semibold flex-wrap">
                             <div className="flex items-center text-amber-500">
                               {[1, 2, 3, 4, 5].map((s) => (
@@ -625,8 +648,8 @@ export const BookingHistoryPage = () => {
                                 />
                               ))}
                             </div>
-                            <span>Đã đánh giá: {b.review.rating} sao</span>
-                            <span className="italic text-stone-600 text-[11px] font-normal truncate max-w-[200px] sm:max-w-none">
+                            <span className="font-semibold text-xs font-sans">Đã đánh giá: {b.review.rating} sao</span>
+                            <span className="italic text-stone-700 text-xs font-normal truncate max-w-[200px] sm:max-w-none font-sans">
                               - "{b.review.comment}"
                             </span>
                           </div>
@@ -635,8 +658,8 @@ export const BookingHistoryPage = () => {
                     </div>
 
                     {/* Action Bar dưới mỗi đơn: Xem chi tiết / Yêu cầu hủy / Đánh giá */}
-                    <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                      <span className="text-stone-400 text-[11px] flex items-center gap-1">
+                    <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
+                      <span className="text-stone-400 text-[11px] flex items-center gap-1 font-sans">
                         <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
                         <span>Dữ liệu thực tế từ cơ sở dữ liệu khách sạn</span>
                       </span>
@@ -646,7 +669,7 @@ export const BookingHistoryPage = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedBookingForDetail(b)}
-                          className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-full font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-full font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-sans"
                         >
                           <Eye size={13} />
                           <span>Xem chi tiết</span>
@@ -657,23 +680,35 @@ export const BookingHistoryPage = () => {
                           <button
                             type="button"
                             onClick={() => handleRequestCancel(b)}
-                            className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-sans"
                           >
                             <XCircle size={13} />
-                            <span>Yêu cầu hủy</span>
+                            <span>Yêu cầu hủy đơn</span>
                           </button>
                         )}
 
-                        {/* 3. NÚT ĐÁNH GIÁ & PHẢN HỒI (Dành cho đơn Đã hoàn thành) */}
+                        {/* 3. NÚT ĐÁNH GIÁ & PHẢN HỒI (Dành cho đơn Đã hoàn thành CHECKED_OUT) */}
                         {isCompleted && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedBookingForReview(b)}
-                            className="px-3.5 py-1.5 bg-[#C59D5F] hover:bg-[#b08b50] text-white rounded-full font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                          >
-                            <Star size={13} />
-                            <span>{b.review ? 'Sửa đánh giá' : 'Đánh giá & Phản hồi'}</span>
-                          </button>
+                          b.hasReviewed || b.review ? (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-3.5 py-1.5 bg-stone-100 text-stone-400 border border-stone-200 rounded-full font-medium transition-colors flex items-center gap-1.5 cursor-not-allowed opacity-75 shadow-2xs font-sans"
+                              title="Đơn đặt phòng này đã được đánh giá"
+                            >
+                              <Check size={13} className="text-emerald-600" />
+                              <span>Đã đánh giá</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBookingForReview(b)}
+                              className="px-4 py-1.5 bg-[#C59D5F] hover:bg-[#b08b50] text-white rounded-full font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-105 font-sans"
+                            >
+                              <Star size={13} className="fill-white" />
+                              <span>Đánh giá</span>
+                            </button>
+                          )
                         )}
                       </div>
                     </div>

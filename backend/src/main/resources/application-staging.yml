@@ -24,4 +24,4 @@ logging:
     org.hibernate.SQL: DEBUG
 
 vnpay:
-  return-url: ${VNPAY_RETURN_URL:https://hotelbookingproject-5wqz.onrender.com/api/v1/payment/vnpay-return}
+  return-url: ${VNPAY_RETURN_URL:http://localhost:5173/api/v1/payment/vnpay-return}

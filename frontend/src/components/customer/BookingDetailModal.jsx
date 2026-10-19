@@ -123,19 +123,32 @@ export const BookingDetailModal = ({
             )}
 
             {(booking.status === 'CHECKED_OUT' || booking.status === 'COMPLETED') && (
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-                onClick={() => {
-                  onClose();
-                  onOpenReview(booking);
-                }}
-              >
-                <Star size={14} />
-                <span>{booking.review ? 'Xem / Cập nhật đánh giá' : 'Đánh giá & Phản hồi'}</span>
-              </Button>
+              booking.hasReviewed || booking.review ? (
+                <Button
+                  type="button"
+                  disabled
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 opacity-60 cursor-not-allowed text-stone-400"
+                >
+                  <Check size={14} className="text-emerald-600" />
+                  <span>Đã đánh giá</span>
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  className="gap-1.5 bg-[#C59D5F] hover:bg-[#b08b50] text-white"
+                  onClick={() => {
+                    onClose();
+                    onOpenReview(booking);
+                  }}
+                >
+                  <Star size={14} />
+                  <span>Đánh giá</span>
+                </Button>
+              )
             )}
           </div>
 
@@ -184,9 +197,9 @@ export const BookingDetailModal = ({
 
         {/* Thông tin đánh giá nếu đã đánh giá */}
         {booking.review && (
-          <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2 text-xs text-amber-900">
+          <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2 text-xs text-amber-900 font-sans">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 font-bold text-amber-900">
+              <div className="flex items-center gap-1 font-bold text-amber-900 font-sans">
                 <Star size={15} className="fill-amber-500 text-amber-500" />
                 <span>Đánh giá từ khách hàng:</span>
               </div>
@@ -200,10 +213,10 @@ export const BookingDetailModal = ({
                     />
                   ))}
                 </div>
-                <span className="text-xs font-bold text-amber-900 ml-1">{booking.review.rating}/5</span>
+                <span className="text-xs font-bold text-amber-900 ml-1 font-sans">{booking.review.rating}/5</span>
               </div>
             </div>
-            <p className="italic text-stone-700 bg-white/70 p-2.5 rounded-xl border border-amber-100">
+            <p className="italic text-stone-700 bg-white/70 p-2.5 rounded-xl border border-amber-100 font-sans leading-relaxed">
               "{booking.review.comment}"
             </p>
           </div>

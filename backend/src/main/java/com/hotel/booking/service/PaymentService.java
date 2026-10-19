@@ -18,6 +18,17 @@ public interface PaymentService {
     String createVNPayPaymentUrl(Long bookingId, BigDecimal amount, String ipAddress);
 
     /**
+     * Tạo URL thanh toán VNPay Sandbox kèm returnUrl tùy biến
+     *
+     * @param bookingId       ID đơn đặt phòng
+     * @param amount          Số tiền thanh toán (nếu null lấy từ booking.totalAmount)
+     * @param ipAddress       Địa chỉ IP của client
+     * @param customReturnUrl URL callback tùy biến sau khi VNPay hoàn tất thanh toán
+     * @return Chuỗi URL chuyển hướng sang cổng VNPay
+     */
+    String createVNPayPaymentUrl(Long bookingId, BigDecimal amount, String ipAddress, String customReturnUrl);
+
+    /**
      * Webhook IPN xử lý kết quả giao dịch gọi ngầm từ máy chủ VNPay (SCRUM-94 API 2)
      *
      * @param params Toàn bộ tham số VNPay gửi qua query string

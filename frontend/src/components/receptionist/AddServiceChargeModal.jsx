@@ -9,57 +9,83 @@ import {
 import { formatVND } from '../../utils/formatters';
 import serviceService from '../../services/serviceService';
 import extraService from '../../services/extraService';
-import { bookingFolioSync, PRESET_10_SERVICES } from '../../utils/bookingFolioSync';
+import bookingService from '../../services/bookingService';
 
 export const AddServiceChargeModal = ({ isOpen, onClose, onAddService, onServiceAdded }) => {
-  const [services, setServices] = useState(PRESET_10_SERVICES);
+  const [services, setServices] = useState([]);
   const [checkedInBookings, setCheckedInBookings] = useState([]);
   const [selectedBookingId, setSelectedBookingId] = useState('');
-  const [selectedServiceId, setSelectedServiceId] = useState(1);
+  const [selectedServiceId, setSelectedServiceId] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [chargeToFolio, setChargeToFolio] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // 1. Lấy danh sách 10 dịch vụ từ API GET /api/v1/services
+  // 1. Lấy danh sách dịch vụ từ API GET /api/v1/services
   useEffect(() => {
     const fetchServices = async () => {
       try {
         const res = await serviceService.getServices();
         const data = res?.data || res;
-        if (Array.isArray(data) && data.length > 0) {
-          // Gộp dữ liệu từ API với metadata unit
+        if (Array.isArray(data)) {
           const mapped = data.map((item, index) => ({
             id: item.id || index + 1,
             name: item.name,
-            price: item.price || 100000,
-            unit: item.unit || PRESET_10_SERVICES[index % PRESET_10_SERVICES.length]?.unit || 'Lượt',
-            category: item.category || PRESET_10_SERVICES[index % PRESET_10_SERVICES.length]?.category || 'Dịch vụ',
+            price: item.price || 0,
+            unit: item.unit || 'Lần',
+            category: item.category || 'Dịch vụ phát sinh',
             description: item.description || '',
           }));
           setServices(mapped);
           if (mapped.length > 0) setSelectedServiceId(mapped[0].id);
         } else {
-          setServices(PRESET_10_SERVICES);
-          setSelectedServiceId(PRESET_10_SERVICES[0].id);
+          setServices([]);
         }
       } catch (err) {
-        console.warn('API GET /api/v1/services chưa có backend hoặc offline, sử dụng 10 dịch vụ mặc định:', err);
-        setServices(PRESET_10_SERVICES);
-        setSelectedServiceId(PRESET_10_SERVICES[0].id);
+        console.error('Lỗi tải danh mục dịch vụ từ API:', err);
       }
     };
 
-    fetchServices();
-  }, []);
+    if (isOpen) {
+      fetchServices();
+    }
+  }, [isOpen]);
 
-  // 2. Lọc danh sách các phòng/đơn đang ở trạng thái CHECKED_IN
+  // 2. Lọc danh sách các phòng/đơn đang ở trạng thái CHECKED_IN từ Backend API
   useEffect(() => {
-    const list = bookingFolioSync.getCheckedInBookings();
-    setCheckedInBookings(list);
-    if (list.length > 0) {
-      setSelectedBookingId(list[0].id);
+    const loadBookings = async () => {
+      try {
+        const res = await bookingService.getAllBookings({ status: 'CHECKED_IN' });
+        const pageData = res?.data || res;
+        const list = pageData?.items || pageData?.content || (Array.isArray(pageData) ? pageData : []);
+
+        const mapped = list.map((b) => ({
+          id: b.id,
+          code: b.code || `#BK-${b.id}`,
+          roomId: b.roomId,
+          roomCode: b.roomNumber || b.roomCode || String(b.roomId),
+          roomNumber: b.roomNumber || b.roomCode,
+          roomName: b.roomCategory || `Phòng ${b.roomNumber || b.roomId}`,
+          guestName: b.guestName || 'Khách lưu trú',
+          guestTier: b.guestTier || 'VIP Member',
+          guestPhone: b.guestPhone,
+          roomCharge: b.totalAmount || 0,
+          deposit: b.paidAmount || 0,
+          status: b.status || 'CHECKED_IN',
+        }));
+
+        setCheckedInBookings(mapped);
+        if (mapped.length > 0) {
+          setSelectedBookingId(mapped[0].id);
+        }
+      } catch (err) {
+        console.error('Lỗi tải danh sách phòng CHECKED_IN:', err);
+      }
+    };
+
+    if (isOpen) {
+      loadBookings();
     }
   }, [isOpen]);
 
@@ -97,25 +123,16 @@ export const AddServiceChargeModal = ({ isOpen, onClose, onAddService, onService
 
     setIsSubmitting(true);
     try {
-      // 3. Gọi API POST /api/v1/receptionist/bookings/{bookingId}/services
-      const servicePayload = {
-        serviceId: currentService.id,
-        serviceName: currentService.name,
-        unit: currentService.unit,
-        unitPrice: currentService.price,
-        quantity: numQuantity,
-        totalAmount,
-        notes: notes.trim(),
-      };
+      // 3. Gọi API POST /api/v1/receptionist/bookings/{bookingId}/services (UC11)
+      const servicePayload = [
+        {
+          serviceId: currentService.id,
+          quantity: numQuantity,
+        },
+      ];
 
-      try {
-        await extraService.addServiceToBooking(selectedBookingId, servicePayload);
-      } catch (apiErr) {
-        console.warn('API POST /api/v1/receptionist/bookings/' + selectedBookingId + '/services offline:', apiErr);
-      }
-
-      // Cập nhật ngay vào Hóa đơn (Folio) đồng bộ
-      const updatedBooking = bookingFolioSync.addServiceToBooking(selectedBookingId, servicePayload);
+      const res = await bookingService.addServiceToBooking(selectedBookingId, servicePayload);
+      const updatedSummary = res?.data || res;
 
       const newRecord = {
         id: `SRV-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -140,7 +157,7 @@ export const AddServiceChargeModal = ({ isOpen, onClose, onAddService, onService
         onAddService(newRecord);
       }
       if (onServiceAdded) {
-        onServiceAdded(updatedBooking, newRecord);
+        onServiceAdded(updatedSummary, newRecord);
       }
 
       onClose();

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Home,
   Search,
@@ -12,323 +13,55 @@ import {
   Hammer,
   Bookmark,
   Layers,
+  Coins,
+  Receipt,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import roomService from '../../services/roomService';
 import CleaningStatusModal from '../../components/receptionist/CleaningStatusModal';
 
-// Danh sách phòng mô phỏng chuẩn xác Enum Backend (AVAILABLE, OCCUPIED, DIRTY, RESERVED, MAINTENANCE)
-const INITIAL_ROOMS = [
-  // Tầng 12 • Celestial Penthouse
-  {
-    id: 'P1201',
-    roomCode: 'P1201',
-    roomNumber: 'P1201',
-    groupName: 'Tầng 12 • Celestial Penthouse',
-    groupCount: '4 phòng',
-    category: 'Penthouse',
-    name: 'Grand Celestial',
-    fullName: 'Grand Celestial Penthouse P1201',
-    floor: 'Tầng 12',
-    floorNumber: 12,
-    status: 'OCCUPIED',
-    statusLabel: 'Đang sử dụng',
-    guestName: 'Đỗ Minh Quân',
-    membership: 'Black Diamond VIP',
-    membershipShort: 'VIP Member',
-    checkOutDate: '18/10',
-    dateRange: '14/10 — 18/10 (4 đêm)',
-    folioAmount: 42850000,
-    specialNotes: 'Dị ứng phấn hoa. Chuẩn bị sẵn tinh dầu tuyết tùng trầm ấm và 02 gối lông ngỗng mềm.',
-    pricePerNight: 22000000,
-  },
-  {
-    id: 'P1202',
-    roomCode: 'P1202',
-    roomNumber: 'P1202',
-    groupName: 'Tầng 12 • Celestial Penthouse',
-    groupCount: '4 phòng',
-    category: 'Penthouse',
-    name: 'Royal Sky',
-    fullName: 'Royal Sky Penthouse P1202',
-    floor: 'Tầng 12',
-    floorNumber: 12,
-    status: 'OCCUPIED',
-    statusLabel: 'Đang sử dụng',
-    guestName: 'Elena Rostova',
-    membership: 'Platinum Member',
-    membershipShort: 'Platinum',
-    checkOutDate: '20/10',
-    dateRange: '16/10 — 20/10 (4 đêm)',
-    folioAmount: 38200000,
-    specialNotes: 'Khách yêu cầu xe Maybach đón tiễn sân bay và setup hoa ly trắng tại phòng.',
-    pricePerNight: 24500000,
-  },
-  {
-    id: 'P1203',
-    roomCode: 'P1203',
-    roomNumber: 'P1203',
-    groupName: 'Tầng 12 • Celestial Penthouse',
-    groupCount: '4 phòng',
-    category: 'Penthouse',
-    name: 'Imperial Summit',
-    fullName: 'Imperial Summit Penthouse P1203',
-    floor: 'Tầng 12',
-    floorNumber: 12,
-    status: 'RESERVED',
-    statusLabel: 'Đã giữ',
-    guestName: 'Gia đình Hoàng Nam (Đã cọc)',
-    membership: 'VIP Diamond',
-    membershipShort: 'Đã giữ phòng',
-    checkOutDate: '21/10',
-    dateRange: 'Dự kiến Check-in: 18/10 (14:00)',
-    folioAmount: 25000000,
-    specialNotes: 'Khách VIP đã thanh toán đặt cọc 50%. Chuẩn bị rượu vang Pháp đón chào.',
-    pricePerNight: 25000000,
-    availableTime: 'Nhận phòng 14:00 ngày mai',
-    inspectionStatus: 'Đã giữ chỗ',
-    roomTypeTag: 'Đã cọc 50%',
-  },
-  {
-    id: 'P1204',
-    roomCode: 'P1204',
-    roomNumber: 'P1204',
-    groupName: 'Tầng 12 • Celestial Penthouse',
-    groupCount: '4 phòng',
-    category: 'Penthouse',
-    name: 'Lunar Summit',
-    fullName: 'Lunar Summit Penthouse P1204',
-    floor: 'Tầng 12',
-    floorNumber: 12,
-    status: 'AVAILABLE',
-    statusLabel: 'Trống',
-    availableTime: 'Sẵn sàng đón khách',
-    inspectionStatus: 'Đã dọn sạch',
-    roomTypeTag: 'Penthouse',
-    pricePerNight: 18500000,
-    specialNotes: 'Phòng sạch đã nghiệm thu kiểm định HK, sẵn sàng mở đón khách check-in.',
-  },
-
-  // Tầng 8 • Ocean Horizon Suites
-  {
-    id: 'S801',
-    roomCode: 'S801',
-    roomNumber: 'S801',
-    groupName: 'Tầng 8 • Ocean Horizon Suites',
-    groupCount: '5 phòng hiển thị',
-    category: 'Suites Hướng Biển',
-    name: 'Ocean Horizon',
-    fullName: 'Ocean Horizon Suite S801',
-    floor: 'Tầng 8',
-    floorNumber: 8,
-    status: 'AVAILABLE',
-    statusLabel: 'Trống',
-    availableTime: 'Trống khả dụng',
-    inspectionStatus: 'Đã dọn sạch',
-    roomTypeTag: '8.5 tr/đêm',
-    pricePerNight: 8500000,
-    specialNotes: 'Phòng hướng biển view trọn vẹn hoàng hôn, ban công đón gió trong lành.',
-  },
-  {
-    id: 'S802',
-    roomCode: 'S802',
-    roomNumber: 'S802',
-    groupName: 'Tầng 8 • Ocean Horizon Suites',
-    groupCount: '5 phòng hiển thị',
-    category: 'Suites Hướng Biển',
-    name: 'Ocean Horizon',
-    fullName: 'Ocean Horizon Suite S802',
-    floor: 'Tầng 8',
-    floorNumber: 8,
-    status: 'OCCUPIED',
-    statusLabel: 'Đang sử dụng',
-    guestName: 'Liam Vanderberg',
-    membership: 'Executive Member',
-    membershipShort: 'Executive',
-    checkOutDate: '19/10',
-    dateRange: '15/10 — 19/10 (4 đêm)',
-    folioAmount: 18900000,
-    specialNotes: 'Phục vụ điểm tâm tại ban công riêng lúc 08:30 sáng.',
-    pricePerNight: 8500000,
-  },
-  {
-    id: 'S803',
-    roomCode: 'S803',
-    roomNumber: 'S803',
-    groupName: 'Tầng 8 • Ocean Horizon Suites',
-    groupCount: '5 phòng hiển thị',
-    category: 'Suites Hướng Biển',
-    name: 'Ocean Horizon',
-    fullName: 'Ocean Horizon Suite S803',
-    floor: 'Tầng 8',
-    floorNumber: 8,
-    status: 'DIRTY',
-    statusLabel: 'Cần dọn',
-    availableTime: 'Khách vừa checkout 09:15',
-    inspectionStatus: 'Cần dọn trước 14:00',
-    roomTypeTag: 'Ưu tiên dọn',
-    specialNotes: 'Khách VIP nhận phòng lúc 14:00, ưu tiên dọn sạch, thay drap và setup tinh dầu thơm.',
-    pricePerNight: 8500000,
-  },
-  {
-    id: 'S804',
-    roomCode: 'S804',
-    roomNumber: 'S804',
-    groupName: 'Tầng 8 • Ocean Horizon Suites',
-    groupCount: '5 phòng hiển thị',
-    category: 'Suites Hướng Biển',
-    name: 'Ocean Horizon',
-    fullName: 'Ocean Horizon Suite S804',
-    floor: 'Tầng 8',
-    floorNumber: 8,
-    status: 'RESERVED',
-    statusLabel: 'Đã giữ',
-    guestName: 'Nguyễn Thu Trang (Booking #BK-902)',
-    membership: 'Gold Member',
-    membershipShort: 'Đã giữ',
-    checkOutDate: '20/10',
-    dateRange: 'Check-in: 17/10 (18:00 tối nay)',
-    folioAmount: 17000000,
-    specialNotes: 'Khách đã thanh toán trực tuyến qua VNPAY. Chuẩn bị thẻ phòng kích hoạt sẵn.',
-    pricePerNight: 8500000,
-    availableTime: 'Khách đến tối nay',
-    inspectionStatus: 'Đã giữ chỗ',
-    roomTypeTag: 'Đã thanh toán',
-  },
-  {
-    id: 'S805',
-    roomCode: 'S805',
-    roomNumber: 'S805',
-    groupName: 'Tầng 8 • Ocean Horizon Suites',
-    groupCount: '5 phòng hiển thị',
-    category: 'Suites Hướng Biển',
-    name: 'Ocean Horizon',
-    fullName: 'Ocean Horizon Suite S805',
-    floor: 'Tầng 8',
-    floorNumber: 8,
-    status: 'MAINTENANCE',
-    statusLabel: 'Bảo trì',
-    availableTime: 'Kỹ thuật đang kiểm tra',
-    inspectionStatus: 'Xong trước 17:00',
-    roomTypeTag: 'Bảo trì điều hòa',
-    specialNotes: 'Bảo dưỡng định kỳ cục nóng điều hòa 2 chiều và thay mới công tắc đèn phòng tắm.',
-    pricePerNight: 8500000,
-  },
-
-  // Tầng Trệt • Biệt thự Garden Sanctuary
-  {
-    id: 'V101',
-    roomCode: 'V101',
-    roomNumber: 'V101',
-    groupName: 'Tầng Trệt • Biệt thự Garden Sanctuary',
-    groupCount: '4 biệt thự',
-    category: 'Biệt thự Villa',
-    name: 'Garden Sanctuary Villa',
-    fullName: 'Garden Sanctuary Villa V101',
-    floor: 'Tầng Trệt',
-    floorNumber: 1,
-    status: 'OCCUPIED',
-    statusLabel: 'Đang sử dụng',
-    guestName: 'Trần Bảo Ngọc',
-    membership: 'VIP Diamond',
-    membershipShort: 'Private Pool',
-    checkOutDate: '18/10',
-    dateRange: '13/10 — 18/10 (5 đêm)',
-    folioAmount: 52400000,
-    specialNotes: 'Yêu cầu phục vụ tiệc BBQ hải sản tại hồ bơi tối nay lúc 19:00.',
-    pricePerNight: 14800000,
-  },
-  {
-    id: 'V102',
-    roomCode: 'V102',
-    roomNumber: 'V102',
-    groupName: 'Tầng Trệt • Biệt thự Garden Sanctuary',
-    groupCount: '4 biệt thự',
-    category: 'Biệt thự Villa',
-    name: 'Garden Sanctuary Villa',
-    fullName: 'Garden Sanctuary Villa V102',
-    floor: 'Tầng Trệt',
-    floorNumber: 1,
-    status: 'OCCUPIED',
-    statusLabel: 'Đang sử dụng',
-    guestName: 'Bùi Hoàng Long',
-    membership: 'VIP Member',
-    membershipShort: 'Private Pool',
-    checkOutDate: '22/10',
-    dateRange: '16/10 — 22/10 (6 đêm)',
-    folioAmount: 64800000,
-    specialNotes: 'Khách đi cùng 02 trẻ nhỏ, chuẩn bị phao bơi và ghế ăn trẻ em.',
-    pricePerNight: 14800000,
-  },
-  {
-    id: 'V103',
-    roomCode: 'V103',
-    roomNumber: 'V103',
-    groupName: 'Tầng Trệt • Biệt thự Garden Sanctuary',
-    groupCount: '4 biệt thự',
-    category: 'Biệt thự Villa',
-    name: 'Garden Sanctuary Villa',
-    fullName: 'Garden Sanctuary Villa V103',
-    floor: 'Tầng Trệt',
-    floorNumber: 1,
-    status: 'AVAILABLE',
-    statusLabel: 'Trống',
-    availableTime: 'Trống khả dụng',
-    inspectionStatus: 'Hồ bơi sạch',
-    roomTypeTag: '14.8 tr/đêm',
-    pricePerNight: 14800000,
-    specialNotes: 'Hồ bơi riêng đã xử lý nước đạt chuẩn, tiện ích sân vườn sẵn sàng đón khách.',
-  },
-  {
-    id: 'V104',
-    roomCode: 'V104',
-    roomNumber: 'V104',
-    groupName: 'Tầng Trệt • Biệt thự Garden Sanctuary',
-    groupCount: '4 biệt thự',
-    category: 'Biệt thự Villa',
-    name: 'Garden Sanctuary Villa',
-    fullName: 'Garden Sanctuary Villa V104',
-    floor: 'Tầng Trệt',
-    floorNumber: 1,
-    status: 'DIRTY',
-    statusLabel: 'Cần dọn',
-    availableTime: 'Khách trả phòng lúc 11:30',
-    inspectionStatus: 'Cần dọn dẹp',
-    roomTypeTag: 'Cần dọn vườn',
-    specialNotes: 'Vệ sinh toàn bộ khuôn viên villa, thay drap giường King và lau dọn hồ bơi ngoài trời.',
-    pricePerNight: 14800000,
-  },
-];
-
-// Hàm chuẩn hóa dữ liệu phòng (hỗ trợ cả schema từ backend và mock)
+// Chuẩn hóa dữ liệu RoomGridResponse trả về từ API Backend
 const normalizeRoom = (r) => {
   const code = r.roomNumber || r.roomCode || String(r.id || '');
   const status = r.status === 'CLEANING' ? 'DIRTY' : (r.status || 'AVAILABLE');
-  const floor = r.floor ? (String(r.floor).includes('Tầng') ? r.floor : `Tầng ${r.floor}`) : 'Tầng 1';
+  const floorNumber = typeof r.floor === 'number' ? r.floor : parseInt(r.floor, 10) || 1;
+  const floorStr = `Tầng ${floorNumber}`;
 
   return {
     ...r,
-    id: r.id || code,
+    id: r.id,
     roomCode: code,
     roomNumber: code,
-    floor,
+    floor: floorStr,
+    floorNumber,
     status,
-    category: r.categoryName || r.category?.name || r.category || 'Tiêu chuẩn',
-    name: r.name || r.roomName || `Phòng ${code}`,
-    fullName: r.fullName || `${r.categoryName || r.category?.name || 'Phòng'} ${code}`,
-    groupName: r.groupName || `${floor} • ${r.categoryName || r.category?.name || 'Khu nghỉ'}`,
-    pricePerNight: r.basePrice || r.category?.basePrice || r.pricePerNight || 5000000,
-    specialNotes: r.specialNotes || r.description || 'Tiện nghi cao cấp chuẩn 5 sao.',
+    statusLabel: r.statusLabel || (status === 'AVAILABLE' ? 'Trống' : status === 'OCCUPIED' ? 'Đang sử dụng' : status === 'DIRTY' ? 'Cần dọn' : status === 'RESERVED' ? 'Đã giữ' : 'Bảo trì'),
+    category: r.categoryName || r.type || 'Tiêu chuẩn',
+    name: `${r.categoryName || 'Phòng'} ${code}`,
+    fullName: `${r.categoryName || 'Phòng'} ${code}`,
+    groupName: `${floorStr} • ${r.categoryName || 'Khu nghỉ'}`,
+    pricePerNight: r.pricePerNight || r.basePrice || 0,
+    specialNotes: r.notes || r.specialNotes || 'Phòng tiện nghi cao cấp.',
+    guestName: r.guestName,
+    guestPhone: r.guestPhone,
+    bookingId: r.bookingId,
+    bookingStatus: r.bookingStatus,
+    checkIn: r.checkIn,
+    checkOut: r.checkOut,
+    actualCheckIn: r.actualCheckIn,
+    totalAmount: r.totalAmount,
+    paidAmount: r.paidAmount,
   };
 };
 
 export const RoomMatrixPage = () => {
-  const [rooms, setRooms] = useState(INITIAL_ROOMS);
+  const navigate = useNavigate();
+  const [rooms, setRooms] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Tất cả');
   const [selectedFloor, setSelectedFloor] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRoomId, setSelectedRoomId] = useState('S803');
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCleaningModalOpen, setIsCleaningModalOpen] = useState(false);
@@ -344,7 +77,7 @@ export const RoomMatrixPage = () => {
     try {
       const params = {};
       if (selectedFloor !== 'ALL') {
-        params.floor = selectedFloor;
+        params.floor = Number(selectedFloor);
       }
       if (selectedStatus !== 'ALL') {
         params.status = selectedStatus;
@@ -353,14 +86,18 @@ export const RoomMatrixPage = () => {
       const res = await roomService.getRoomGrid(params);
       const data = res?.data || res;
 
-      if (Array.isArray(data) && data.length > 0) {
-        setRooms(data.map(normalizeRoom));
+      if (Array.isArray(data)) {
+        const mapped = data.map(normalizeRoom);
+        setRooms(mapped);
+        if (mapped.length > 0) {
+          setSelectedRoomId((prev) => (mapped.some((x) => x.id === prev) ? prev : mapped[0].id));
+        }
       } else {
-        // Nếu backend chưa có data, sử dụng mock đã đồng bộ
-        setRooms((prev) => prev);
+        setRooms([]);
       }
     } catch (err) {
-      console.warn('API GET /api/v1/receptionist/rooms/grid chưa kết nối được backend, duy trì state hiện tại:', err);
+      console.error('API GET /api/v1/receptionist/rooms/grid lỗi kết nối:', err);
+      showToast('Không thể tải sơ đồ phòng từ API máy chủ');
     } finally {
       setIsLoading(false);
     }
@@ -370,37 +107,73 @@ export const RoomMatrixPage = () => {
     fetchRoomGrid();
   }, [fetchRoomGrid]);
 
-  // Xử lý xác nhận dọn xong phòng (gọi PATCH /api/v1/receptionist/rooms/{roomId}/clean và cập nhật State về AVAILABLE)
+  // Đồng bộ thời gian thực: Khi lễ tân hoàn tất Check-out trên ReceptionistBookingsPage, phòng chuyển sang DIRTY (Cần dọn) ngay lập tức
+  useEffect(() => {
+    const handleCheckoutCompleted = (e) => {
+      const { roomId } = e.detail || {};
+      if (roomId) {
+        setRooms((prevRooms) =>
+          prevRooms.map((r) =>
+            String(r.id) === String(roomId) || String(r.roomCode) === String(roomId)
+              ? {
+                  ...r,
+                  status: 'DIRTY',
+                  statusLabel: 'Cần dọn',
+                  availableTime: 'Chờ buồng phòng',
+                  inspectionStatus: 'Chưa dọn',
+                  specialNotes: 'Khách vừa làm thủ tục trả phòng (Check-out), phòng chuyển sang trạng thái Cần dọn.',
+                }
+              : r
+          )
+        );
+      }
+      fetchRoomGrid();
+    };
+
+    window.addEventListener('hotel_checkout_completed', handleCheckoutCompleted);
+    return () => {
+      window.removeEventListener('hotel_checkout_completed', handleCheckoutCompleted);
+    };
+  }, [fetchRoomGrid]);
+
+  // Xử lý xác nhận dọn xong phòng (gọi PATCH /api/v1/receptionist/rooms/{roomId}/clean và cập nhật State về AVAILABLE ngay lập tức)
   const handleCleanRoom = async (roomTarget) => {
-    const target = roomTarget || rooms.find((r) => r.id === selectedRoomId);
-    const targetId = target?.id || target?.roomCode || selectedRoomId;
+    const rawTarget = roomTarget || rooms.find((r) => r.id === selectedRoomId);
+    const targetId = typeof rawTarget === 'object' && rawTarget !== null
+      ? (rawTarget.id || rawTarget.roomId)
+      : (rawTarget || selectedRoomId);
+
     if (!targetId) return;
 
+    const targetRoom = rooms.find((r) => String(r.id) === String(targetId) || String(r.roomCode) === String(targetId));
+    const roomCode = targetRoom?.roomNumber || targetRoom?.roomCode || targetId;
+
     try {
-      // Gọi API PATCH /api/v1/receptionist/rooms/{roomId}/clean
+      // 1. Gọi API PATCH /api/v1/receptionist/rooms/{roomId}/clean
       await roomService.cleanRoom(targetId);
+      showToast(`Phòng ${roomCode} đã được dọn sạch và chuyển sang trạng thái Trống (AVAILABLE)!`);
+
+      // 2. Cập nhật State danh sách phòng về AVAILABLE ngay lập tức theo Tiêu chí nghiệm thu (AC)
+      setRooms((prevRooms) =>
+        prevRooms.map((r) =>
+          String(r.id) === String(targetId) || String(r.roomCode) === String(targetId)
+            ? {
+                ...r,
+                status: 'AVAILABLE',
+                statusLabel: 'Trống',
+                availableTime: 'Sẵn sàng đón khách',
+                inspectionStatus: 'Đã dọn sạch',
+                specialNotes: 'Phòng đã được dọn sạch và kiểm định xong, sẵn sàng đón khách mới.',
+              }
+            : r
+        )
+      );
     } catch (error) {
-      console.warn('API PATCH /api/v1/receptionist/rooms/' + targetId + '/clean:', error);
+      console.error('API PATCH /api/v1/receptionist/rooms/' + targetId + '/clean:', error);
+      showToast(error?.response?.data?.message || error?.message || 'Lỗi khi cập nhật dọn phòng');
+    } finally {
+      setIsCleaningModalOpen(false);
     }
-
-    // Cập nhật State danh sách phòng về AVAILABLE ngay lập tức theo Tiêu chí nghiệm thu (AC)
-    setRooms((prevRooms) =>
-      prevRooms.map((r) =>
-        r.id === targetId || r.roomCode === targetId
-          ? {
-              ...r,
-              status: 'AVAILABLE',
-              statusLabel: 'Trống',
-              availableTime: 'Sẵn sàng đón khách',
-              inspectionStatus: 'Đã dọn sạch',
-              specialNotes: 'Phòng đã được dọn sạch và kiểm định xong, sẵn sàng đón khách mới.',
-            }
-          : r
-      )
-    );
-
-    showToast(`Phòng ${targetId} đã được dọn sạch và chuyển sang trạng thái Trống (AVAILABLE)!`);
-    setIsCleaningModalOpen(false);
   };
 
   // Phòng đang được chọn trên cột bên phải
@@ -425,10 +198,8 @@ export const RoomMatrixPage = () => {
   const filteredRooms = useMemo(() => {
     return rooms.filter((r) => {
       // Lọc theo Tầng
-      if (selectedFloor !== 'ALL') {
-        if (selectedFloor === 'Tầng Trệt' && r.floor !== 'Tầng Trệt' && r.floorNumber !== 1) return false;
-        if (selectedFloor === 'Tầng 8' && r.floor !== 'Tầng 8' && r.floorNumber !== 8) return false;
-        if (selectedFloor === 'Tầng 12' && r.floor !== 'Tầng 12' && r.floorNumber !== 12) return false;
+      if (selectedFloor !== 'ALL' && Number(r.floorNumber) !== Number(selectedFloor)) {
+        return false;
       }
 
       // Lọc theo Trạng thái
@@ -493,6 +264,15 @@ export const RoomMatrixPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/receptionist/services')}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+          >
+            <Coins size={14} />
+            <span>Dịch vụ & Minibar</span>
+          </button>
+
           <button
             type="button"
             onClick={fetchRoomGrid}
@@ -626,16 +406,16 @@ export const RoomMatrixPage = () => {
             </span>
             {[
               { id: 'ALL', label: 'Tất cả tầng' },
-              { id: 'Tầng Trệt', label: 'Tầng Trệt' },
-              { id: 'Tầng 8', label: 'Tầng 8' },
-              { id: 'Tầng 12', label: 'Tầng 12' },
+              { id: '1', label: 'Tầng 1' },
+              { id: '2', label: 'Tầng 2' },
+              { id: '3', label: 'Tầng 3' },
             ].map((floorTab) => (
               <button
                 key={floorTab.id}
                 type="button"
                 onClick={() => setSelectedFloor(floorTab.id)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                  selectedFloor === floorTab.id
+                  String(selectedFloor) === String(floorTab.id)
                     ? 'bg-black text-white shadow-xs'
                     : 'bg-stone-50 text-stone-600 hover:text-stone-900 border border-stone-200 hover:bg-stone-100'
                 }`}
@@ -837,10 +617,9 @@ export const RoomMatrixPage = () => {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedRoomId(room.id);
-                                setIsCleaningModalOpen(true);
+                                handleCleanRoom(room);
                               }}
-                              className="w-full py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                              className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
                             >
                               <CheckCircle2 size={12} />
                               <span>Xác nhận đã dọn xong</span>
@@ -983,15 +762,22 @@ export const RoomMatrixPage = () => {
                 THỜI GIAN LƯU TRÚ / VẬN HÀNH
               </span>
               <p className="text-xs font-semibold text-stone-800">
-                {selectedRoom.dateRange || 'Chưa gán khách lưu trú'}
+                {selectedRoom.checkIn && selectedRoom.checkOut
+                  ? `${selectedRoom.checkIn} → ${selectedRoom.checkOut}`
+                  : (selectedRoom.dateRange || 'Chưa có thông tin lưu trú')}
               </p>
+              {selectedRoom.guestPhone && (
+                <p className="text-[11px] text-stone-500 mt-1">
+                  SĐT: <span className="font-mono text-stone-700">{selectedRoom.guestPhone}</span>
+                </p>
+              )}
             </div>
 
             {/* Block 3: Tạm tính Folio */}
             <div className="pt-1 flex items-baseline justify-between">
               <span className="text-xs font-medium text-stone-500">Tạm tính Folio</span>
               <div className="font-serif text-2xl font-bold text-stone-900">
-                {selectedRoom.folioAmount ? formatVND(selectedRoom.folioAmount) : '0 đ'}
+                {selectedRoom.totalAmount ? formatVND(selectedRoom.totalAmount) : (selectedRoom.folioAmount ? formatVND(selectedRoom.folioAmount) : '0 đ')}
               </div>
             </div>
 
@@ -1017,18 +803,29 @@ export const RoomMatrixPage = () => {
                   className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-md flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 size={16} />
-                  <span>Xác nhận đã dọn xong (Cập nhật AVAILABLE)</span>
+                  <span>Xác nhận đã dọn xong</span>
                 </button>
               )}
 
               {selectedRoom.status === 'OCCUPIED' && (
-                <button
-                  type="button"
-                  onClick={() => showToast(`Mở Folio chi tiết & thanh toán trả phòng cho ${selectedRoom.roomCode}`)}
-                  className="w-full py-3 rounded-xl bg-[#0E1524] hover:bg-stone-800 text-white text-xs font-semibold tracking-wide transition-colors cursor-pointer shadow-xs"
-                >
-                  Xem Folio / Trả phòng
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/receptionist/services')}
+                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <Coins size={15} />
+                    <span>Nạp Dịch vụ & Minibar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/receptionist/bookings')}
+                    className="w-full py-2.5 rounded-xl bg-[#0E1524] hover:bg-stone-800 text-white text-xs font-semibold tracking-wide transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <Receipt size={15} />
+                    <span>Xem Folio / Trả phòng</span>
+                  </button>
+                </div>
               )}
 
               <button

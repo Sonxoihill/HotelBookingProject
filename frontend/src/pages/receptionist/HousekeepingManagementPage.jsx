@@ -16,96 +16,63 @@ import HousekeepingTaskModal from '../../components/receptionist/HousekeepingTas
 import CleaningStatusModal from '../../components/receptionist/CleaningStatusModal';
 import roomService from '../../services/roomService';
 
-const INITIAL_HOUSEKEEPING_TASKS = [
-  {
-    id: 'HK-101',
-    roomId: 'S803',
-    roomCode: 'S803',
-    roomNumber: 'S803',
-    roomName: 'Ocean Horizon Suite S803',
-    floor: 'Tầng 8',
-    taskType: 'Dọn trả phòng (Check-out clean)',
-    priority: 'URGENT',
-    priorityLabel: 'Ưu tiên khẩn cấp',
-    staff: 'Nguyễn Thị Lan (Tổ 1)',
-    targetTime: 'Trước 14:00',
-    status: 'DIRTY',
-    statusLabel: 'Cần dọn',
-    statusVariant: 'amber',
-    notes: 'Khách VIP nhận phòng lúc 14:00, ưu tiên dọn sạch và setup tinh dầu thơm.',
-  },
-  {
-    id: 'HK-102',
-    roomId: 'P1201',
-    roomCode: 'P1201',
-    roomNumber: 'P1201',
-    roomName: 'Grand Celestial Penthouse',
-    floor: 'Tầng 12',
-    taskType: 'Dọn phòng lưu trú (Stayover make-up)',
-    priority: 'HIGH',
-    priorityLabel: 'Ưu tiên cao',
-    staff: 'Lê Văn Bình (Tổ 2)',
-    targetTime: 'Trước 12:30',
-    status: 'IN_PROGRESS',
-    statusLabel: 'Đang dọn dẹp',
-    statusVariant: 'blue',
-    notes: 'Khách Đỗ Minh Quân yêu cầu bổ sung 02 gối lông ngỗng mềm.',
-  },
-  {
-    id: 'HK-103',
-    roomId: 'V104',
-    roomCode: 'V104',
-    roomNumber: 'V104',
-    roomName: 'Garden Sanctuary Villa V104',
-    floor: 'Tầng Trệt',
-    taskType: 'Dọn trả phòng biệt thự (Villa clean)',
-    priority: 'HIGH',
-    priorityLabel: 'Ưu tiên cao',
-    staff: 'Trần Thị Thu (Tổ 1)',
-    targetTime: 'Trước 15:30',
-    status: 'DIRTY',
-    statusLabel: 'Cần dọn',
-    statusVariant: 'amber',
-    notes: 'Khách vừa checkout lúc 11:30, cần thay toàn bộ drap gối và dọn hồ bơi ngoài trời.',
-  },
-  {
-    id: 'HK-104',
-    roomId: 'D0508',
-    roomCode: 'D0508',
-    roomNumber: 'D0508',
-    roomName: 'Deluxe Pine Forest View',
-    floor: 'Tầng 5',
-    taskType: 'Bảo trì thiết bị (Maintenance)',
-    priority: 'HIGH',
-    priorityLabel: 'Cần bảo trì',
-    staff: 'Phạm Quang Huy (Kỹ thuật)',
-    targetTime: 'Trước 15:00',
-    status: 'MAINTENANCE',
-    statusLabel: 'Bảo trì',
-    statusVariant: 'stone',
-    notes: 'Kiểm tra bảo dưỡng điều hòa 2 chiều và công tắc đèn ban công.',
-  },
-  {
-    id: 'HK-105',
-    roomId: 'P1204',
-    roomCode: 'P1204',
-    roomNumber: 'P1204',
-    roomName: 'Lunar Summit Penthouse',
-    floor: 'Tầng 12',
-    taskType: 'Khử khuẩn chuyên sâu (Deep clean)',
-    priority: 'NORMAL',
-    priorityLabel: 'Đã kiểm định',
-    staff: 'Nguyễn Thị Lan (Tổ 1)',
-    targetTime: 'Đã hoàn tất',
-    status: 'AVAILABLE',
-    statusLabel: 'Trống (Sẵn sàng)',
-    statusVariant: 'emerald',
-    notes: 'Giám sát viên HK đã ký duyệt nghiệm thu đạt chuẩn 5 sao, sẵn sàng đón khách.',
-  },
-];
+// Chuyển đổi dữ liệu phòng từ backend thành task quản lý buồng phòng
+const mapRoomToTask = (room) => {
+  const isDirty = room.status === 'DIRTY';
+  const isAvailable = room.status === 'AVAILABLE';
+  const isOccupied = room.status === 'OCCUPIED';
+  const isMaintenance = room.status === 'MAINTENANCE';
+
+  return {
+    id: `HK-${room.roomNumber || room.id}`,
+    roomId: room.id,
+    roomCode: room.roomNumber,
+    roomNumber: room.roomNumber,
+    roomName: `${room.categoryName || 'Phòng'} ${room.roomNumber}`,
+    floor: `Tầng ${room.floor || 1}`,
+    taskType: isDirty
+      ? 'Dọn trả phòng (Check-out clean)'
+      : isOccupied
+      ? 'Dọn phòng lưu trú (Stayover make-up)'
+      : isMaintenance
+      ? 'Bảo trì thiết bị (Maintenance)'
+      : 'Khử khuẩn nghiệm thu (Deep clean)',
+    priority: isDirty ? 'URGENT' : isMaintenance ? 'HIGH' : isOccupied ? 'NORMAL' : 'LOW',
+    priorityLabel: isDirty
+      ? 'Ưu tiên khẩn cấp'
+      : isMaintenance
+      ? 'Cần bảo trì'
+      : isOccupied
+      ? 'Đang có khách'
+      : 'Đã kiểm định',
+    staff: isDirty ? 'Đội Buồng phòng (Tổ 1)' : isMaintenance ? 'Kỹ thuật viên' : 'Đội HK',
+    targetTime: isDirty ? 'Trước 14:00' : isAvailable ? 'Đã hoàn tất' : 'Theo lịch',
+    status: room.status,
+    statusLabel: isDirty
+      ? 'Cần dọn'
+      : isAvailable
+      ? 'Trống (Sẵn sàng)'
+      : isOccupied
+      ? 'Đang sử dụng'
+      : isMaintenance
+      ? 'Bảo trì'
+      : 'Đã giữ',
+    statusVariant: isDirty
+      ? 'amber'
+      : isAvailable
+      ? 'emerald'
+      : isOccupied
+      ? 'rose'
+      : isMaintenance
+      ? 'stone'
+      : 'blue',
+    notes: room.notes || (isDirty ? 'Khách đã trả phòng, cần dọn dẹp vệ sinh sạch sẽ.' : 'Phòng tiêu chuẩn.'),
+  };
+};
 
 export const HousekeepingManagementPage = () => {
-  const [tasks, setTasks] = useState(INITIAL_HOUSEKEEPING_TASKS);
+  const [tasks, setTasks] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('Tất cả');
   const [searchTerm, setSearchTerm] = useState('');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -117,6 +84,35 @@ export const HousekeepingManagementPage = () => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 4000);
   };
+
+  // Gọi API GET /api/v1/receptionist/rooms/grid để lấy danh sách phòng thật
+  const loadHousekeepingTasks = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await roomService.getRoomGrid();
+      const data = res?.data || res;
+      if (Array.isArray(data)) {
+        const mapped = data.map(mapRoomToTask);
+        // Sắp xếp: DIRTY lên đầu, sau đó MAINTENANCE, OCCUPIED, AVAILABLE
+        mapped.sort((a, b) => {
+          const score = (s) => (s === 'DIRTY' ? 4 : s === 'MAINTENANCE' ? 3 : s === 'OCCUPIED' ? 2 : 1);
+          return score(b.status) - score(a.status);
+        });
+        setTasks(mapped);
+      } else {
+        setTasks([]);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải danh sách phòng buồng phòng:', err);
+      showToast('Lỗi khi tải danh sách phòng từ máy chủ');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadHousekeepingTasks();
+  }, [loadHousekeepingTasks]);
 
   const handleAddTask = (newTask) => {
     setTasks((prev) => [newTask, ...prev]);
@@ -152,35 +148,44 @@ export const HousekeepingManagementPage = () => {
   };
 
   // Xác nhận đã dọn xong: Gọi API PATCH /api/v1/receptionist/rooms/{roomId}/clean và cập nhật State về AVAILABLE ngay lập tức
-  const handleConfirmClean = async (roomId) => {
-    const targetRoomId = roomId || selectedRoomForClean?.id;
+  const handleConfirmClean = async (roomOrId) => {
+    const rawTarget = roomOrId || selectedRoomForClean?.id;
+    const targetRoomId = typeof rawTarget === 'object' && rawTarget !== null
+      ? (rawTarget.roomId || rawTarget.id || rawTarget.roomCode)
+      : rawTarget;
     if (!targetRoomId) return;
+
+    const targetTask = tasks.find((t) => String(t.roomId) === String(targetRoomId) || String(t.roomCode) === String(targetRoomId) || String(t.id) === String(targetRoomId));
+    const roomCode = targetTask?.roomCode || selectedRoomForClean?.roomCode || targetRoomId;
 
     try {
       // Gọi API PATCH /api/v1/receptionist/rooms/{roomId}/clean
       await roomService.cleanRoom(targetRoomId);
+      showToast(`Đã xác nhận dọn xong phòng ${roomCode}! Trạng thái chuyển sang AVAILABLE.`);
+
+      // Cập nhật State danh sách phòng về AVAILABLE ngay lập tức (AC: phản ánh tức thời không cần reload trang)
+      setTasks((prev) =>
+        prev.map((t) =>
+          String(t.roomId) === String(targetRoomId) || String(t.roomCode) === String(targetRoomId) || String(t.id) === String(targetRoomId)
+            ? {
+                ...t,
+                status: 'AVAILABLE',
+                statusLabel: 'Trống (Sẵn sàng)',
+                statusVariant: 'emerald',
+                priority: 'LOW',
+                priorityLabel: 'Đã nghiệm thu',
+                notes: 'Buồng phòng đã nghiệm thu sạch sẽ đạt chuẩn 5 sao, sẵn sàng đón khách.',
+                targetTime: 'Đã hoàn tất',
+              }
+            : t
+        )
+      );
     } catch (error) {
-      console.warn('API PATCH /api/v1/receptionist/rooms/' + targetRoomId + '/clean (Chưa có backend):', error);
+      console.error('API PATCH /api/v1/receptionist/rooms/' + targetRoomId + '/clean:', error);
+      showToast(error?.response?.data?.message || error?.message || 'Lỗi khi cập nhật dọn phòng');
+    } finally {
+      setIsCleaningModalOpen(false);
     }
-
-    // Cập nhật State danh sách phòng về AVAILABLE ngay lập tức (AC: phản ánh tức thời không cần reload trang)
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.roomId === targetRoomId || t.roomCode === targetRoomId || t.id === targetRoomId
-          ? {
-              ...t,
-              status: 'AVAILABLE',
-              statusLabel: 'Trống (Sẵn sàng)',
-              statusVariant: 'emerald',
-              notes: 'Buồng phòng đã nghiệm thu sạch sẽ đạt chuẩn 5 sao, sẵn sàng đón khách.',
-              targetTime: 'Đã hoàn tất',
-            }
-          : t
-      )
-    );
-
-    showToast(`Phòng ${targetRoomId} đã được dọn xong và cập nhật trạng thái về AVAILABLE ngay lập tức!`);
-    setIsCleaningModalOpen(false);
   };
 
   // Filter logic

@@ -9,6 +9,11 @@
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   }
+
+  /* Đảm bảo toàn bộ ô nhập văn bản, textarea, nút bấm kế thừa chuẩn phông chữ Plus Jakarta Sans */
+  input, textarea, select, button {
+    font-family: inherit;
+  }
 }
 
 /* Custom scrollbar */

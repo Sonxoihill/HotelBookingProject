@@ -14,19 +14,20 @@ import {
 import { formatVND } from '../../utils/formatters';
 import serviceService from '../../services/serviceService';
 import extraService from '../../services/extraService';
-import { bookingFolioSync, PRESET_10_SERVICES } from '../../utils/bookingFolioSync';
+import bookingService from '../../services/bookingService';
 import AddServiceChargeModal from '../../components/receptionist/AddServiceChargeModal';
 
 export const ReceptionistServicesPage = () => {
   const navigate = useNavigate();
 
   // State danh sách 10 dịch vụ từ API GET /api/v1/services
-  const [services, setServices] = useState(PRESET_10_SERVICES);
+  const [services, setServices] = useState([]);
   const [selectedServiceCategory, setSelectedServiceCategory] = useState('Tất cả');
 
-  // State danh sách đơn phòng đang CHECKED_IN
+  // State danh sách đơn phòng đang CHECKED_IN từ API GET /api/v1/receptionist/bookings?status=CHECKED_IN
   const [checkedInBookings, setCheckedInBookings] = useState([]);
   const [selectedBookingId, setSelectedBookingId] = useState('');
+  const [folioSummary, setFolioSummary] = useState(null);
 
   // Form State
   const [selectedServiceId, setSelectedServiceId] = useState(null);
@@ -35,11 +36,8 @@ export const ReceptionistServicesPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // Lịch sử giao dịch dịch vụ hiển thị ở bảng
-  const [servicesHistory, setServicesHistory] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-
   // UI state
+  const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
@@ -48,76 +46,91 @@ export const ReceptionistServicesPage = () => {
     setTimeout(() => setToastMsg(''), 4000);
   };
 
-  // 1. Gọi API GET /api/v1/services để render danh sách 10 dịch vụ kèm đơn giá và đơn vị tính (unit)
+  // 1. Gọi API GET /api/v1/services để render danh sách dịch vụ kèm đơn giá và đơn vị tính (unit)
   useEffect(() => {
     const fetchServices = async () => {
       try {
         const res = await serviceService.getServices();
         const data = res?.data || res;
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const mapped = data.map((item, idx) => ({
             id: item.id || idx + 1,
             name: item.name,
-            price: item.price || 150000,
-            unit: item.unit || PRESET_10_SERVICES[idx % PRESET_10_SERVICES.length]?.unit || 'Lượt',
-            category: item.category || PRESET_10_SERVICES[idx % PRESET_10_SERVICES.length]?.category || 'Dịch vụ',
-            description: item.description || 'Dịch vụ nghỉ dưỡng cao cấp.',
+            price: item.price || 0,
+            unit: item.unit || 'Lần',
+            category: item.category || 'Dịch vụ phát sinh',
+            description: item.description || '',
           }));
           setServices(mapped);
           if (mapped.length > 0) setSelectedServiceId(mapped[0].id);
         } else {
-          setServices(PRESET_10_SERVICES);
-          setSelectedServiceId(PRESET_10_SERVICES[0].id);
+          setServices([]);
         }
       } catch (err) {
-        console.warn('API GET /api/v1/services chưa có backend hoặc offline, dùng 10 dịch vụ mẫu:', err);
-        setServices(PRESET_10_SERVICES);
-        setSelectedServiceId(PRESET_10_SERVICES[0].id);
+        console.error('Lỗi khi tải dịch vụ từ backend API:', err);
       }
     };
 
     fetchServices();
   }, []);
 
-  // 2. Lọc danh sách các phòng/đơn đang ở trạng thái CHECKED_IN để Lễ tân chọn
-  const loadCheckedInBookings = useCallback(() => {
-    const list = bookingFolioSync.getCheckedInBookings();
-    setCheckedInBookings(list);
-    if (list.length > 0 && !selectedBookingId) {
-      setSelectedBookingId(list[0].id);
-    }
+  // 2. Lọc danh sách các phòng/đơn đang ở trạng thái CHECKED_IN từ Backend API
+  const loadCheckedInBookings = useCallback(async () => {
+    try {
+      const res = await bookingService.getAllBookings({ status: 'CHECKED_IN' });
+      const pageData = res?.data || res;
+      const list = pageData?.items || pageData?.content || (Array.isArray(pageData) ? pageData : []);
 
-    // Tổng hợp lịch sử các dịch vụ đã nạp
-    const history = [];
-    list.forEach((b) => {
-      if (Array.isArray(b.services)) {
-        b.services.forEach((s) => {
-          history.push({
-            id: s.id || `SRV-${Math.floor(1000 + Math.random() * 9000)}`,
-            time: s.time || 'Hôm nay',
-            roomCode: b.roomCode,
-            roomName: b.roomName,
-            guestName: b.guestName,
-            guestTier: b.guestTier,
-            category: s.category || 'Dịch vụ',
-            serviceName: s.serviceName || s.name,
-            unit: s.unit || 'Lượt',
-            unitPrice: s.unitPrice || s.price || 0,
-            quantity: s.quantity || 1,
-            totalAmount: s.totalAmount || (s.unitPrice || s.price || 0) * (s.quantity || 1),
-            status: 'FOLIO_CHARGED',
-            statusLabel: 'Đã nạp vào Folio',
-            notes: s.notes || 'Nạp trực tiếp',
-          });
-        });
+      const mapped = list.map((b) => ({
+        id: b.id,
+        code: b.code || `#BK-${b.id}`,
+        roomId: b.roomId,
+        roomCode: b.roomNumber || b.roomCode || String(b.roomId),
+        roomNumber: b.roomNumber || b.roomCode,
+        roomName: b.roomCategory || `Phòng ${b.roomNumber || b.roomId}`,
+        guestName: b.guestName || 'Khách lưu trú',
+        guestTier: b.guestTier || 'VIP Member',
+        guestPhone: b.guestPhone,
+        checkInDate: b.checkIn || '---',
+        checkOutDate: b.checkOut || '---',
+        stayDuration: b.numberOfNights ? `${b.numberOfNights} đêm` : 'Lưu trú',
+        roomCharge: b.totalAmount || 0,
+        deposit: b.paidAmount || 0,
+        status: b.status || 'CHECKED_IN',
+      }));
+
+      setCheckedInBookings(mapped);
+      if (mapped.length > 0) {
+        setSelectedBookingId((prev) => (mapped.some((x) => x.id === prev) ? prev : mapped[0].id));
       }
-    });
-    setServicesHistory(history);
-  }, [selectedBookingId]);
+    } catch (err) {
+      console.error('Lỗi khi tải danh sách phòng CHECKED_IN từ backend API:', err);
+    }
+  }, []);
 
   useEffect(() => {
     loadCheckedInBookings();
   }, [loadCheckedInBookings]);
+
+  // Lấy chi tiết Folio dịch vụ của phòng đang được chọn (GET /api/v1/receptionist/bookings/{bookingId}/services)
+  const fetchBookingFolio = useCallback(async (bookingId) => {
+    if (!bookingId) return;
+    try {
+      const res = await bookingService.getBookingServices(bookingId);
+      const data = res?.data || res;
+      if (data && (data.bookingId || data.services)) {
+        setFolioSummary(data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải Folio đơn phòng:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedBookingId) {
+      fetchBookingFolio(selectedBookingId);
+    }
+  }, [selectedBookingId, fetchBookingFolio]);
 
   // Đơn phòng CHECKED_IN đang được chọn để hiển thị cột Hóa đơn bên phải
   const currentBooking = useMemo(() => {
@@ -156,85 +169,69 @@ export const ReceptionistServicesPage = () => {
 
     setIsSubmitting(true);
     const numQty = Number(quantity);
-    const totalAmount = currentSelectedService.price * numQty;
 
-    const servicePayload = {
-      serviceId: currentSelectedService.id,
-      serviceName: currentSelectedService.name,
-      unit: currentSelectedService.unit,
-      unitPrice: currentSelectedService.price,
-      quantity: numQty,
-      totalAmount,
-      notes: notes.trim() || 'Nạp tại quầy lễ tân',
-    };
+    const payload = [
+      {
+        serviceId: currentSelectedService.id,
+        quantity: numQty,
+      },
+    ];
 
     try {
-      // Gọi API POST /api/v1/receptionist/bookings/{bookingId}/services
-      await extraService.addServiceToBooking(selectedBookingId, servicePayload);
+      // Gọi API POST /api/v1/receptionist/bookings/{bookingId}/services (UC11)
+      const res = await bookingService.addServiceToBooking(selectedBookingId, payload);
+      const updatedSummary = res?.data || res;
+
+      if (updatedSummary && (updatedSummary.bookingId || updatedSummary.services)) {
+        setFolioSummary(updatedSummary);
+      } else {
+        await fetchBookingFolio(selectedBookingId);
+      }
+
+      showToast(`Đã thêm ${numQty} ${currentSelectedService.unit || 'suất'} "${currentSelectedService.name}" vào Folio phòng ${currentBooking.roomCode}!`);
+      setQuantity(1);
+      setNotes('');
+      window.dispatchEvent(new CustomEvent('hotel_folio_updated', { detail: { bookingId: selectedBookingId } }));
     } catch (apiErr) {
-      console.warn('API POST /api/v1/receptionist/bookings/' + selectedBookingId + '/services offline:', apiErr);
+      console.error('Lỗi khi thêm dịch vụ vào đơn phòng:', apiErr);
+      setFormError(apiErr?.message || 'Có lỗi khi nạp dịch vụ vào hóa đơn!');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Cập nhật ngay lập tức cột Hóa đơn bên phải (theo dữ liệu trả về)
-    const updatedBooking = bookingFolioSync.addServiceToBooking(selectedBookingId, servicePayload);
-
-    // Cập nhật state cục bộ
-    setCheckedInBookings((prev) =>
-      prev.map((b) => (b.id === selectedBookingId ? updatedBooking : b))
-    );
-
-    // Cập nhật bảng lịch sử
-    const newHistoryRecord = {
-      id: `SRV-${Date.now().toString().slice(-4)}`,
-      time: 'Vừa xong',
-      roomCode: currentBooking.roomCode,
-      roomName: currentBooking.roomName,
-      guestName: currentBooking.guestName,
-      guestTier: currentBooking.guestTier,
-      category: currentSelectedService.category,
-      serviceName: currentSelectedService.name,
-      unit: currentSelectedService.unit,
-      unitPrice: currentSelectedService.price,
-      quantity: numQty,
-      totalAmount,
-      status: 'FOLIO_CHARGED',
-      statusLabel: 'Đã nạp vào Folio',
-      notes: notes || 'Nạp trực tiếp vào Folio',
-    };
-    setServicesHistory((prev) => [newHistoryRecord, ...prev]);
-
-    // Reset form
-    setQuantity(1);
-    setNotes('');
-    showToast(`Đã thêm thành công ${currentSelectedService.name} (x${numQty} ${currentSelectedService.unit}) vào hóa đơn phòng ${currentBooking.roomCode}!`);
-    setIsSubmitting(false);
   };
 
-  // Filter cho 10 dịch vụ
+  // Filter cho dịch vụ
   const filteredServices = useMemo(() => {
     if (selectedServiceCategory === 'Tất cả') return services;
     return services.filter((s) => s.category === selectedServiceCategory);
   }, [services, selectedServiceCategory]);
 
-  // Filter cho bảng lịch sử
+  const servicesList = useMemo(() => {
+    return folioSummary?.services || [];
+  }, [folioSummary]);
+  const roomAmount = folioSummary?.roomAmount != null ? Number(folioSummary.roomAmount) : (currentBooking.roomCharge || 0);
+  const serviceFee = folioSummary?.totalServiceAmount != null ? Number(folioSummary.totalServiceAmount) : 0;
+  const grandTotal = folioSummary?.totalAmount != null ? Number(folioSummary.totalAmount) : (roomAmount + serviceFee);
+  const deposit = folioSummary?.paidAmount != null ? Number(folioSummary.paidAmount) : (currentBooking.deposit || 0);
+  const balanceDue = folioSummary?.remainingAmount != null ? Number(folioSummary.remainingAmount) : Math.max(0, grandTotal - deposit);
+  const vatTax = Math.round(serviceFee * 0.08);
+
+  // Filter cho bảng lịch sử dịch vụ
   const filteredHistory = useMemo(() => {
-    return servicesHistory.filter((item) => {
-      if (activeHistoryTab !== 'Tất cả' && item.category !== activeHistoryTab) return false;
+    return servicesList.filter((item) => {
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
-        const matchRoom = (item.roomCode || '').toLowerCase().includes(term);
-        const matchGuest = (item.guestName || '').toLowerCase().includes(term);
         const matchService = (item.serviceName || '').toLowerCase().includes(term);
-        if (!matchRoom && !matchGuest && !matchService) return false;
+        if (!matchService) return false;
       }
       return true;
     });
-  }, [servicesHistory, activeHistoryTab, searchTerm]);
+  }, [servicesList, searchTerm]);
 
   // Tổng doanh thu dịch vụ
   const totalRevenue = useMemo(() => {
-    return servicesHistory.reduce((sum, item) => sum + item.totalAmount, 0);
-  }, [servicesHistory]);
+    return servicesList.reduce((sum, item) => sum + (Number(item.totalPrice) || Number(item.totalAmount) || 0), 0);
+  }, [servicesList]);
 
   return (
     <div className="p-6 sm:p-8 space-y-6 max-w-[1600px] mx-auto min-h-full flex flex-col justify-between select-none">
@@ -326,7 +323,7 @@ export const ReceptionistServicesPage = () => {
             </span>
             <div className="flex items-baseline gap-2 pt-0.5">
               <span className="font-serif text-3xl font-bold text-stone-900">
-                {servicesHistory.length}
+                {servicesList.length}
               </span>
               <span className="text-xs text-stone-500 font-light">lượt phát sinh</span>
             </div>
@@ -383,11 +380,15 @@ export const ReceptionistServicesPage = () => {
                     onChange={(e) => setSelectedBookingId(e.target.value)}
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-semibold focus:outline-none focus:border-stone-900 focus:bg-white shadow-2xs transition-all cursor-pointer"
                   >
-                    {checkedInBookings.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        Phòng {b.roomCode} — {b.guestName} ({b.guestTier}) • {b.roomName} • {b.stayDuration}
-                      </option>
-                    ))}
+                    {checkedInBookings.length === 0 ? (
+                      <option value="">Không có phòng nào đang lưu trú (CHECKED_IN)</option>
+                    ) : (
+                      checkedInBookings.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          Phòng {b.roomCode} — {b.guestName} ({b.guestTier}) • {b.roomName} • {b.stayDuration}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -587,35 +588,45 @@ export const ReceptionistServicesPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
-                    {filteredHistory.map((item) => (
-                      <tr key={item.id} className="hover:bg-stone-50/60">
-                        <td className="py-2.5 px-3">
-                          <span className="font-serif font-bold text-stone-900 block">
-                            P.{item.roomCode}
-                          </span>
-                          <span className="text-[11px] text-stone-500 font-light truncate max-w-[120px] block">
-                            {item.guestName}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="font-medium text-stone-800 block">
-                            {item.serviceName}
-                          </span>
-                          <span className="text-[10px] text-stone-400">{item.time}</span>
-                        </td>
-                        <td className="py-2.5 px-3 text-stone-600">
-                          {item.quantity} {item.unit}
-                        </td>
-                        <td className="py-2.5 px-3 font-serif font-bold text-stone-900">
-                          {formatVND(item.totalAmount)}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Đã vào Folio
-                          </span>
+                    {filteredHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-stone-400 italic">
+                          Chưa có dịch vụ phát sinh nào cho phòng này.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredHistory.map((item) => (
+                        <tr key={item.id} className="hover:bg-stone-50/60">
+                          <td className="py-2.5 px-3">
+                            <span className="font-serif font-bold text-stone-900 block">
+                              P.{currentBooking.roomCode}
+                            </span>
+                            <span className="text-[11px] text-stone-500 font-light truncate max-w-[120px] block">
+                              {currentBooking.guestName}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-medium text-stone-800 block">
+                              {item.serviceName}
+                            </span>
+                            <span className="text-[10px] text-stone-400">
+                              {item.createdAt ? new Date(item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Vừa thêm'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-stone-600">
+                            {item.quantity} {item.unit || 'Lần'}
+                          </td>
+                          <td className="py-2.5 px-3 font-serif font-bold text-stone-900">
+                            {formatVND(item.totalPrice != null ? item.totalPrice : (item.unitPrice * item.quantity))}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Đã vào Folio
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -638,17 +649,17 @@ export const ReceptionistServicesPage = () => {
 
                 <div className="flex items-baseline justify-between mt-2">
                   <h3 className="font-serif text-2xl font-bold text-stone-900">
-                    Phòng {currentBooking.roomCode}
+                    Phòng {currentBooking?.roomCode || '---'}
                   </h3>
                   <span className="text-xs font-semibold text-stone-500">
-                    Mã đơn: #{currentBooking.id}
+                    Mã đơn: #{currentBooking?.id || '---'}
                   </span>
                 </div>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  Khách hàng: <strong className="text-stone-800">{currentBooking.guestName}</strong> ({currentBooking.guestTier})
+                  Khách hàng: <strong className="text-stone-800">{currentBooking?.guestName || 'Chưa chọn khách'}</strong> {currentBooking?.guestTier ? `(${currentBooking.guestTier})` : ''}
                 </p>
                 <p className="text-[11px] text-stone-400">
-                  Lưu trú: {currentBooking.checkInDate} → {currentBooking.checkOutDate} ({currentBooking.stayDuration})
+                  Lưu trú: {currentBooking?.checkInDate || '---'} → {currentBooking?.checkOutDate || '---'} ({currentBooking?.stayDuration || '---'})
                 </p>
               </div>
 
@@ -661,7 +672,7 @@ export const ReceptionistServicesPage = () => {
                     <span className="text-[11px] text-stone-400">{currentBooking.roomName}</span>
                   </div>
                   <span className="font-serif font-bold text-stone-900 text-sm">
-                    {formatVND(currentBooking.roomCharge)}
+                    {formatVND(roomAmount)}
                   </span>
                 </div>
 
@@ -673,23 +684,23 @@ export const ReceptionistServicesPage = () => {
                       <span>Phí dịch vụ phát sinh</span>
                     </span>
                     <span className="font-serif font-bold text-amber-900 text-sm">
-                      {formatVND(currentBooking.serviceFee)}
+                      {formatVND(serviceFee)}
                     </span>
                   </div>
 
                   {/* Danh sách các dịch vụ trong hóa đơn */}
                   <div className="space-y-1.5 bg-[#FAF5EE]/70 rounded-2xl p-3 border border-amber-200/70 max-h-48 overflow-y-auto">
-                    {currentBooking.services && currentBooking.services.length > 0 ? (
-                      currentBooking.services.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between py-1 border-b border-amber-200/40 last:border-0 text-[11px]">
+                    {servicesList && servicesList.length > 0 ? (
+                      servicesList.map((item, idx) => (
+                        <div key={item.id || idx} className="flex items-center justify-between py-1 border-b border-amber-200/40 last:border-0 text-[11px]">
                           <div className="pr-2">
                             <span className="font-semibold text-amber-950 block">{item.serviceName}</span>
                             <span className="text-[10px] text-amber-800/80">
-                              {formatVND(item.unitPrice)} × {item.quantity} {item.unit}
+                              {formatVND(item.unitPrice)} × {item.quantity} {item.unit || 'Lần'}
                             </span>
                           </div>
                           <span className="font-serif font-bold text-amber-950 whitespace-nowrap">
-                            {formatVND(item.totalAmount)}
+                            {formatVND(item.totalPrice != null ? item.totalPrice : (item.unitPrice * item.quantity))}
                           </span>
                         </div>
                       ))
@@ -704,14 +715,14 @@ export const ReceptionistServicesPage = () => {
                 {/* 3. Thuế VAT 8% */}
                 <div className="flex items-center justify-between py-1 text-stone-500">
                   <span>Thuế GTGT VAT (8%)</span>
-                  <span>{formatVND(currentBooking.vatTax)}</span>
+                  <span>{formatVND(vatTax)}</span>
                 </div>
 
                 {/* 4. Tổng cộng hóa đơn tạm tính */}
                 <div className="pt-2 border-t-2 border-stone-200 flex items-baseline justify-between">
                   <span className="font-bold text-stone-900 text-sm">Tổng cộng Hóa đơn</span>
                   <span className="font-serif text-2xl font-bold text-stone-900">
-                    {formatVND(currentBooking.grandTotal)}
+                    {formatVND(grandTotal)}
                   </span>
                 </div>
 
@@ -719,7 +730,7 @@ export const ReceptionistServicesPage = () => {
                 <div className="flex items-center justify-between text-stone-600">
                   <span>Đã thanh toán / Đặt cọc:</span>
                   <span className="font-semibold text-emerald-700">
-                    -{formatVND(currentBooking.deposit)}
+                    -{formatVND(deposit)}
                   </span>
                 </div>
 
@@ -734,7 +745,7 @@ export const ReceptionistServicesPage = () => {
                     </span>
                   </div>
                   <span className="font-serif text-2xl font-bold text-rose-700">
-                    {formatVND(currentBooking.balanceDue)}
+                    {formatVND(balanceDue)}
                   </span>
                 </div>
               </div>
@@ -744,17 +755,21 @@ export const ReceptionistServicesPage = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    navigate(`/receptionist/bookings?focusRoom=${currentBooking.roomCode}&action=checkout`);
+                    if (currentBooking?.roomCode) {
+                      navigate(`/receptionist/bookings?focusRoom=${currentBooking.roomCode}&action=checkout`);
+                    } else {
+                      navigate('/receptionist/bookings');
+                    }
                   }}
                   className="w-full py-3 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-md flex items-center justify-center gap-2"
                 >
                   <Receipt size={15} />
-                  <span>Đồng bộ & Chuyển sang Check-out phòng {currentBooking.roomCode}</span>
+                  <span>Đồng bộ & Chuyển sang Check-out {currentBooking?.roomCode ? `phòng ${currentBooking.roomCode}` : ''}</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => showToast(`Đang in bản sao kê Hóa đơn tạm tính phòng ${currentBooking.roomCode}...`)}
+                  onClick={() => showToast(`Đang in bản sao kê Hóa đơn tạm tính phòng ${currentBooking?.roomCode || '---'}...`)}
                   className="w-full py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Printer size={14} />

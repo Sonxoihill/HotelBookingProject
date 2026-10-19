@@ -96,6 +96,14 @@ public class BookingController {
             }
         } catch (Exception ignored) {}
 
+        if (email == null) {
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+                email = auth.getName();
+            }
+        }
+
         Booking booking = bookingService.cancelBooking(email, id, request);
         return ApiResponse.success("Hủy đơn đặt phòng thành công!", booking);
     }

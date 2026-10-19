@@ -21,18 +21,17 @@ export const CleaningStatusModal = ({ isOpen, onClose, room, onConfirmClean, onC
   const handleConfirmClean = async () => {
     setIsLoading(true);
     try {
-      try {
-        await roomService.cleanRoom(roomId);
-      } catch (apiErr) {
-        console.warn('API PATCH /api/v1/receptionist/rooms/' + roomId + '/clean (Chưa có backend hoặc offline):', apiErr);
-      }
-
       if (onConfirmClean) {
-        await onConfirmClean(roomId);
-      } else if (onConfirm) {
-        await onConfirm({ roomId, status: 'AVAILABLE', notes });
+        await onConfirmClean(room);
+      } else {
+        await roomService.cleanRoom(roomId);
+        if (onConfirm) {
+          await onConfirm({ roomId, status: 'AVAILABLE', notes });
+        }
       }
       onClose();
+    } catch (err) {
+      console.error('Lỗi khi xác nhận dọn phòng:', err);
     } finally {
       setIsLoading(false);
     }
@@ -42,18 +41,22 @@ export const CleaningStatusModal = ({ isOpen, onClose, room, onConfirmClean, onC
     setIsLoading(true);
     try {
       if (selectedStatus === 'AVAILABLE') {
-        try {
+        if (onConfirmClean) {
+          await onConfirmClean(room);
+        } else {
           await roomService.cleanRoom(roomId);
-        } catch (apiErr) {
-          console.warn('API PATCH /api/v1/receptionist/rooms/' + roomId + '/clean:', apiErr);
+          if (onConfirm) {
+            await onConfirm({ roomId, status: selectedStatus, notes });
+          }
+        }
+      } else {
+        if (onConfirm) {
+          await onConfirm({ roomId, status: selectedStatus, notes });
         }
       }
-      if (onConfirm) {
-        await onConfirm({ roomId, status: selectedStatus, notes });
-      } else if (onConfirmClean && selectedStatus === 'AVAILABLE') {
-        await onConfirmClean(roomId);
-      }
       onClose();
+    } catch (err) {
+      console.error('Lỗi khi lưu trạng thái buồng phòng:', err);
     } finally {
       setIsLoading(false);
     }

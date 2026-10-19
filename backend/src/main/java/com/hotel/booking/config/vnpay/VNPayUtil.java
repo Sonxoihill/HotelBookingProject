@@ -40,21 +40,20 @@ public final class VNPayUtil {
         List<String> fieldNames = new ArrayList<>(fields.keySet());
         Collections.sort(fieldNames);
         StringBuilder sb = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
+        boolean first = true;
+        for (String fieldName : fieldNames) {
             String fieldValue = fields.get(fieldName);
             if (fieldValue != null && !fieldValue.trim().isEmpty()) {
-                sb.append(fieldName);
-                sb.append('=');
+                if (!first) {
+                    sb.append('&');
+                }
+                sb.append(fieldName).append('=');
                 try {
                     sb.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
                 } catch (Exception e) {
                     sb.append(fieldValue);
                 }
-                if (itr.hasNext()) {
-                    sb.append('&');
-                }
+                first = false;
             }
         }
         return hmacSHA512(secretKey, sb.toString());
@@ -64,11 +63,13 @@ public final class VNPayUtil {
         List<String> fieldNames = new ArrayList<>(fields.keySet());
         Collections.sort(fieldNames);
         StringBuilder query = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
+        boolean first = true;
+        for (String fieldName : fieldNames) {
             String fieldValue = fields.get(fieldName);
             if (fieldValue != null && !fieldValue.trim().isEmpty()) {
+                if (!first) {
+                    query.append('&');
+                }
                 try {
                     query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString()));
                     query.append('=');
@@ -76,9 +77,7 @@ public final class VNPayUtil {
                 } catch (Exception e) {
                     query.append(fieldName).append('=').append(fieldValue);
                 }
-                if (itr.hasNext()) {
-                    query.append('&');
-                }
+                first = false;
             }
         }
         return query.toString();

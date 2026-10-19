@@ -5,10 +5,10 @@ import { formatVND } from '../../utils/formatters';
 import { Plus, Trash2 } from 'lucide-react';
 import serviceService from '../../services/serviceService';
 import extraService from '../../services/extraService';
-import { bookingFolioSync, PRESET_10_SERVICES } from '../../utils/bookingFolioSync';
+import bookingService from '../../services/bookingService';
 
 export const ExtraServiceModal = ({ isOpen, onClose, booking, onSave }) => {
-  const [availableServices, setAvailableServices] = useState(PRESET_10_SERVICES);
+  const [availableServices, setAvailableServices] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -17,21 +17,20 @@ export const ExtraServiceModal = ({ isOpen, onClose, booking, onSave }) => {
       try {
         const res = await serviceService.getServices();
         const data = res?.data || res;
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const mapped = data.map((item, idx) => ({
             id: item.id || idx + 1,
             name: item.name,
-            price: item.price || 150000,
-            unit: item.unit || PRESET_10_SERVICES[idx % PRESET_10_SERVICES.length]?.unit || 'Lượt',
-            category: item.category || PRESET_10_SERVICES[idx % PRESET_10_SERVICES.length]?.category || 'Dịch vụ',
+            price: item.price || 0,
+            unit: item.unit || 'Lần',
+            category: item.category || 'Dịch vụ phát sinh',
           }));
           setAvailableServices(mapped);
         } else {
-          setAvailableServices(PRESET_10_SERVICES);
+          setAvailableServices([]);
         }
       } catch (err) {
-        console.warn('API GET /api/v1/services offline, sử dụng 10 dịch vụ mặc định:', err);
-        setAvailableServices(PRESET_10_SERVICES);
+        console.error('Lỗi tải dịch vụ:', err);
       }
     };
 
@@ -86,38 +85,22 @@ export const ExtraServiceModal = ({ isOpen, onClose, booking, onSave }) => {
     setIsLoading(true);
 
     try {
-      // Gọi API POST /api/v1/receptionist/bookings/{bookingId}/services cho từng dịch vụ
-      for (const item of selectedItems) {
-        try {
-          await extraService.addServiceToBooking(booking.id, {
-            serviceId: item.serviceId,
-            serviceName: item.name,
-            unit: item.unit,
-            unitPrice: item.price,
-            quantity: item.quantity,
-            totalAmount: item.price * item.quantity,
-            notes: 'Thêm từ modal dịch vụ phát sinh',
-          });
-        } catch (apiErr) {
-          console.warn('API POST /api/v1/receptionist/bookings/' + booking.id + '/services offline:', apiErr);
-        }
+      // Gọi API POST /api/v1/receptionist/bookings/{bookingId}/services
+      const itemsPayload = selectedItems.map((item) => ({
+        serviceId: item.serviceId,
+        quantity: item.quantity,
+      }));
+      await bookingService.addServiceToBooking(booking.id, itemsPayload);
 
-        // Cập nhật storage đồng bộ
-        bookingFolioSync.addServiceToBooking(booking.id, {
-          serviceId: item.serviceId,
-          serviceName: item.name,
-          unit: item.unit,
-          unitPrice: item.price,
-          quantity: item.quantity,
-          totalAmount: item.price * item.quantity,
-          notes: 'Nạp qua Folio',
-        });
-      }
+      // Thông báo cập nhật Folio đến các component khác
+      window.dispatchEvent(new CustomEvent('hotel_folio_updated', { detail: { bookingId: booking.id } }));
 
       if (onSave) {
         onSave({ bookingId: booking?.id, items: selectedItems, totalExtra });
       }
       onClose();
+    } catch (err) {
+      console.error('Lỗi khi nạp dịch vụ vào hóa đơn:', err);
     } finally {
       setIsLoading(false);
     }

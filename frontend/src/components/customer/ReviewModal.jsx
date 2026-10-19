@@ -73,6 +73,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
       if (onSubmit) {
         await onSubmit({
           bookingId: booking.id,
+          roomId: booking.room?.id || booking.roomId,
           rating,
           comment: finalComment || 'Dịch vụ rất tốt!',
         });
@@ -110,7 +111,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 font-sans text-slate-800">
         {errorMessage && (
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-800 animate-in fade-in">
             {errorMessage}
@@ -123,8 +124,8 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
             <Award size={20} />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="font-bold text-stone-900 text-sm truncate">{roomName}</h4>
-            <p className="text-[11px] text-stone-500">
+            <h4 className="font-bold text-stone-900 text-sm truncate font-sans">{roomName}</h4>
+            <p className="text-[11px] text-stone-500 font-sans">
               Mã đơn: #{booking.id} • Kỳ nghỉ: {booking.checkIn} - {booking.checkOut}
             </p>
           </div>
@@ -132,7 +133,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
 
         {/* Chấm điểm sao */}
         <div className="flex flex-col items-center justify-center p-5 bg-gradient-to-b from-amber-50/60 to-white rounded-2xl border border-amber-200/70 text-center space-y-2">
-          <span className="text-xs font-semibold text-stone-700">
+          <span className="text-xs font-semibold text-stone-700 font-sans">
             Bạn đánh giá thế nào về kỳ nghỉ này?
           </span>
           <div className="flex items-center gap-2 pt-1">
@@ -156,14 +157,14 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
               </button>
             ))}
           </div>
-          <span className="text-xs font-bold text-amber-900 min-h-[1.25rem] transition-all">
+          <span className="text-xs font-bold text-amber-900 min-h-[1.25rem] transition-all font-sans">
             {getRatingLabel(hoverRating || rating)}
           </span>
         </div>
 
         {/* Thẻ cảm xúc / nhận xét nhanh */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-stone-700 block">
+          <label className="text-xs font-semibold text-stone-700 block font-sans">
             Những điểm bạn thích nhất:
           </label>
           <div className="flex flex-wrap gap-1.5">
@@ -174,7 +175,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
                   key={tag}
                   type="button"
                   onClick={() => toggleTag(tag)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium font-sans transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-[#C59D5F] text-white shadow-2xs'
                       : 'bg-stone-100 text-stone-600 hover:bg-stone-200/80'
@@ -189,7 +190,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
 
         {/* Text feedback */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-stone-700 block">
+          <label className="text-xs font-semibold text-stone-700 block font-sans">
             Nội dung bình luận & đóng góp ý kiến:
           </label>
           <textarea
@@ -197,7 +198,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Chia sẻ trải nghiệm của bạn về không gian phòng, dịch vụ, thái độ nhân viên..."
-            className="w-full text-xs border border-stone-200 rounded-xl p-3 text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C59D5F]/30 focus:border-[#C59D5F] resize-none bg-white"
+            className="w-full text-xs font-sans border border-stone-200 rounded-xl p-3 text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#C59D5F]/30 focus:border-[#C59D5F] resize-none bg-white leading-relaxed"
           />
         </div>
       </form>

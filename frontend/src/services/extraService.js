@@ -21,9 +21,9 @@ export const extraService = {
     return await axiosInstance.post(`/receptionist/bookings/${bookingId}/services`, serviceUsageData);
   },
 
-  // Lấy danh sách các dịch vụ phát sinh của một đơn phòng
+  // Lấy danh sách các dịch vụ phát sinh của một đơn phòng (UC11)
   getBookingExtraServices: async (bookingId) => {
-    return await axiosInstance.get(`/receptionist/bookings/${bookingId}/extra-services`);
+    return await axiosInstance.get(`/receptionist/bookings/${bookingId}/services`);
   },
 
   // Admin thêm dịch vụ mới vào danh mục

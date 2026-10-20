@@ -163,6 +163,21 @@ class ReceptionistBookingControllerTest {
     }
 
     @Test
+    @DisplayName("API 3: PATCH /receptionist/bookings/{id}/cancel - Báo lỗi 400 khi đơn đang CHECKED_IN")
+    void testCancelBooking_CheckedIn_Returns400() throws Exception {
+        ReceptionistCancelBookingRequest request = new ReceptionistCancelBookingRequest("Khách muốn hủy");
+        when(receptionistService.cancelBooking(eq(1L), any(String.class)))
+                .thenThrow(new AppException(ErrorCode.BAD_REQUEST, "Không thể hủy đơn đặt phòng đang có khách lưu trú (CHECKED_IN)"));
+
+        mockMvc.perform(patch("/receptionist/bookings/{id}/cancel", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Không thể hủy đơn đặt phòng đang có khách lưu trú (CHECKED_IN)"));
+    }
+
+    @Test
     @DisplayName("API 4: PATCH /receptionist/bookings/{id}/check-in - Nhận phòng (Check-in) thành công")
     void testCheckInBooking_Success() throws Exception {
         ReceptionistBookingResponse response = ReceptionistBookingResponse.builder()

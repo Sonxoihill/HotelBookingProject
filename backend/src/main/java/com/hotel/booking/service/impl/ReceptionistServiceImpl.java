@@ -271,8 +271,16 @@ public class ReceptionistServiceImpl implements ReceptionistService {
         if (booking.getStatus() == BookingStatus.CANCELLED) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Đơn đặt phòng này đã bị hủy trước đó");
         }
+        if (booking.getStatus() == BookingStatus.CHECKED_IN || (booking.getRoom() != null && booking.getRoom().getStatus() == RoomStatus.OCCUPIED)) {
+            log.warn("Từ chối hủy đơn #{}: Khách đang lưu trú (CHECKED_IN / OCCUPIED)", id);
+            throw new AppException(ErrorCode.BAD_REQUEST, "Không thể hủy đơn đặt phòng đang có khách lưu trú (CHECKED_IN)");
+        }
         if (booking.getStatus() == BookingStatus.CHECKED_OUT) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Không thể hủy đơn đặt phòng đã hoàn tất trả phòng (CHECKED_OUT)");
+        }
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.CONFIRMED) {
+            log.warn("Từ chối hủy đơn #{}: Trạng thái '{}' không được phép hủy", id, booking.getStatus());
+            throw new AppException(ErrorCode.BAD_REQUEST, "Chỉ được phép hủy đơn đặt phòng ở trạng thái PENDING hoặc CONFIRMED");
         }
 
         booking.setStatus(BookingStatus.CANCELLED);

@@ -455,6 +455,53 @@ class ReceptionistServiceTest {
     }
 
     @Test
+    @DisplayName("cancelBooking (UC10 - API 3) - Ném 400 khi cố tình hủy đơn đang CHECKED_IN")
+    void testCancelBooking_CheckedIn_ThrowsException() {
+        when(bookingRepository.findByIdWithDetails(100L)).thenReturn(Optional.of(sampleBookingCheckedIn));
+
+        AppException ex = assertThrows(AppException.class, () ->
+                receptionistService.cancelBooking(100L, "Khách muốn hủy khi đang ở"));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("CHECKED_IN"));
+        verify(roomRepository, never()).save(any());
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("cancelBooking (UC10 - API 3) - Ném 400 khi phòng đang OCCUPIED")
+    void testCancelBooking_OccupiedRoom_ThrowsException() {
+        sampleRoomAvailable.setStatus(RoomStatus.OCCUPIED);
+        when(bookingRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(sampleBookingConfirmed));
+
+        AppException ex = assertThrows(AppException.class, () ->
+                receptionistService.cancelBooking(101L, "Hủy phòng đang có khách"));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("CHECKED_IN"));
+        verify(roomRepository, never()).save(any());
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("cancelBooking (UC10 - API 3) - Ném 400 khi đơn đã CHECKED_OUT")
+    void testCancelBooking_CheckedOut_ThrowsException() {
+        Booking checkedOutBooking = Booking.builder()
+                .user(sampleUser)
+                .room(sampleRoomAvailable)
+                .status(BookingStatus.CHECKED_OUT)
+                .build();
+        when(bookingRepository.findByIdWithDetails(103L)).thenReturn(Optional.of(checkedOutBooking));
+
+        AppException ex = assertThrows(AppException.class, () ->
+                receptionistService.cancelBooking(103L, "Hủy đơn đã check-out"));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("CHECKED_OUT"));
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
     @DisplayName("checkInBooking (UC10 - API 4 - Luồng 3c) - Check-in đơn CONFIRMED thành CHECKED_IN, phòng OCCUPIED")
     void testCheckInBooking_Success() {
         when(bookingRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(sampleBookingConfirmed));

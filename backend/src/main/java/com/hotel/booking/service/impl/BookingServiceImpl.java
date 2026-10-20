@@ -133,6 +133,9 @@ public class BookingServiceImpl implements BookingService {
         if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.CONFIRMED) {
             throw new BadRequestException("Đơn đặt phòng không đủ điều kiện hủy");
         }
+        if (booking.getRoom() != null && booking.getRoom().getStatus() == RoomStatus.OCCUPIED) {
+            throw new BadRequestException("Đơn đặt phòng không đủ điều kiện hủy do phòng đang có khách lưu trú");
+        }
 
         // iii. Thời gian hiện tại LocalDateTime.now() phải trước thời điểm checkIn ít nhất 24 giờ
         LocalDate checkInDate = booking.getCheckIn();

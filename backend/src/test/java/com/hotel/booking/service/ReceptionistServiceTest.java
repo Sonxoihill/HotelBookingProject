@@ -455,6 +455,20 @@ class ReceptionistServiceTest {
     }
 
     @Test
+    @DisplayName("cancelBooking (UC10 - API 3) - Ném 400 khi đơn đang ở trạng thái CHECKED_IN")
+    void testCancelBooking_CheckedInStatus_ThrowsException() {
+        when(bookingRepository.findByIdWithDetails(100L)).thenReturn(Optional.of(sampleBookingCheckedIn));
+
+        AppException ex = assertThrows(AppException.class, () ->
+                receptionistService.cancelBooking(100L, "Khách muốn hủy giữa chừng"));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("CHECKED_IN"));
+        verify(bookingRepository, never()).save(any());
+        verify(roomRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("checkInBooking (UC10 - API 4 - Luồng 3c) - Check-in đơn CONFIRMED thành CHECKED_IN, phòng OCCUPIED")
     void testCheckInBooking_Success() {
         when(bookingRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(sampleBookingConfirmed));

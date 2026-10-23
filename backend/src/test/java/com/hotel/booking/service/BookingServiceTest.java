@@ -181,13 +181,14 @@ class BookingServiceTest {
     }
 
     @Test
-    @DisplayName("Hủy đơn thành công: Giải phóng phòng từ ON_HOLD về AVAILABLE")
+    @DisplayName("Hủy đơn thành công: Giải phóng phòng từ ON_HOLD về AVAILABLE khi hủy trước 24h")
     void testCancelBooking_Success_ReleasesRoomToAvailable() {
         sampleRoom.setStatus(RoomStatus.ON_HOLD);
 
         Booking booking = Booking.builder()
                 .user(sampleUser)
                 .room(sampleRoom)
+                .checkIn(LocalDate.now().plusDays(2))
                 .status(BookingStatus.PENDING)
                 .build();
         booking.setId(500L);
@@ -203,7 +204,109 @@ class BookingServiceTest {
 
         assertEquals(BookingStatus.CANCELLED, result.getStatus());
         assertEquals(RoomStatus.AVAILABLE, sampleRoom.getStatus());
+        assertEquals("Khách đổi kế hoạch", result.getCancelReason());
         verify(roomRepository).saveAndFlush(sampleRoom);
+    }
+
+    @Test
+    @DisplayName("UC08: Hủy đơn thất bại khi hủy cách giờ check-in (14:00) ít hơn 24 giờ")
+    void testCancelBooking_Failure_Within24Hours() {
+        Booking booking = Booking.builder()
+                .user(sampleUser)
+                .room(sampleRoom)
+                .checkIn(LocalDate.now()) // Check-in today at 14:00 is within 24h
+                .status(BookingStatus.CONFIRMED)
+                .build();
+        booking.setId(501L);
+
+        when(bookingRepository.findById(501L)).thenReturn(Optional.of(booking));
+
+        CancelBookingRequest request = CancelBookingRequest.builder()
+                .reason("Khách bận đột xuất")
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                bookingService.cancelBooking("guest@hotel.com", 501L, request)
+        );
+        assertEquals("Đơn đặt phòng không đủ điều kiện hủy", ex.getMessage());
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("UC08: Hủy đơn thất bại khi email trong JWT không khớp với người đặt đơn")
+    void testCancelBooking_Failure_DifferentUser() {
+        Booking booking = Booking.builder()
+                .user(sampleUser) // guest@hotel.com
+                .room(sampleRoom)
+                .checkIn(LocalDate.now().plusDays(3))
+                .status(BookingStatus.PENDING)
+                .build();
+        booking.setId(502L);
+
+        when(bookingRepository.findById(502L)).thenReturn(Optional.of(booking));
+
+        CancelBookingRequest request = CancelBookingRequest.builder()
+                .reason("Hủy hộ")
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                bookingService.cancelBooking("other_user@hotel.com", 502L, request)
+        );
+        assertEquals("Bạn không có quyền hủy đơn đặt phòng này!", ex.getMessage());
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("UC08: Hủy đơn thất bại khi đơn đang ở trạng thái không hợp lệ (CHECKED_IN / COMPLETED)")
+    void testCancelBooking_Failure_InvalidStatus() {
+        Booking booking = Booking.builder()
+                .user(sampleUser)
+                .room(sampleRoom)
+                .checkIn(LocalDate.now().plusDays(3))
+                .status(BookingStatus.CHECKED_IN)
+                .build();
+        booking.setId(503L);
+
+        when(bookingRepository.findById(503L)).thenReturn(Optional.of(booking));
+
+        CancelBookingRequest request = CancelBookingRequest.builder()
+                .reason("Muốn hủy phòng đang ở")
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                bookingService.cancelBooking("guest@hotel.com", 503L, request)
+        );
+        assertEquals("Đơn đặt phòng không đủ điều kiện hủy", ex.getMessage());
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("UC08: Hủy đơn thành công khi đơn ở trạng thái CONFIRMED và trước 24h")
+    void testCancelBooking_Success_ConfirmedBooking() {
+        sampleRoom.setStatus(RoomStatus.RESERVED);
+
+        Booking booking = Booking.builder()
+                .user(sampleUser)
+                .room(sampleRoom)
+                .checkIn(LocalDate.now().plusDays(5))
+                .status(BookingStatus.CONFIRMED)
+                .build();
+        booking.setId(504L);
+
+        when(bookingRepository.findById(504L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any(Booking.class))).thenReturn(booking);
+
+        CancelBookingRequest request = CancelBookingRequest.builder()
+                .reason("Khách hủy vé máy bay")
+                .build();
+
+        Booking result = bookingService.cancelBooking("guest@hotel.com", 504L, request);
+
+        assertEquals(BookingStatus.CANCELLED, result.getStatus());
+        assertEquals(RoomStatus.AVAILABLE, sampleRoom.getStatus());
+        assertEquals("Khách hủy vé máy bay", result.getCancelReason());
+        verify(roomRepository).saveAndFlush(sampleRoom);
+        verify(bookingRepository).save(booking);
     }
 
     @Test

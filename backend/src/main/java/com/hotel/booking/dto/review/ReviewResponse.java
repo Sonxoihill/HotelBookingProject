@@ -19,5 +19,6 @@ public class ReviewResponse {
     private String userName;
     private Long roomId;
     private String roomNumber;
+    private Long bookingId;
     private LocalDateTime createdAt;
 }

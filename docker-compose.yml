@@ -1,17 +1,107 @@
-version: '3.8'
 
 services:
-  mysql:
+  # ===================================================================
+  # 1. DATABASE SERVICE: MySQL 8.0
+  # ===================================================================
+  mysql-db:
     image: mysql:8.0
-    container_name: hotel_mysql_db
-    restart: always
+    container_name: mysql-db
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: hotel_booking
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
     ports:
       - "3308:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p${DB_PASSWORD:-123456} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - hotel-network
+
+  # ===================================================================
+  # 2. BACKEND API SERVICE: Spring Boot (Java 21)
+  # ===================================================================
+  hotel-backend:
+    image: hotel-backend:latest
+    container_name: hotel-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - PORT=8080
+      # Database Connection qua mạng Docker nội bộ
+      - DB_URL=jdbc:mysql://mysql-db:3306/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      - STAGING_DB_URL=jdbc:mysql://mysql-db:3306/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - STAGING_DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      - STAGING_DB_PASSWORD=${DB_PASSWORD:-123456}
+      # JWT Authentication
+      - JWT_SECRET=${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS:-86400000}
+      # Mail Service (Gmail SMTP)
+      - MAIL_USERNAME=${MAIL_USERNAME:-vtruong1628@gmail.com}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-sceizoqtzavsfcyk}
+      # VNPay Payment Gateway
+      - VNPAY_TMN_CODE=${VNPAY_TMN_CODE:-CGXZLS0Z}
+      - VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET:-XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN}
+      - VNPAY_PAY_URL=${VNPAY_PAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      - VNPAY_RETURN_URL=${VNPAY_RETURN_URL:-http://localhost:5173/api/v1/payment/vnpay-return}
+      - VNPAY_ALLOWED_IPS=${VNPAY_ALLOWED_IPS:-113.160.92.202,113.52.45.78,203.205.69.100,103.220.87.101,103.220.86.4,127.0.0.1,0:0:0:0:0:0:0:1,localhost}
+      # CORS Configuration
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:80,http://localhost,http://127.0.0.1:5173,http://127.0.0.1}
+      - STAGING_CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:80,http://localhost,http://127.0.0.1:5173,http://127.0.0.1}
+      # Rate Limiting
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_BOOKING_CAPACITY=${RATE_LIMIT_BOOKING_CAPACITY:-5}
+      - RATE_LIMIT_BOOKING_REFILL_TOKENS=${RATE_LIMIT_BOOKING_REFILL_TOKENS:-5}
+      - RATE_LIMIT_BOOKING_DURATION_SECONDS=${RATE_LIMIT_BOOKING_DURATION_SECONDS:-1}
+    networks:
+      - hotel-network
+
+  # ===================================================================
+  # 3. FRONTEND SERVICE: React/Vite + Nginx
+  # ===================================================================
+  hotel-frontend:
+    image: hotel-frontend:latest
+    container_name: hotel-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+    restart: unless-stopped
+    depends_on:
+      - hotel-backend
+    ports:
+      - "5173:80"   # Cổng 5173 chuẩn cho ứng dụng và VNPay callback
+      - "80:80"     # Cổng 80 tiêu chuẩn HTTP Web
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+    networks:
+      - hotel-network
+
+# =====================================================================
+# DOCKER NETWORKS & VOLUMES
+# =====================================================================
+networks:
+  hotel-network:
+    name: hotel-network
+    driver: bridge
 
 volumes:
   mysql_data:
+    name: hotel_mysql_data
+    driver: local

@@ -51,10 +51,18 @@ public class PaymentController {
             @Parameter(description = "Số tiền thanh toán (VNĐ). Nếu để trống sẽ lấy từ tổng tiền đơn hàng.", example = "1500000")
             @RequestParam(value = "amount", required = false) BigDecimal amount,
 
+            @Parameter(description = "URL callback tùy biến sau khi hoàn tất thanh toán VNPay", required = false)
+            @RequestParam(value = "returnUrl", required = false) String returnUrl,
+
             HttpServletRequest request
     ) {
         String ipAddress = VNPayUtil.getIpAddress(request);
-        String paymentUrl = paymentService.createVNPayPaymentUrl(bookingId, amount, ipAddress);
+        String paymentUrl;
+        if (returnUrl != null && !returnUrl.trim().isEmpty()) {
+            paymentUrl = paymentService.createVNPayPaymentUrl(bookingId, amount, ipAddress, returnUrl);
+        } else {
+            paymentUrl = paymentService.createVNPayPaymentUrl(bookingId, amount, ipAddress);
+        }
         return ApiResponse.success("Tạo URL thanh toán VNPay thành công", new PaymentUrlResponse(paymentUrl));
     }
 

@@ -12,10 +12,15 @@ export const paymentService = {
    * @param {Object} data { bookingId: number, amount?: number }
    * @returns {Promise<{ paymentUrl: string }>} URL thanh toán trả về từ Backend
    */
-  createVNPayUrl: async ({ bookingId, amount }) => {
+  createVNPayUrl: async ({ bookingId, amount, returnUrl }) => {
     const params = { bookingId };
     if (amount) {
       params.amount = amount;
+    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const resolvedReturn = returnUrl || (origin ? `${origin}/api/v1/payment/vnpay-return` : undefined);
+    if (resolvedReturn) {
+      params.returnUrl = resolvedReturn;
     }
     const res = await axiosInstance.get('/payment/create-url', { params });
     const data = res?.data || res;

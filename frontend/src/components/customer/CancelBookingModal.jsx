@@ -30,26 +30,24 @@ export const CancelBookingModal = ({
   // Kiểm tra tính hợp lệ của đơn hàng
   const isValidStatus = booking.status === 'PENDING' || booking.status === 'CONFIRMED';
   
-  // Kiểm tra thời hạn hủy (phải trước ngày check-in)
+  // Kiểm tra thời hạn hủy (phải trước 14:00 ngày check-in ít nhất 24 giờ theo chính sách khách sạn)
   const isBeforeCheckIn = () => {
-    if (!booking.checkIn) return true;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const checkInDate = new Date(booking.checkIn);
-    checkInDate.setHours(0, 0, 0, 0);
-    return checkInDate >= now;
+    if (!booking.checkIn) return false;
+    try {
+      const [year, month, day] = booking.checkIn.split('-').map(Number);
+      const checkInDateTime = new Date(year, month - 1, day, 14, 0, 0);
+      const cutoffTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      return cutoffTime <= checkInDateTime;
+    } catch {
+      return false;
+    }
   };
 
-  const isEligible = isValidStatus && isBeforeCheckIn();
+  const isEligible = isValidStatus;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
-
-    if (!isEligible) {
-      setErrorMessage('Đơn hàng không đủ điều kiện hủy!');
-      return;
-    }
 
     // Bắt buộc nhập lý do hủy
     let finalReason = selectedReason;
@@ -86,7 +84,8 @@ export const CancelBookingModal = ({
       onClose();
     } catch (err) {
       console.error('Lỗi khi hủy đơn:', err);
-      setErrorMessage(err.message || 'Không thể hủy đơn đặt phòng.');
+      const msg = err?.response?.data?.message || err?.message || 'Không thể hủy đơn đặt phòng.';
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -129,7 +128,7 @@ export const CancelBookingModal = ({
         {!isEligible && (
           <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-800 flex items-center gap-2">
             <XCircle size={16} className="text-rose-600 shrink-0" />
-            <span>Đơn hàng không đủ điều kiện hủy! (Đơn không ở trạng thái Đang xử lý / Xác nhận hoặc đã quá thời hạn cho phép hủy).</span>
+            <span>Đơn đặt phòng không đủ điều kiện hủy! (Đơn không ở trạng thái Đang xử lý / Xác nhận hoặc cách thời điểm nhận phòng 14:00 ít hơn 24 giờ theo chính sách).</span>
           </div>
         )}
 

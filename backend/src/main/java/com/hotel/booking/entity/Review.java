@@ -35,6 +35,10 @@ public class Review {
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "booking_id", unique = true)
+    private Booking booking;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

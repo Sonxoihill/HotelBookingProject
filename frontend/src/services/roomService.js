@@ -35,6 +35,16 @@ export const roomService = {
     return await axiosInstance.get('/receptionist/room-matrix', { params });
   },
 
+  // Phase 1: Lấy danh sách ma trận phòng kèm bộ lọc tầng & trạng thái (GET /api/v1/receptionist/rooms/grid)
+  getRoomGrid: async (params = {}) => {
+    return await axiosInstance.get('/receptionist/rooms/grid', { params });
+  },
+
+  // Phase 1: Xác nhận dọn xong phòng (PATCH /api/v1/receptionist/rooms/{roomId}/clean)
+  cleanRoom: async (roomId) => {
+    return await axiosInstance.patch(`/receptionist/rooms/${roomId}/clean`);
+  },
+
   // Lễ tân cập nhật trạng thái dọn dẹp phòng (CLEANING, AVAILABLE, DIRTY,...)
   updateCleaningStatus: async (roomId, status) => {
     return await axiosInstance.patch(`/rooms/${roomId}/cleaning-status`, { status });

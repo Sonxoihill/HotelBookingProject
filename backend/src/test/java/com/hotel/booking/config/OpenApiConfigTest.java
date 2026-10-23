@@ -18,7 +18,7 @@ class OpenApiConfigTest {
         assertNotNull(openAPI);
         assertNotNull(openAPI.getInfo());
         assertEquals("Hotel Booking Management System API", openAPI.getInfo().getTitle());
-        assertEquals("1.0.0", openAPI.getInfo().getVersion());
+        assertEquals("1.1.0", openAPI.getInfo().getVersion());
 
         // Verify Bearer Auth Security Scheme
         assertNotNull(openAPI.getComponents());

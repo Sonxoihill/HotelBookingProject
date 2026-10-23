@@ -35,11 +35,13 @@ import StaffManagementPage from './pages/admin/StaffManagementPage';
 import NotFoundPage from './pages/common/NotFoundPage';
 import ForbiddenPage from './pages/common/ForbiddenPage';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 export function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         {/* =================================================================== */}
         {/* PHÂN HỆ 1: KHÁCH HÀNG & NGƯỜI DÙNG (Sử dụng MainLayout)            */}
         {/* =================================================================== */}
@@ -129,7 +131,8 @@ export function App() {
         <Route path="/unauthorized" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-    </BrowserRouter>
+    </ErrorBoundary>
+  </BrowserRouter>
   );
 }
 

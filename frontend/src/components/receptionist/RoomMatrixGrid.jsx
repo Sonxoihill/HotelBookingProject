@@ -43,7 +43,7 @@ export const RoomMatrixGrid = ({ rooms = [], onSelectRoom, onUpdateCleaning }) =
       {roomsByFloor.map(({ floor, rooms: floorRooms }) => {
         const availableCount = floorRooms.filter((r) => r.status === 'AVAILABLE').length;
         const occupiedCount = floorRooms.filter((r) => r.status === 'OCCUPIED').length;
-        const cleaningCount = floorRooms.filter((r) => r.status === 'CLEANING').length;
+        const dirtyCount = floorRooms.filter((r) => r.status === 'DIRTY' || r.status === 'CLEANING').length;
 
         return (
           <div
@@ -75,12 +75,12 @@ export const RoomMatrixGrid = ({ rooms = [], onSelectRoom, onUpdateCleaning }) =
                 )}
                 {occupiedCount > 0 && (
                   <span className="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 font-medium border border-rose-200/60 text-[11px]">
-                    {occupiedCount} Đang ở
+                    {occupiedCount} Đang sử dụng
                   </span>
                 )}
-                {cleaningCount > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200/60 text-[11px]">
-                    {cleaningCount} Đang dọn
+                {dirtyCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-medium border border-amber-200/60 text-[11px]">
+                    {dirtyCount} Cần dọn
                   </span>
                 )}
               </div>
@@ -121,17 +121,17 @@ export const RoomMatrixGrid = ({ rooms = [], onSelectRoom, onUpdateCleaning }) =
                         )}
                       </div>
 
-                      {room.status === 'CLEANING' && (
+                      {(room.status === 'DIRTY' || room.status === 'CLEANING') && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (onUpdateCleaning) onUpdateCleaning(room);
                           }}
-                          className="w-full mt-2 py-1 px-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                          className="w-full mt-2 py-1 px-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
                         >
                           <Sparkles size={11} />
-                          <span>Xong dọn dẹp</span>
+                          <span>Xác nhận đã dọn xong</span>
                         </button>
                       )}
                     </div>

@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.HtmlUtils;
 
+import com.hotel.booking.enums.BookingStatus;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -37,10 +39,32 @@ public class ReviewServiceImpl implements ReviewService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin tài khoản: " + userEmail));
 
+        // iv. Kiểm tra số sao (rating) từ 1 đến 5
+        if (request.getRating() == null || request.getRating() < 1 || request.getRating() > 5) {
+            throw new IllegalArgumentException("Số sao đánh giá phải từ 1 đến 5");
+        }
+
         Room room = null;
+        Booking booking = null;
+
         if (request.getBookingId() != null) {
-            Booking booking = bookingRepository.findById(request.getBookingId())
+            // i & ii. Tìm đơn đặt phòng và kiểm tra thuộc về User đang đăng nhập, trạng thái CHECKED_OUT
+            booking = bookingRepository.findById(request.getBookingId())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn đặt phòng #" + request.getBookingId()));
+
+            if (booking.getUser() == null || !booking.getUser().getId().equals(user.getId())) {
+                throw new IllegalArgumentException("Bạn chỉ có thể đánh giá cho đơn đặt phòng của chính mình");
+            }
+
+            if (booking.getStatus() != BookingStatus.CHECKED_OUT) {
+                throw new IllegalArgumentException("Chỉ được đánh giá sau khi đã hoàn tất trả phòng (CHECKED_OUT)");
+            }
+
+            // iii. Kiểm tra reviewRepository.existsByBookingId(bookingId)
+            if (reviewRepository.existsByBookingId(request.getBookingId())) {
+                throw new IllegalArgumentException("Đơn đặt phòng này đã được đánh giá");
+            }
+
             room = booking.getRoom();
         } else if (request.getRoomId() != null) {
             room = roomRepository.findById(request.getRoomId())
@@ -58,6 +82,7 @@ public class ReviewServiceImpl implements ReviewService {
         Review review = Review.builder()
                 .user(user)
                 .room(room)
+                .booking(booking)
                 .rating(request.getRating())
                 .comment(sanitizedComment)
                 .build();
@@ -127,6 +152,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .userName(userName)
                 .roomId(roomId)
                 .roomNumber(roomNumber)
+                .bookingId(review.getBooking() != null ? review.getBooking().getId() : null)
                 .createdAt(review.getCreatedAt())
                 .build();
     }

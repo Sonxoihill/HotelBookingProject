@@ -30,6 +30,11 @@ export const roomService = {
     return await axiosInstance.get(`/rooms/${roomId}`);
   },
 
+  // Lấy bảng báo giá chi tiết từng đêm kèm các quy tắc giá linh hoạt (GET /rooms/{id}/price-quote)
+  getPriceQuote: async (roomId, params) => {
+    return await axiosInstance.get(`/rooms/${roomId}/price-quote`, { params });
+  },
+
   // Lấy ma trận sơ đồ phòng thời gian thực cho Lễ tân
   getRoomMatrix: async (params) => {
     return await axiosInstance.get('/receptionist/room-matrix', { params });
@@ -50,24 +55,74 @@ export const roomService = {
     return await axiosInstance.patch(`/rooms/${roomId}/cleaning-status`, { status });
   },
 
-  // Admin - Lấy danh sách loại phòng & phòng
-  getRoomTypes: async () => {
-    return await axiosInstance.get('/admin/room-types');
+  // =========================================================================
+  // ADMIN API - QUẢN LÝ LOẠI PHÒNG (ROOM CATEGORIES) - /admin/room-categories
+  // =========================================================================
+  // Lấy danh sách toàn bộ loại phòng
+  getRoomCategories: async (params) => {
+    return await axiosInstance.get('/admin/room-categories', { params });
   },
 
-  // Admin - Thêm loại phòng mới
+  // Lấy chi tiết một loại phòng theo ID
+  getRoomCategoryById: async (id) => {
+    return await axiosInstance.get(`/admin/room-categories/${id}`);
+  },
+
+  // Thêm mới loại phòng
+  createRoomCategory: async (data) => {
+    return await axiosInstance.post('/admin/room-categories', data);
+  },
+
+  // Cập nhật thông tin loại phòng
+  updateRoomCategory: async (id, data) => {
+    return await axiosInstance.put(`/admin/room-categories/${id}`, data);
+  },
+
+  // Xóa loại phòng
+  deleteRoomCategory: async (id) => {
+    return await axiosInstance.delete(`/admin/room-categories/${id}`);
+  },
+
+  // Alias tương thích ngược cho room-types -> room-categories
+  getRoomTypes: async (params) => {
+    return await axiosInstance.get('/admin/room-categories', { params });
+  },
   createRoomType: async (data) => {
-    return await axiosInstance.post('/admin/room-types', data);
+    return await axiosInstance.post('/admin/room-categories', data);
+  },
+  updateRoomType: async (id, data) => {
+    return await axiosInstance.put(`/admin/room-categories/${id}`, data);
+  },
+  deleteRoomType: async (id) => {
+    return await axiosInstance.delete(`/admin/room-categories/${id}`);
   },
 
-  // Admin - Thêm phòng mới
+  // =========================================================================
+  // ADMIN API - QUẢN LÝ BUỒNG PHÒNG VẬT LÝ (ROOMS) - /admin/rooms
+  // =========================================================================
+  // Lấy danh sách toàn bộ buồng phòng vật lý (kèm lọc tầng, trạng thái, loại phòng)
+  getAdminRooms: async (params) => {
+    return await axiosInstance.get('/admin/rooms', { params });
+  },
+
+  // Lấy chi tiết buồng phòng theo ID
+  getAdminRoomById: async (roomId) => {
+    return await axiosInstance.get(`/admin/rooms/${roomId}`);
+  },
+
+  // Thêm mới phòng vật lý
   createRoom: async (roomData) => {
     return await axiosInstance.post('/admin/rooms', roomData);
   },
 
-  // Admin - Cập nhật thông tin phòng
+  // Cập nhật thông tin phòng vật lý
   updateRoom: async (roomId, roomData) => {
     return await axiosInstance.put(`/admin/rooms/${roomId}`, roomData);
+  },
+
+  // Xóa phòng vật lý
+  deleteRoom: async (roomId) => {
+    return await axiosInstance.delete(`/admin/rooms/${roomId}`);
   },
 };
 

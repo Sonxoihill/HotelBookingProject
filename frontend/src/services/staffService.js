@@ -1,33 +1,61 @@
 import axiosInstance from './axiosInstance';
 
 /**
- * Service xử lý : Quản lý Nhân sự (Admin)
- * (Tạo tài khoản lễ tân, phân quyền ca trực, khóa/mở tài khoản)
+ * Service xử lý: Quản lý Nhân sự & Phân quyền (Admin)
+ * Toàn bộ kết nối sử dụng endpoint /admin/users theo chuẩn Scrum 52
+ * (Xóa bỏ hoàn toàn các endpoint /admin/staff cũ)
  */
 export const staffService = {
-  // Lấy danh sách nhân sự
+  // Lấy danh sách tài khoản (truyền params: search, role, page, size)
   getAllStaff: async (params) => {
-    return await axiosInstance.get('/admin/staff', { params });
+    return await axiosInstance.get('/admin/users', { params });
   },
 
-  // Tạo tài khoản nhân sự mới (Lễ tân / Quản lý)
-  createStaff: async (staffData) => {
-    return await axiosInstance.post('/admin/staff', staffData);
+  getUsers: async (params) => {
+    return await axiosInstance.get('/admin/users', { params });
   },
 
-  // Cập nhật thông tin nhân sự
-  updateStaff: async (staffId, staffData) => {
-    return await axiosInstance.put(`/admin/staff/${staffId}`, staffData);
+  // Lấy chi tiết tài khoản theo ID
+  getUserById: async (userId) => {
+    return await axiosInstance.get(`/admin/users/${userId}`);
   },
 
-  // Khóa / Kích hoạt tài khoản nhân viên
-  toggleStaffStatus: async (staffId, isActive) => {
-    return await axiosInstance.patch(`/admin/staff/${staffId}/status`, { isActive });
+  // Tạo tài khoản mới (POST /admin/users)
+  createStaff: async (userData) => {
+    return await axiosInstance.post('/admin/users', userData);
   },
 
-  // Xóa tài khoản nhân sự
-  deleteStaff: async (staffId) => {
-    return await axiosInstance.delete(`/admin/staff/${staffId}`);
+  createUser: async (userData) => {
+    return await axiosInstance.post('/admin/users', userData);
+  },
+
+  // Cập nhật phân quyền / vai trò (PATCH /admin/users/{id}/role)
+  updateStaffRole: async (userId, role) => {
+    return await axiosInstance.patch(`/admin/users/${userId}/role`, { role });
+  },
+
+  updateUserRole: async (userId, role) => {
+    return await axiosInstance.patch(`/admin/users/${userId}/role`, { role });
+  },
+
+  // Khóa / Mở khóa tài khoản (PATCH /admin/users/{id}/status)
+  toggleStaffStatus: async (userId, statusData) => {
+    const payload = typeof statusData === 'boolean' ? { isActive: statusData } : statusData;
+    return await axiosInstance.patch(`/admin/users/${userId}/status`, payload);
+  },
+
+  toggleUserStatus: async (userId, statusData) => {
+    const payload = typeof statusData === 'boolean' ? { isActive: statusData } : statusData;
+    return await axiosInstance.patch(`/admin/users/${userId}/status`, payload);
+  },
+
+  // Xóa tài khoản
+  deleteStaff: async (userId) => {
+    return await axiosInstance.delete(`/admin/users/${userId}`);
+  },
+
+  deleteUser: async (userId) => {
+    return await axiosInstance.delete(`/admin/users/${userId}`);
   },
 };
 

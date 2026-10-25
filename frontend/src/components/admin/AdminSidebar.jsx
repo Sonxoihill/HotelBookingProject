@@ -2,11 +2,11 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
+  Layers,
   DoorOpen,
   ConciergeBell,
   BadgePercent,
   Users,
-  Settings,
   Server,
 } from 'lucide-react';
 
@@ -15,35 +15,34 @@ export const AdminSidebar = () => {
 
   const navItems = [
     {
-      name: 'Tổng quan & Thống kê',
-      path: '/admin',
+      name: 'Dashboard',
+      path: '/admin/dashboard',
       icon: BarChart3,
-      exact: true,
     },
     {
-      name: 'Phòng & Loại phòng',
+      name: 'Loại phòng',
+      path: '/admin/room-categories',
+      icon: Layers,
+    },
+    {
+      name: 'Quản lý Phòng',
       path: '/admin/rooms',
       icon: DoorOpen,
     },
     {
-      name: 'Quản lý Dịch vụ',
+      name: 'Dịch vụ',
       path: '/admin/services',
       icon: ConciergeBell,
     },
     {
-      name: 'Cài đặt Giá linh hoạt',
+      name: 'Giá linh hoạt',
       path: '/admin/pricing',
       icon: BadgePercent,
     },
     {
-      name: 'Nhân sự & Phân quyền',
-      path: '/admin/staff',
+      name: 'Người dùng',
+      path: '/admin/users',
       icon: Users,
-    },
-    {
-      name: 'Cài đặt Hệ thống',
-      path: '/admin/settings',
-      icon: Settings,
     },
   ];
 

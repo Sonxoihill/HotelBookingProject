@@ -34,6 +34,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
+    private final com.hotel.booking.service.PricingCalculator pricingCalculator;
 
     @Override
     @Transactional(readOnly = true)
@@ -88,17 +89,13 @@ public class BookingServiceImpl implements BookingService {
                     "Phòng đã được đặt hoặc đang có người giữ chỗ trong khoảng thời gian này. Vui lòng chọn thời gian khác hoặc phòng khác!");
         }
 
-        long nights = ChronoUnit.DAYS.between(request.getCheckIn(), request.getCheckOut());
-        if (nights <= 0)
-            nights = 1;
-
-        BigDecimal totalAmount = request.getTotalAmount();
-        if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            BigDecimal basePrice = (room.getCategory() != null && room.getCategory().getBasePrice() != null)
-                    ? room.getCategory().getBasePrice()
-                    : BigDecimal.valueOf(500000);
-            totalAmount = basePrice.multiply(BigDecimal.valueOf(nights)).multiply(BigDecimal.valueOf(1.1)); // 10% VAT
-        }
+        // 3. Tính toán tổng tiền phòng thông qua PricingCalculator (áp dụng giá linh hoạt + 10% VAT)
+        // Tuyệt đối không tin tưởng client totalAmount gửi lên (kể cả gửi 1000đ thì server vẫn tự tính đúng)
+        com.hotel.booking.dto.response.PriceQuote quote = pricingCalculator.calculate(
+                room.getCategory(),
+                request.getCheckIn(),
+                request.getCheckOut());
+        BigDecimal totalAmount = quote.getTotal();
 
         // 4. Set trạng thái đơn hàng là PENDING để chờ thanh toán VNPay
         Booking booking = Booking.builder()

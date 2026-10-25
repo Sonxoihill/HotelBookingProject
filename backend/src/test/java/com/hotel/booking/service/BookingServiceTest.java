@@ -46,6 +46,9 @@ class BookingServiceTest {
     @Mock
     private RoomRepository roomRepository;
 
+    @Mock
+    private com.hotel.booking.service.PricingCalculator pricingCalculator;
+
     @InjectMocks
     private BookingServiceImpl bookingService;
 
@@ -90,6 +93,8 @@ class BookingServiceTest {
         when(userRepository.findByEmail("guest@hotel.com")).thenReturn(Optional.of(sampleUser));
         when(roomRepository.findByIdWithLock(100L)).thenReturn(Optional.of(sampleRoom));
         when(bookingRepository.existsOverlappingBooking(eq(100L), any(), any())).thenReturn(false);
+        when(pricingCalculator.calculate(any(), any(), any()))
+                .thenReturn(com.hotel.booking.dto.response.PriceQuote.builder().total(new BigDecimal("2200000")).build());
         when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> {
             Booking b = invocation.getArgument(0);
             b.setId(500L);
@@ -101,8 +106,10 @@ class BookingServiceTest {
         assertNotNull(result);
         assertEquals(BookingStatus.PENDING, result.getStatus());
         assertEquals(RoomStatus.AVAILABLE, sampleRoom.getStatus());
+        assertEquals(new BigDecimal("2200000"), result.getTotalAmount());
 
         verify(roomRepository).findByIdWithLock(100L);
+        verify(pricingCalculator).calculate(sampleCategory, request.getCheckIn(), request.getCheckOut());
         verify(bookingRepository).save(any(Booking.class));
     }
 
@@ -167,6 +174,8 @@ class BookingServiceTest {
         // Kiểm tra lịch không trùng trả về false
         when(bookingRepository.existsOverlappingBooking(eq(100L), eq(request.getCheckIn()), eq(request.getCheckOut())))
                 .thenReturn(false);
+        when(pricingCalculator.calculate(any(), any(), any()))
+                .thenReturn(com.hotel.booking.dto.response.PriceQuote.builder().total(new BigDecimal("2200000")).build());
         when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> {
             Booking b = invocation.getArgument(0);
             b.setId(501L);
@@ -178,6 +187,32 @@ class BookingServiceTest {
         assertNotNull(result);
         assertEquals(BookingStatus.PENDING, result.getStatus());
         verify(bookingRepository).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("AC Nghiệm thu UC06: Gửi totalAmount = 1000 qua Postman -> server vẫn tính đúng giá qua PricingCalculator, không tin client")
+    void testCreateBooking_IgnoreClientTotalAmount_UsePricingCalculator() {
+        CreateBookingRequest request = CreateBookingRequest.builder()
+                .roomId(100L)
+                .checkIn(LocalDate.of(2027, 9, 1))
+                .checkOut(LocalDate.of(2027, 9, 3))
+                .totalAmount(new BigDecimal("1000")) // Client sends 1000đ
+                .email("guest@hotel.com")
+                .build();
+
+        when(userRepository.findByEmail("guest@hotel.com")).thenReturn(Optional.of(sampleUser));
+        when(roomRepository.findByIdWithLock(100L)).thenReturn(Optional.of(sampleRoom));
+        when(bookingRepository.existsOverlappingBooking(eq(100L), any(), any())).thenReturn(false);
+        when(pricingCalculator.calculate(eq(sampleCategory), eq(request.getCheckIn()), eq(request.getCheckOut())))
+                .thenReturn(com.hotel.booking.dto.response.PriceQuote.builder().total(new BigDecimal("2508000")).build());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Booking result = bookingService.createBooking("guest@hotel.com", request);
+
+        assertNotNull(result);
+        // Server calculates 2,508,000đ and completely ignores client's 1000đ
+        assertEquals(new BigDecimal("2508000"), result.getTotalAmount());
+        verify(pricingCalculator).calculate(sampleCategory, request.getCheckIn(), request.getCheckOut());
     }
 
     @Test

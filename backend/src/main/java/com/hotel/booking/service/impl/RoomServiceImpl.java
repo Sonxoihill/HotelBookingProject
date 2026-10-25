@@ -17,6 +17,7 @@ public class RoomServiceImpl implements RoomService {
 
     private final RoomRepository roomRepository;
     private final com.hotel.booking.repository.ReviewRepository reviewRepository;
+    private final com.hotel.booking.service.PricingCalculator pricingCalculator;
 
     @Override
     @Transactional(readOnly = true)
@@ -110,6 +111,14 @@ public class RoomServiceImpl implements RoomService {
         return rooms.stream()
                 .map(com.hotel.booking.dto.response.RoomSearchResponse::fromEntity)
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.hotel.booking.dto.response.PriceQuote getPriceQuote(Long id, java.time.LocalDate checkIn, java.time.LocalDate checkOut) {
+        Room room = roomRepository.findById(id)
+                .orElseThrow(() -> new com.hotel.booking.common.exception.ResourceNotFoundException("Room", "id", id));
+        return pricingCalculator.calculate(room.getCategory(), checkIn, checkOut);
     }
 }
 

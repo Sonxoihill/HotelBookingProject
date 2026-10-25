@@ -17,4 +17,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByPhone(String phone);
     List<User> findByRole(UserRole role);
     List<User> findByStatus(UserStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE " +
+           "(:role IS NULL OR u.role = :role) AND " +
+           "(:keyword IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    org.springframework.data.domain.Page<User> searchUsers(
+            @org.springframework.data.repository.query.Param("keyword") String keyword,
+            @org.springframework.data.repository.query.Param("role") UserRole role,
+            org.springframework.data.domain.Pageable pageable);
 }

@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface RoomCategoryRepository extends JpaRepository<RoomCategory, Long> {
     Optional<RoomCategory> findByName(String name);
+    boolean existsByName(String name);
+    boolean existsByNameAndIdNot(String name, Long id);
 }

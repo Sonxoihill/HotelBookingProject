@@ -18,6 +18,8 @@ public interface RoomService {
     com.hotel.booking.dto.response.RoomDetailResponse getRoomDetail(Long id);
 
     List<RoomSearchResponse> searchRooms(RoomSearchRequest request);
+
+    com.hotel.booking.dto.response.PriceQuote getPriceQuote(Long id, java.time.LocalDate checkIn, java.time.LocalDate checkOut);
 }
 
 

@@ -91,6 +91,11 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Email hoặc mật khẩu không chính xác");
         }
 
+        if (user.getStatus() == UserStatus.LOCKED) {
+            log.warn("Login failed: Account {} is LOCKED", email);
+            throw new UnauthorizedException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Quản trị viên");
+        }
+
         if (user.getStatus() != UserStatus.ACTIVE) {
             log.warn("Login failed: Account {} is not ACTIVE", email);
             throw new UnauthorizedException("Tài khoản đã bị tạm khóa hoặc ngừng kích hoạt");

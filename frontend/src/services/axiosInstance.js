@@ -7,7 +7,7 @@ import { tokenStorage } from '../utils/tokenStorage';
  */
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 15000,
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -71,6 +71,14 @@ axiosInstance.interceptors.response.use(
       customError.data = data;
       customError.response = error.response;
       return Promise.reject(customError);
+    }
+
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      const timeoutError = new Error(
+        'Máy chủ phản hồi quá lâu hoặc đang khởi động (Render Cold Start). Vui lòng thử lại sau vài giây.'
+      );
+      timeoutError.code = 'ECONNABORTED';
+      return Promise.reject(timeoutError);
     }
 
     return Promise.reject(error);

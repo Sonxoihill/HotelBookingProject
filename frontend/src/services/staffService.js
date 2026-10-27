@@ -1,12 +1,11 @@
 import axiosInstance from './axiosInstance';
 
 /**
- * Service xử lý: Quản lý Nhân sự & Phân quyền (Admin)
- * Toàn bộ kết nối sử dụng endpoint /admin/users theo chuẩn Scrum 52
- * (Xóa bỏ hoàn toàn các endpoint /admin/staff cũ)
+ * Service xử lý: Quản lý Nhân sự & Phân quyền (Admin) - Scrum 52
+ * Toàn bộ kết nối sử dụng endpoint /admin/users chuẩn REST theo Backend
  */
 export const staffService = {
-  // Lấy danh sách tài khoản (truyền params: search, role, page, size)
+  // Lấy danh sách người dùng và nhân sự (GET /admin/users?keyword=...&role=...&page=...&size=...)
   getAllStaff: async (params) => {
     return await axiosInstance.get('/admin/users', { params });
   },
@@ -20,16 +19,16 @@ export const staffService = {
     return await axiosInstance.get(`/admin/users/${userId}`);
   },
 
-  // Tạo tài khoản mới (POST /admin/users)
+  // Cấp tài khoản nhân sự mới (POST /admin/users/staff)
   createStaff: async (userData) => {
-    return await axiosInstance.post('/admin/users', userData);
+    return await axiosInstance.post('/admin/users/staff', userData);
   },
 
   createUser: async (userData) => {
-    return await axiosInstance.post('/admin/users', userData);
+    return await axiosInstance.post('/admin/users/staff', userData);
   },
 
-  // Cập nhật phân quyền / vai trò (PATCH /admin/users/{id}/role)
+  // Phân quyền / Đổi vai trò người dùng (PATCH /admin/users/{id}/role với body { role })
   updateStaffRole: async (userId, role) => {
     return await axiosInstance.patch(`/admin/users/${userId}/role`, { role });
   },
@@ -38,15 +37,17 @@ export const staffService = {
     return await axiosInstance.patch(`/admin/users/${userId}/role`, { role });
   },
 
-  // Khóa / Mở khóa tài khoản (PATCH /admin/users/{id}/status)
-  toggleStaffStatus: async (userId, statusData) => {
-    const payload = typeof statusData === 'boolean' ? { isActive: statusData } : statusData;
-    return await axiosInstance.patch(`/admin/users/${userId}/status`, payload);
+  // Khóa / Mở khóa tài khoản người dùng (PATCH /admin/users/{id}/lock - đảo trạng thái ACTIVE <-> LOCKED)
+  toggleStaffStatus: async (userId) => {
+    return await axiosInstance.patch(`/admin/users/${userId}/lock`);
   },
 
-  toggleUserStatus: async (userId, statusData) => {
-    const payload = typeof statusData === 'boolean' ? { isActive: statusData } : statusData;
-    return await axiosInstance.patch(`/admin/users/${userId}/status`, payload);
+  toggleUserLock: async (userId) => {
+    return await axiosInstance.patch(`/admin/users/${userId}/lock`);
+  },
+
+  toggleUserStatus: async (userId) => {
+    return await axiosInstance.patch(`/admin/users/${userId}/lock`);
   },
 
   // Xóa tài khoản

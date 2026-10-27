@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { staffService } from '../../services/staffService';
 import { tokenStorage } from '../../utils/tokenStorage';
+import { detectMaliciousCode } from '../../utils/sanitize';
 
 export const StaffManagementPage = () => {
   // =========================================================================
@@ -76,6 +77,11 @@ export const StaffManagementPage = () => {
   });
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [emailConflictError, setEmailConflictError] = useState('');
+  const [formErrors, setFormErrors] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+  });
 
   // =========================================================================
   // 3. STATE DANH SÁCH & TÌM KIẾM (KHU VỰC DƯỚI)
@@ -141,6 +147,7 @@ export const StaffManagementPage = () => {
         size: pageSize,
       };
       if (debouncedSearch.trim()) {
+        params.keyword = debouncedSearch.trim();
         params.search = debouncedSearch.trim();
       }
       if (roleFilter !== 'ALL') {
@@ -154,8 +161,12 @@ export const StaffManagementPage = () => {
       let total = 0;
       let pages = 1;
 
-      if (data && Array.isArray(data.content)) {
-        // Cấu trúc phân trang Spring Page
+      if (data && Array.isArray(data.items)) {
+        // Cấu trúc phân trang PageResponse Backend
+        list = data.items;
+        total = data.totalElements ?? data.items.length;
+        pages = Math.max(1, data.totalPages ?? 1);
+      } else if (data && Array.isArray(data.content)) {
         list = data.content;
         total = data.totalElements ?? data.content.length;
         pages = Math.max(1, data.totalPages ?? 1);
@@ -197,26 +208,84 @@ export const StaffManagementPage = () => {
   }, [fetchUsers]);
 
   // =========================================================================
-  // 6. XỬ LÝ SUBMIT FORM CẤP TÀI KHOẢN MỚI
+  // 6. VALIDATION VÀ XỬ LÝ SUBMIT FORM CẤP TÀI KHOẢN MỚI
   // =========================================================================
+  const validateCreateForm = () => {
+    const errors = {};
+
+    // 1. Tên nhân sự: không có số, không ký tự đặc biệt, tối đa 30 ký tự
+    const trimmedName = formData.fullName.trim();
+    if (!trimmedName) {
+      errors.fullName = 'Họ và tên nhân sự không được để trống.';
+    } else if (trimmedName.length > 30) {
+      errors.fullName = 'Họ và tên tối đa 30 ký tự (hiện có ' + trimmedName.length + ' ký tự).';
+    } else if (!/^[\p{L}\s]+$/u.test(trimmedName)) {
+      errors.fullName = 'Tên nhân sự chỉ được chứa chữ cái, không được chứa số hoặc ký tự đặc biệt.';
+    } else {
+      const malware = detectMaliciousCode(trimmedName);
+      if (malware.hasMalware) {
+        errors.fullName = 'Tên nhân sự chứa ký tự hoặc mã không an toàn.';
+      }
+    }
+
+    // 2. Email: đúng định dạng, tối đa 50 ký tự
+    const trimmedEmail = formData.email.trim();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!trimmedEmail) {
+      errors.email = 'Địa chỉ email không được để trống.';
+    } else if (trimmedEmail.length > 50) {
+      errors.email = 'Email tối đa 50 ký tự.';
+    } else if (!emailRegex.test(trimmedEmail)) {
+      errors.email = 'Email không đúng định dạng (Ví dụ: nhansu@hotelletoile.com).';
+    } else {
+      const malware = detectMaliciousCode(trimmedEmail);
+      if (malware.hasMalware) {
+        errors.email = 'Email chứa ký tự hoặc mã không an toàn.';
+      }
+    }
+
+    // 3. Số điện thoại: đúng định dạng nếu có nhập
+    const trimmedPhone = formData.phone.trim();
+    if (trimmedPhone) {
+      const cleanedPhone = trimmedPhone.replace(/[\s.-]/g, '');
+      const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+      if (!phoneRegex.test(cleanedPhone)) {
+        errors.phone = 'Số điện thoại không đúng định dạng (gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09 hoặc +84).';
+      } else {
+        const malware = detectMaliciousCode(trimmedPhone);
+        if (malware.hasMalware) {
+          errors.phone = 'Số điện thoại chứa ký tự không an toàn.';
+        }
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleCreateAccount = async (e) => {
     e.preventDefault();
     setEmailConflictError('');
 
-    if (!formData.fullName.trim() || !formData.email.trim()) {
-      showToast('Vui lòng điền đầy đủ Họ và tên và Email', 'error');
+    if (!validateCreateForm()) {
+      showToast('Vui lòng kiểm tra lại thông tin nhập tài khoản', 'error');
       return;
     }
 
     setIsCreatingAccount(true);
     try {
+      const deptMap = {
+        'Quầy Lễ tân': 'FRONT_DESK',
+        'Buồng phòng': 'HOUSEKEEPING',
+        'Quản lý': 'MANAGEMENT',
+      };
       const payload = {
         fullName: formData.fullName.trim(),
         name: formData.fullName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim() || null,
         role: formData.role,
-        department: formData.department,
+        department: deptMap[formData.department] || formData.department || 'FRONT_DESK',
       };
 
       await staffService.createStaff(payload);
@@ -235,6 +304,7 @@ export const StaffManagementPage = () => {
         role: 'RECEPTIONIST',
         department: 'Quầy Lễ tân',
       });
+      setFormErrors({ fullName: '', email: '', phone: '' });
       setEmailConflictError('');
 
       // Tải lại danh sách
@@ -566,15 +636,26 @@ export const StaffManagementPage = () => {
                 <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
                 <input
                   type="text"
-                  required
-                  placeholder="Ví dụ: Hoàng Thị Kim Yến"
+                  maxLength={30}
+                  placeholder="Ví dụ: Hoàng Thị Kim Yến (tối đa 30 ký tự)"
                   value={formData.fullName}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, fullName: e.target.value }))
-                  }
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200/90 bg-stone-50/40 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-900 focus:bg-white transition-all shadow-2xs"
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, fullName: e.target.value }));
+                    if (formErrors.fullName) setFormErrors((prev) => ({ ...prev, fullName: '' }));
+                  }}
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs placeholder-stone-400 focus:outline-none transition-all shadow-2xs ${
+                    formErrors.fullName
+                      ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600'
+                      : 'border-stone-200/90 bg-stone-50/40 text-stone-800 focus:border-stone-900 focus:bg-white'
+                  }`}
                 />
               </div>
+              {formErrors.fullName && (
+                <p className="text-xs text-rose-600 font-semibold mt-1.5 flex items-center gap-1.5 animate-fade-in">
+                  <AlertCircle size={13} className="shrink-0" />
+                  <span>{formErrors.fullName}</span>
+                </p>
+              )}
             </div>
 
             {/* 2. Email */}
@@ -586,25 +667,25 @@ export const StaffManagementPage = () => {
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
                 <input
                   type="email"
-                  required
+                  maxLength={50}
                   placeholder="nhansu@hotelletoile.com"
                   value={formData.email}
                   onChange={(e) => {
                     setFormData((prev) => ({ ...prev, email: e.target.value }));
+                    if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: '' }));
                     if (emailConflictError) setEmailConflictError('');
                   }}
                   className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs placeholder-stone-400 focus:outline-none transition-all shadow-2xs ${
-                    emailConflictError
+                    formErrors.email || emailConflictError
                       ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600'
                       : 'border-stone-200/90 bg-stone-50/40 text-stone-800 focus:border-stone-900 focus:bg-white'
                   }`}
                 />
               </div>
-              {/* Hiển thị lỗi 409: "Email đã tồn tại trong hệ thống" */}
-              {emailConflictError && (
+              {(formErrors.email || emailConflictError) && (
                 <p className="text-xs text-rose-600 font-semibold mt-1.5 flex items-center gap-1.5 animate-fade-in">
                   <AlertCircle size={13} className="shrink-0" />
-                  <span>{emailConflictError}</span>
+                  <span>{formErrors.email || emailConflictError}</span>
                 </p>
               )}
             </div>
@@ -618,14 +699,26 @@ export const StaffManagementPage = () => {
                 <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
                 <input
                   type="tel"
+                  maxLength={20}
                   placeholder="Ví dụ: 0912 345 678"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, phone: e.target.value }))
-                  }
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200/90 bg-stone-50/40 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-900 focus:bg-white transition-all shadow-2xs"
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, phone: e.target.value }));
+                    if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: '' }));
+                  }}
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs placeholder-stone-400 focus:outline-none transition-all shadow-2xs ${
+                    formErrors.phone
+                      ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600'
+                      : 'border-stone-200/90 bg-stone-50/40 text-stone-800 focus:border-stone-900 focus:bg-white'
+                  }`}
                 />
               </div>
+              {formErrors.phone && (
+                <p className="text-xs text-rose-600 font-semibold mt-1.5 flex items-center gap-1.5 animate-fade-in">
+                  <AlertCircle size={13} className="shrink-0" />
+                  <span>{formErrors.phone}</span>
+                </p>
+              )}
             </div>
 
             {/* 4. Select Role (RECEPTIONIST, ADMIN) */}
@@ -859,7 +952,7 @@ export const StaffManagementPage = () => {
                       <td className="py-4 px-4 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5 text-xs text-stone-800 font-medium bg-stone-100/80 px-2.5 py-1 rounded-lg border border-stone-200/70">
                           <Building2 size={12} className="text-stone-500" />
-                          <span>{user.department || 'Quầy Lễ tân'}</span>
+                          <span>{({'FRONT_DESK': 'Quầy Lễ tân', 'HOUSEKEEPING': 'Buồng phòng', 'MANAGEMENT': 'Quản lý'}[user.department]) || user.department || 'Quầy Lễ tân'}</span>
                         </span>
                       </td>
 

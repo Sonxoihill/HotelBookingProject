@@ -8,6 +8,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
+import { validateSafeText, detectMaliciousCode } from '../../utils/sanitize';
 
 export const AddServiceModal = ({
   isOpen,
@@ -18,18 +19,19 @@ export const AddServiceModal = ({
 }) => {
   const isEditing = Boolean(initialData?.id);
 
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     name: '',
-    sku: 'SRV-' + Math.floor(1000 + Math.random() * 9000),
+    sku: '',
     category: 'Minibar & Đồ uống cao cấp',
-    unit: 'Chai / Lon',
-    price: 150000,
+    unit: 'Lần',
+    price: '',
     department: 'Bộ phận F&B & Quầy Bar',
     slaTime: 'Phục vụ ngay trong 15 phút',
     status: 'ACTIVE',
     description: '',
-  });
+  };
 
+  const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -37,10 +39,10 @@ export const AddServiceModal = ({
       setFormData({
         id: initialData.id,
         name: initialData.name || '',
-        sku: initialData.sku || ('SRV-' + Math.floor(1000 + Math.random() * 9000)),
+        sku: initialData.sku || '',
         category: initialData.category || 'Minibar & Đồ uống cao cấp',
-        unit: initialData.unit || 'Chai / Lon',
-        price: initialData.price || 150000,
+        unit: initialData.unit || 'Lần',
+        price: initialData.price !== undefined && initialData.price !== null ? initialData.price : '',
         department: initialData.department || 'Bộ phận F&B & Quầy Bar',
         slaTime: initialData.slaTime || 'Phục vụ ngay trong 15 phút',
         status: initialData.status || 'ACTIVE',
@@ -48,15 +50,8 @@ export const AddServiceModal = ({
       });
     } else {
       setFormData({
-        name: '',
+        ...initialFormState,
         sku: 'SRV-' + Math.floor(1000 + Math.random() * 9000),
-        category: 'Minibar & Đồ uống cao cấp',
-        unit: 'Chai / Lon',
-        price: 150000,
-        department: 'Bộ phận F&B & Quầy Bar',
-        slaTime: 'Phục vụ ngay trong 15 phút',
-        status: 'ACTIVE',
-        description: '',
       });
     }
     setErrors({});
@@ -66,13 +61,50 @@ export const AddServiceModal = ({
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.name?.trim()) {
-      newErrors.name = 'Tên dịch vụ không được để trống.';
+
+    // 1. Tên dịch vụ: Bắt buộc, max 50 ký tự, chống mã độc
+    const nameErr = validateSafeText(formData.name, {
+      fieldName: 'Tên dịch vụ',
+      maxLength: 50,
+      required: true,
+    });
+    if (nameErr) newErrors.name = nameErr;
+
+    // 2. Mã SKU: Tùy chọn, max 50 ký tự, chống mã độc
+    const skuErr = validateSafeText(formData.sku, {
+      fieldName: 'Mã định danh (SKU)',
+      maxLength: 50,
+      required: false,
+    });
+    if (skuErr) newErrors.sku = skuErr;
+
+    // 3. Đơn vị tính: Bắt buộc, max 50 ký tự, chống mã độc
+    const unitErr = validateSafeText(formData.unit, {
+      fieldName: 'Đơn vị tính',
+      maxLength: 50,
+      required: true,
+    });
+    if (unitErr) newErrors.unit = unitErr;
+
+    // 4. Đơn giá: Số hợp lệ > 0
+    const rawPrice = String(formData.price ?? '').trim();
+    if (!rawPrice) {
+      newErrors.price = 'Đơn giá dịch vụ không được để trống.';
+    } else {
+      const priceNum = Number(rawPrice);
+      if (isNaN(priceNum) || priceNum <= 0) {
+        newErrors.price = 'Đơn giá dịch vụ phải là số lớn hơn 0 VND.';
+      }
     }
-    const priceNum = Number(formData.price);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      newErrors.price = 'Đơn giá dịch vụ phải lớn hơn 0 VND.';
+
+    // 5. Mô tả: Chống mã độc
+    if (formData.description) {
+      const descMalware = detectMaliciousCode(formData.description);
+      if (descMalware.hasMalware) {
+        newErrors.description = `Mô tả chứa mã độc hoặc ký tự nguy hiểm (${descMalware.reason}).`;
+      }
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -82,14 +114,15 @@ export const AddServiceModal = ({
     if (!validate()) return;
 
     const payload = {
-      ...formData,
       name: formData.name.trim(),
-      sku: formData.sku?.trim() || `SRV-${Math.floor(1000 + Math.random() * 9000)}`,
       price: Number(formData.price),
       unit: formData.unit?.trim() || 'Lần',
-      category: formData.category?.trim() || 'Dịch vụ chung',
-      status: formData.status || 'ACTIVE',
       description: formData.description?.trim() || '',
+      status: formData.status || 'ACTIVE',
+      sku: formData.sku?.trim() || `SRV-${Math.floor(1000 + Math.random() * 9000)}`,
+      category: formData.category?.trim() || 'Dịch vụ chung',
+      department: formData.department,
+      slaTime: formData.slaTime,
     };
 
     if (onSave) {
@@ -135,6 +168,7 @@ export const AddServiceModal = ({
               </label>
               <input
                 type="text"
+                maxLength={50}
                 placeholder="Ví dụ: Rượu Vang Chateau Margaux Grand Cru"
                 value={formData.name}
                 onChange={(e) => {
@@ -161,11 +195,25 @@ export const AddServiceModal = ({
               </label>
               <input
                 type="text"
+                maxLength={50}
                 placeholder="SRV-1001"
                 value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono focus:outline-none focus:border-stone-900"
+                onChange={(e) => {
+                  setFormData({ ...formData, sku: e.target.value });
+                  if (errors.sku) setErrors({ ...errors, sku: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono focus:outline-none transition-colors ${
+                  errors.sku
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.sku && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.sku}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -192,15 +240,29 @@ export const AddServiceModal = ({
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Đơn vị tính (Unit)
+                Đơn vị tính (Unit) <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
+                maxLength={50}
                 placeholder="Ví dụ: Chai, Set, Liệu trình, Chuyến, Lần..."
                 value={formData.unit}
-                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
+                onChange={(e) => {
+                  setFormData({ ...formData, unit: e.target.value });
+                  if (errors.unit) setErrors({ ...errors, unit: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.unit
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.unit && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.unit}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -215,6 +277,7 @@ export const AddServiceModal = ({
                 type="number"
                 step="10000"
                 min="1"
+                placeholder="Ví dụ: 150000"
                 value={formData.price}
                 onChange={(e) => {
                   setFormData({ ...formData, price: e.target.value });
@@ -258,9 +321,22 @@ export const AddServiceModal = ({
               rows="3"
               placeholder="Mô tả thành phần, quy cách phục vụ, yêu cầu lưu ý..."
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
+                if (errors.description) setErrors({ ...errors, description: null });
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                errors.description
+                  ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                  : 'border-stone-300 focus:border-stone-900'
+              }`}
             ></textarea>
+            {errors.description && (
+              <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                <span>{errors.description}</span>
+              </p>
+            )}
           </div>
 
           {/* Footer Buttons */}

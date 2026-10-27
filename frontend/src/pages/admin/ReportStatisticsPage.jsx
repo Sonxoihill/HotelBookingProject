@@ -65,7 +65,15 @@ export const ReportStatisticsPage = () => {
 
   const [startDate, setStartDate] = useState(defaultRange.start);
   const [endDate, setEndDate] = useState(defaultRange.end);
-  const [reportType, setReportType] = useState('MONTHLY'); // 'DAILY', 'MONTHLY', 'ROOM_TYPE'
+  const [reportType, setReportType] = useState('MONTHLY');
+
+  // Ràng buộc kiểm tra ngày: Từ ngày không được đứng sau Đến ngày
+  const dateError = useMemo(() => {
+    if (startDate && endDate && startDate > endDate) {
+      return 'Từ ngày không được đứng sau Đến ngày.';
+    }
+    return null;
+  }, [startDate, endDate]); // 'DAILY', 'MONTHLY', 'BY_CATEGORY'
 
   // =========================================================================
   // 2. STATE DỮ LIỆU BÁO CÁO & LOADING
@@ -84,61 +92,64 @@ export const ReportStatisticsPage = () => {
   };
 
   // =========================================================================
-  // 3. TẢI DỮ LIỆU BÁO CÁO THỐNG KÊ (XÓA BỎ HOÀN TOÀN MOCK DATA)
+  // 3. TẢI DỮ LIỆU BÁO CÁO THỐNG KÊ TỪ BACKEND (/admin/reports/revenue)
   // =========================================================================
   const fetchReportData = useCallback(async () => {
+    if (startDate && endDate && startDate > endDate) {
+      showToast('Khoảng thời gian không hợp lệ: Từ ngày không được đứng sau Đến ngày.', 'error');
+      return;
+    }
     setIsLoading(true);
     try {
       const params = {
         startDate,
         endDate,
         reportType,
-        type: reportType,
       };
 
-      const response = await reportService.getStatistics(params);
+      const response = await reportService.getRevenueReport(params);
       const data = response?.data || response;
 
-      // Chuẩn hóa và kiểm tra dữ liệu từ Backend
-      if (!data) {
+      // Kiểm tra trạng thái hasData từ RevenueReportResponse DTO
+      if (!data || data.hasData === false) {
         setHasData(false);
         setReportData(null);
         return;
       }
 
+      // Map đúng các trường từ SummaryMetrics DTO
+      const summary = data.summaryMetrics || {};
       const metrics = {
-        totalRevenue: data.metrics?.totalRevenue ?? data.totalRevenue ?? 0,
-        roomRevenue: data.metrics?.roomRevenue ?? data.roomRevenue ?? 0,
-        serviceRevenue: data.metrics?.serviceRevenue ?? data.serviceRevenue ?? 0,
-        occupancyRate: data.metrics?.occupancyRate ?? data.occupancyRate ?? 0,
-        completedBookings: data.metrics?.completedBookings ?? data.completedBookings ?? 0,
-        mostBookedRoomType: data.metrics?.mostBookedRoomType ?? data.mostBookedRoomType ?? 'Chưa xác định',
+        totalRevenue: summary.totalRevenue ?? 0,
+        roomRevenue: summary.roomRevenue ?? 0,
+        serviceRevenue: summary.serviceRevenue ?? 0,
+        completedBookings: summary.completedBookings ?? 0,
+        occupancyRate: summary.occupancyRate ?? 0,
+        mostBookedRoomType: summary.topCategory || 'Chưa xác định',
       };
 
-      const timeline = data.revenueByPeriod || data.timeline || data.chartData || [];
-      const rawRoomTypes = data.revenueByRoomType || data.roomTypes || data.roomTypeShare || [];
+      // Map mốc thời gian từ RevenueByTime DTO: { label, roomRevenue, serviceRevenue, totalRevenue, occupancyRate }
+      const timeline = (data.revenueByTime || []).map((t) => ({
+        ...t,
+        label: t.label || t.period || '',
+        roomRevenue: Number(t.roomRevenue || 0),
+        serviceRevenue: Number(t.serviceRevenue || 0),
+        totalRevenue: Number(t.totalRevenue || 0),
+        occupancyRate: Number(t.occupancyRate || 0),
+      }));
 
-      // Tính tổng doanh thu phòng để bổ sung % nếu API chưa có sẵn
-      const totalRoomRev = rawRoomTypes.reduce(
-        (sum, item) => sum + (item.revenue ?? item.value ?? 0),
-        0
-      );
+      // Map tỷ trọng phòng từ RoomCategoryShare DTO: { categoryName, bookingCount, revenue, percentage }
+      const roomTypes = (data.roomCategoryShare || []).map((c) => ({
+        ...c,
+        categoryName: c.categoryName || 'Hạng phòng',
+        name: c.categoryName || 'Hạng phòng',
+        revenue: Number(c.revenue || 0),
+        value: Number(c.revenue || 0),
+        percentage: Number(c.percentage || 0),
+        bookingCount: Number(c.bookingCount || 0),
+      }));
 
-      const roomTypes = rawRoomTypes.map((item) => {
-        const rev = item.revenue ?? item.value ?? 0;
-        const pct =
-          item.percentage ??
-          item.percent ??
-          (totalRoomRev > 0 ? Number(((rev / totalRoomRev) * 100).toFixed(1)) : 0);
-        return {
-          ...item,
-          name: item.roomTypeName || item.name || 'Hạng phòng',
-          value: rev,
-          percentage: pct,
-        };
-      });
-
-      // Xác định state hasData
+      // Kiểm tra dữ liệu rỗng
       const isEmpty =
         metrics.totalRevenue === 0 &&
         metrics.completedBookings === 0 &&
@@ -149,7 +160,7 @@ export const ReportStatisticsPage = () => {
         setHasData(false);
         setReportData(null);
       } else {
-        setHasData(true);
+        setHasData(Boolean(data.hasData ?? true));
         setReportData({
           metrics,
           timeline,
@@ -158,7 +169,6 @@ export const ReportStatisticsPage = () => {
       }
     } catch (err) {
       console.warn('Không thể tải dữ liệu báo cáo từ API:', err);
-      // Khi không có dữ liệu hoặc API lỗi, set hasData = false để hiển thị Empty State
       setHasData(false);
       setReportData(null);
     } finally {
@@ -166,10 +176,12 @@ export const ReportStatisticsPage = () => {
     }
   }, [startDate, endDate, reportType]);
 
-  // Gọi API lần đầu khi mở trang
+  // Gọi API khi mở trang hoặc khi bộ lọc thay đổi hợp lệ
   useEffect(() => {
-    fetchReportData();
-  }, [fetchReportData]);
+    if (!dateError) {
+      fetchReportData();
+    }
+  }, [fetchReportData, dateError]);
 
   // Đặt lại bộ lọc mặc định
   const handleResetFilters = () => {
@@ -188,23 +200,24 @@ export const ReportStatisticsPage = () => {
     setIsExporting(true);
 
     try {
+      const fileFormat = (format || 'EXCEL').toUpperCase();
       const params = {
         startDate,
         endDate,
         reportType,
-        format,
       };
 
-      const response = await reportService.exportReport(format, params);
+      const response = await reportService.exportReport(fileFormat, params);
 
       // Đọc tên file từ header Content-Disposition
+      const headers = response?.headers || {};
       const disposition =
-        response.headers?.['content-disposition'] ||
-        response.headers?.['Content-Disposition'] ||
-        response.headers?.get?.('content-disposition');
+        headers['content-disposition'] ||
+        headers['Content-Disposition'] ||
+        (headers.get ? headers.get('content-disposition') : null);
 
-      let filename = `Bao_cao_${reportType}_${startDate}_${endDate}.${
-        format === 'excel' ? 'xlsx' : 'pdf'
+      let filename = `Bao_cao_Doanh_thu_${startDate}_${endDate}.${
+        fileFormat === 'EXCEL' ? 'xlsx' : 'pdf'
       }`;
 
       if (disposition) {
@@ -214,13 +227,15 @@ export const ReportStatisticsPage = () => {
         }
       }
 
-      // Tạo thẻ link <a> tạm để tải file xuống
-      const blob = new Blob([response.data], {
+      // Tạo Blob từ dữ liệu nhị phân tải về
+      const blobData = response?.data instanceof Blob ? response.data : new Blob([response.data || response]);
+      const blob = new Blob([blobData], {
         type:
-          format === 'excel'
+          fileFormat === 'EXCEL'
             ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             : 'application/pdf',
       });
+
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -230,7 +245,7 @@ export const ReportStatisticsPage = () => {
       link.remove();
       window.URL.revokeObjectURL(downloadUrl);
 
-      showToast(`Đã xuất file báo cáo ${format.toUpperCase()} thành công!`, 'success');
+      showToast(`Đã xuất file báo cáo ${fileFormat} thành công!`, 'success');
     } catch (err) {
       console.error('Lỗi khi xuất file báo cáo:', err);
       showToast(
@@ -282,22 +297,28 @@ export const ReportStatisticsPage = () => {
         {/* Thanh lọc (Từ ngày, Đến ngày, Report Type, Xem báo cáo, Export) */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Ô chọn Từ ngày */}
-          <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/90 rounded-2xl px-3.5 py-2 shadow-2xs">
+          <div className={`flex items-center gap-2 rounded-2xl px-3.5 py-2 shadow-2xs border transition-colors ${
+            dateError ? 'bg-rose-50/60 border-rose-400' : 'bg-stone-50 border-stone-200/90'
+          }`}>
             <span className="text-[11px] font-semibold text-stone-500 shrink-0">Từ ngày:</span>
             <input
               type="date"
               value={startDate}
+              max={endDate || undefined}
               onChange={(e) => setStartDate(e.target.value)}
               className="bg-transparent text-xs text-stone-800 font-semibold focus:outline-none cursor-pointer"
             />
           </div>
 
           {/* Ô chọn Đến ngày */}
-          <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/90 rounded-2xl px-3.5 py-2 shadow-2xs">
+          <div className={`flex items-center gap-2 rounded-2xl px-3.5 py-2 shadow-2xs border transition-colors ${
+            dateError ? 'bg-rose-50/60 border-rose-400' : 'bg-stone-50 border-stone-200/90'
+          }`}>
             <span className="text-[11px] font-semibold text-stone-500 shrink-0">Đến ngày:</span>
             <input
               type="date"
               value={endDate}
+              min={startDate || undefined}
               onChange={(e) => setEndDate(e.target.value)}
               className="bg-transparent text-xs text-stone-800 font-semibold focus:outline-none cursor-pointer"
             />
@@ -312,7 +333,7 @@ export const ReportStatisticsPage = () => {
             >
               <option value="DAILY">Theo ngày</option>
               <option value="MONTHLY">Theo tháng</option>
-              <option value="ROOM_TYPE">Theo loại phòng</option>
+              <option value="BY_CATEGORY">Theo loại phòng</option>
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-stone-400">
               ▼
@@ -322,8 +343,10 @@ export const ReportStatisticsPage = () => {
           {/* Nút Xem báo cáo */}
           <button
             onClick={fetchReportData}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs hover:shadow-md transition-all cursor-pointer disabled:opacity-60"
+            disabled={isLoading || Boolean(dateError)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs hover:shadow-md transition-all ${
+              dateError ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer disabled:opacity-60'
+            }`}
           >
             {isLoading ? (
               <>
@@ -362,14 +385,14 @@ export const ReportStatisticsPage = () => {
             {isExportMenuOpen && hasData && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-40 animate-scale-up text-xs">
                 <button
-                  onClick={() => handleExport('excel')}
+                  onClick={() => handleExport('EXCEL')}
                   className="w-full px-4 py-2.5 text-left text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer"
                 >
                   <FileSpreadsheet size={15} className="text-emerald-600" />
                   <span>Xuất file Excel (.xlsx)</span>
                 </button>
                 <button
-                  onClick={() => handleExport('pdf')}
+                  onClick={() => handleExport('PDF')}
                   className="w-full px-4 py-2.5 text-left text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer"
                 >
                   <FileText size={15} className="text-rose-600" />
@@ -379,6 +402,12 @@ export const ReportStatisticsPage = () => {
             )}
           </div>
         </div>
+        {dateError && (
+          <div className="w-full text-xs text-rose-600 font-semibold flex items-center gap-1.5 animate-fade-in pt-3 border-t border-rose-100">
+            <AlertCircle size={14} className="shrink-0 text-rose-500" />
+            <span>{dateError}</span>
+          </div>
+        )}
       </div>
 
       {/* =================================================================== */}
@@ -434,7 +463,7 @@ export const ReportStatisticsPage = () => {
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F4" />
                       <XAxis
-                        dataKey="period"
+                        dataKey="label"
                         stroke="#78716C"
                         fontSize={11}
                         tickLine={false}
@@ -496,8 +525,8 @@ export const ReportStatisticsPage = () => {
                     <PieChart>
                       <Pie
                         data={reportData?.roomTypes || []}
-                        dataKey="value"
-                        nameKey="name"
+                        dataKey="revenue"
+                        nameKey="categoryName"
                         cx="50%"
                         cy="50%"
                         innerRadius={55}
@@ -546,7 +575,7 @@ export const ReportStatisticsPage = () => {
                         }}
                       ></span>
                       <span className="text-stone-700 truncate font-medium">
-                        {item.name}
+                        {item.categoryName}
                       </span>
                     </div>
                     <span className="font-bold text-stone-900 shrink-0">
@@ -589,7 +618,7 @@ export const ReportStatisticsPage = () => {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F4" />
                   <XAxis
-                    dataKey="period"
+                    dataKey="label"
                     stroke="#78716C"
                     fontSize={11}
                     tickLine={false}

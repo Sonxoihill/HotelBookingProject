@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import { validateSafeText, detectMaliciousCode } from '../../utils/sanitize';
 
 export const AddRoomModal = ({
   isOpen,
@@ -72,9 +73,36 @@ export const AddRoomModal = ({
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.roomNumber?.trim()) {
-      newErrors.roomNumber = 'Số phòng định danh không được để trống.';
+
+    // 1. Số phòng: Bắt buộc, max 50 ký tự, chống mã độc
+    const roomNumberErr = validateSafeText(formData.roomNumber, {
+      fieldName: 'Số phòng',
+      maxLength: 50,
+      required: true,
+    });
+    if (roomNumberErr) newErrors.roomNumber = roomNumberErr;
+
+    // 2. Thuộc loại phòng: Bắt buộc
+    if (!formData.roomTypeId) {
+      newErrors.roomTypeId = 'Vui lòng chọn loại phòng áp dụng.';
     }
+
+    // 3. Mã thẻ từ (RFID): max 50 ký tự, chống mã độc
+    const rfidErr = validateSafeText(formData.rfidCode, {
+      fieldName: 'Mã thẻ từ (RFID)',
+      maxLength: 50,
+      required: false,
+    });
+    if (rfidErr) newErrors.rfidCode = rfidErr;
+
+    // 4. Ghi chú: Chống mã độc
+    if (formData.notes) {
+      const notesMalware = detectMaliciousCode(formData.notes);
+      if (notesMalware.hasMalware) {
+        newErrors.notes = `Ghi chú chứa mã độc hoặc ký tự nguy hiểm (${notesMalware.reason}).`;
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -85,13 +113,14 @@ export const AddRoomModal = ({
 
     const selectedType = roomTypes.find((r) => String(r.id) === String(formData.roomTypeId)) || roomTypes[0];
     const floorNumber = parseInt(String(formData.floor).replace(/\D/g, ''), 10) || 1;
+    const categoryIdNum = Number(selectedType?.id || formData.roomTypeId);
 
     const payload = {
       ...formData,
       roomNumber: formData.roomNumber.trim(),
       floor: floorNumber,
-      roomTypeId: selectedType?.id || formData.roomTypeId,
-      categoryId: selectedType?.id || formData.roomTypeId,
+      roomTypeId: categoryIdNum,
+      categoryId: categoryIdNum,
       roomTypeName: selectedType?.name || 'Hạng phòng cao cấp',
       roomTypeCode: selectedType?.code || 'RM-CAT',
     };
@@ -144,6 +173,7 @@ export const AddRoomModal = ({
                 </label>
                 <input
                   type="text"
+                  maxLength={50}
                   placeholder="Ví dụ: 101, 201, P1205"
                   value={formData.roomNumber}
                   onChange={(e) => {
@@ -170,8 +200,15 @@ export const AddRoomModal = ({
                 </label>
                 <select
                   value={formData.roomTypeId}
-                  onChange={(e) => setFormData({ ...formData, roomTypeId: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
+                  onChange={(e) => {
+                    setFormData({ ...formData, roomTypeId: e.target.value });
+                    if (errors.roomTypeId) setErrors({ ...errors, roomTypeId: null });
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                    errors.roomTypeId
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
                 >
                   {roomTypes.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -182,6 +219,12 @@ export const AddRoomModal = ({
                     <option value="">Chưa có loại phòng</option>
                   )}
                 </select>
+                {errors.roomTypeId && (
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle size={12} />
+                    <span>{errors.roomTypeId}</span>
+                  </p>
+                )}
               </div>
 
               <div>
@@ -234,10 +277,24 @@ export const AddRoomModal = ({
                 </label>
                 <input
                   type="text"
+                  maxLength={50}
                   value={formData.rfidCode}
-                  onChange={(e) => setFormData({ ...formData, rfidCode: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono focus:outline-none focus:border-stone-900"
+                  onChange={(e) => {
+                    setFormData({ ...formData, rfidCode: e.target.value });
+                    if (errors.rfidCode) setErrors({ ...errors, rfidCode: null });
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono focus:outline-none transition-colors ${
+                    errors.rfidCode
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
                 />
+                {errors.rfidCode && (
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle size={12} />
+                    <span>{errors.rfidCode}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -291,10 +348,23 @@ export const AddRoomModal = ({
             <textarea
               rows="2"
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+              onChange={(e) => {
+                setFormData({ ...formData, notes: e.target.value });
+                if (errors.notes) setErrors({ ...errors, notes: null });
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                errors.notes
+                  ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                  : 'border-stone-300 focus:border-stone-900'
+              }`}
               placeholder="Ghi chú thêm về trang thiết bị, tình trạng phòng..."
             ></textarea>
+            {errors.notes && (
+              <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                <span>{errors.notes}</span>
+              </p>
+            )}
           </div>
 
           {/* Footer Buttons */}

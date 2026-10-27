@@ -2,43 +2,42 @@ import axiosInstance from './axiosInstance';
 
 /**
  * Service xử lý: Báo cáo & Thống kê (Admin) - Scrum 53
- * Hỗ trợ lấy dữ liệu thống kê tổng hợp, doanh thu, công suất phòng và xuất file Excel/PDF
+ * Kết nối API Backend:
+ * - GET /admin/reports/revenue (báo cáo doanh thu, KPIs, biểu đồ thời gian & tỷ trọng phòng)
+ * - GET /admin/reports/export/{format} (xuất file EXCEL hoặc PDF dạng blob)
  */
 export const reportService = {
-  // Lấy báo cáo thống kê tổng hợp (Từ ngày, Đến ngày, Report Type)
-  getStatistics: async (params) => {
-    return await axiosInstance.get('/admin/reports/statistics', { params });
-  },
-
-  // Lấy báo cáo doanh thu theo mốc thời gian
+  // Lấy báo cáo doanh thu và công suất phòng (startDate, endDate, reportType)
   getRevenueReport: async (params) => {
     return await axiosInstance.get('/admin/reports/revenue', { params });
   },
 
-  // Lấy báo cáo công suất phòng (Occupancy)
-  getOccupancyReport: async (params) => {
-    return await axiosInstance.get('/admin/reports/occupancy', { params });
+  // Alias getStatistics đồng bộ với getRevenueReport
+  getStatistics: async (params) => {
+    return await axiosInstance.get('/admin/reports/revenue', { params });
   },
 
-  // Lấy các chỉ số KPI tổng quan (Dashboard Admin)
-  getDashboardOverview: async (params) => {
-    return await axiosInstance.get('/admin/reports/overview', { params });
-  },
-
-  // Xuất file báo cáo (Excel / PDF) với cấu hình responseType: 'blob'
+  // Xuất file báo cáo (format: 'EXCEL' hoặc 'PDF') với responseType: 'blob'
   exportReport: async (format, params) => {
-    return await axiosInstance.get(`/admin/reports/export/${format}`, {
+    const fileFormat = (format || 'EXCEL').toUpperCase();
+    return await axiosInstance.get(`/admin/reports/export/${fileFormat}`, {
       params,
       responseType: 'blob',
     });
   },
 
-  // Dự phòng xuất file qua endpoint query ?format=...
-  exportReportWithFormat: async (params) => {
+  // Xuất file báo cáo dạng query param
+  exportReportWithQuery: async (format, params) => {
+    const fileFormat = (format || 'EXCEL').toUpperCase();
     return await axiosInstance.get('/admin/reports/export', {
-      params,
+      params: { ...params, format: fileFormat },
       responseType: 'blob',
     });
+  },
+
+  // Lấy các chỉ số KPI tổng quan (nếu cần)
+  getDashboardOverview: async (params) => {
+    return await axiosInstance.get('/admin/reports/revenue', { params });
   },
 };
 

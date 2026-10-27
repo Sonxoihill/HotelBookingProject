@@ -159,6 +159,7 @@ export const BookingPaymentPage = () => {
 
   // Trích xuất danh sách giá từng đêm từ dữ liệu priceQuote trả về từ API
   const dailyPrices =
+    priceQuote?.nights ||
     priceQuote?.dailyPrices ||
     priceQuote?.dailyRates ||
     priceQuote?.nightlyPrices ||
@@ -622,8 +623,8 @@ export const BookingPaymentPage = () => {
                 </span>
                 {dailyPrices.map((item, idx) => {
                   const nightDate = item.date || item.nightDate || '';
-                  const nightPrice = item.price || item.finalPrice || item.rate || 0;
-                  const ruleName = item.ruleName || item.appliedRuleName || item.rule || '';
+                  const nightPrice = item.finalPrice ?? item.price ?? item.rate ?? 0;
+                  const ruleName = item.appliedRuleName || item.ruleName || item.rule || '';
                   const percent = item.adjustmentPercent ?? item.percentage ?? 0;
                   const hasAdjustment = Boolean(ruleName || percent !== 0);
 

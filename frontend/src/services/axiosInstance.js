@@ -37,6 +37,10 @@ axiosInstance.interceptors.request.use(
  */
 axiosInstance.interceptors.response.use(
   (response) => {
+    // Đối với response dạng blob (xuất file Excel/PDF), giữ nguyên response để đọc Content-Disposition header
+    if (response.config?.responseType === 'blob') {
+      return response;
+    }
     return response.data;
   },
   (error) => {

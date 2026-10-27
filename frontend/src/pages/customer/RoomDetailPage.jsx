@@ -479,6 +479,7 @@ export const RoomDetailPage = () => {
 
   // Trích xuất danh sách giá từng đêm từ dữ liệu priceQuote trả về từ API
   const dailyPrices =
+    priceQuote?.nights ||
     priceQuote?.dailyPrices ||
     priceQuote?.dailyRates ||
     priceQuote?.nightlyPrices ||

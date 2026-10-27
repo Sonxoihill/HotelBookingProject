@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { validateSafeText } from '../../utils/sanitize';
 import {
   X,
   BadgePercent,
@@ -75,9 +76,12 @@ export const AddPricingRuleModal = ({
   const validateClient = () => {
     const errs = {};
 
-    if (!formData.name?.trim()) {
-      errs.name = 'Tên quy tắc không được để trống.';
-    }
+    const nameErr = validateSafeText(formData.name, {
+      fieldName: 'Tên quy tắc',
+      maxLength: 50,
+      required: true,
+    });
+    if (nameErr) errs.name = nameErr;
 
     if (!formData.startDate) {
       errs.startDate = 'Vui lòng chọn ngày bắt đầu.';
@@ -86,7 +90,7 @@ export const AddPricingRuleModal = ({
     if (!formData.endDate) {
       errs.endDate = 'Vui lòng chọn ngày kết thúc.';
     } else if (formData.startDate && formData.endDate < formData.startDate) {
-      errs.dateRange = 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.';
+      errs.dateRange = 'Từ ngày không được đứng sau Đến ngày.';
     }
 
     const percentNum = Number(formData.adjustmentPercent);
@@ -204,7 +208,8 @@ export const AddPricingRuleModal = ({
             </label>
             <input
               type="text"
-              placeholder="Ví dụ: Phụ thu Cuối tuần Mùa hè 2026, Giảm giá Mùa thấp điểm..."
+              maxLength={50}
+              placeholder="Ví dụ: Phụ thu Cuối tuần Mùa hè 2026, Giảm giá Mùa thấp điểm... (tối đa 50 ký tự)"
               value={formData.name}
               onChange={(e) => {
                 setFormData({ ...formData, name: e.target.value });
@@ -257,6 +262,7 @@ export const AddPricingRuleModal = ({
               </label>
               <input
                 type="date"
+                max={formData.endDate || undefined}
                 value={formData.startDate}
                 onChange={(e) => {
                   setFormData({ ...formData, startDate: e.target.value });
@@ -285,6 +291,7 @@ export const AddPricingRuleModal = ({
               </label>
               <input
                 type="date"
+                min={formData.startDate || undefined}
                 value={formData.endDate}
                 onChange={(e) => {
                   setFormData({ ...formData, endDate: e.target.value });

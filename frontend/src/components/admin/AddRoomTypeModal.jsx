@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
+import { validateSafeText, detectMaliciousCode } from '../../utils/sanitize';
 
 export const AddRoomTypeModal = ({
   isOpen,
@@ -25,7 +26,7 @@ export const AddRoomTypeModal = ({
     code: '',
     category: 'Penthouse',
     badge: 'VIP SIGNATURE',
-    area: '120 m²',
+    area: 85,
     capacity: 2,
     maxGuests: 2,
     maxChildren: 1,
@@ -41,13 +42,16 @@ export const AddRoomTypeModal = ({
 
   useEffect(() => {
     if (initialData) {
+      const parsedArea = initialData.area
+        ? parseFloat(String(initialData.area).replace(/[^0-9.]/g, '')) || 50
+        : 85;
       setFormData({
         id: initialData.id,
         name: initialData.name || '',
         code: initialData.code || '',
         category: initialData.category || 'Penthouse',
         badge: initialData.badge || 'VIP SIGNATURE',
-        area: initialData.area ? String(initialData.area) : '120 m²',
+        area: parsedArea,
         capacity: initialData.capacity || initialData.maxGuests || 2,
         maxGuests: initialData.maxGuests || initialData.capacity || 2,
         maxChildren: initialData.maxChildren ?? 1,
@@ -64,7 +68,7 @@ export const AddRoomTypeModal = ({
         code: '',
         category: 'Penthouse',
         badge: 'VIP SIGNATURE',
-        area: '120 m²',
+        area: 85,
         capacity: 2,
         maxGuests: 2,
         maxChildren: 1,
@@ -83,13 +87,79 @@ export const AddRoomTypeModal = ({
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.name?.trim()) {
-      newErrors.name = 'Tên loại phòng không được để trống.';
+
+    // 1. Tên loại phòng: Bắt buộc, max 50 ký tự, chống mã độc
+    const nameErr = validateSafeText(formData.name, {
+      fieldName: 'Tên loại phòng',
+      maxLength: 50,
+      required: true,
+    });
+    if (nameErr) newErrors.name = nameErr;
+
+    // 2. Mã định danh: Tùy chọn, max 50 ký tự, chống mã độc
+    const codeErr = validateSafeText(formData.code, {
+      fieldName: 'Mã định danh',
+      maxLength: 50,
+      required: false,
+    });
+    if (codeErr) newErrors.code = codeErr;
+
+    // 3. Phân loại phong cách: max 50 ký tự, chống mã độc
+    const categoryErr = validateSafeText(formData.category, {
+      fieldName: 'Phân loại phong cách',
+      maxLength: 50,
+      required: false,
+    });
+    if (categoryErr) newErrors.category = categoryErr;
+
+    // 4. Huy hiệu nhận diện: max 50 ký tự, chống mã độc
+    const badgeErr = validateSafeText(formData.badge, {
+      fieldName: 'Huy hiệu nhận diện',
+      maxLength: 50,
+      required: false,
+    });
+    if (badgeErr) newErrors.badge = badgeErr;
+
+    // 5. Quy cách giường: max 50 ký tự, chống mã độc
+    const bedTypeErr = validateSafeText(formData.bedType, {
+      fieldName: 'Quy cách giường',
+      maxLength: 50,
+      required: false,
+    });
+    if (bedTypeErr) newErrors.bedType = bedTypeErr;
+
+    // 6. Diện tích: Chỉ điền số, mặc định m², phải > 0
+    const rawArea = String(formData.area ?? '').trim();
+    if (!rawArea) {
+      newErrors.area = 'Vui lòng nhập diện tích phòng.';
+    } else {
+      const areaNum = Number(rawArea);
+      if (isNaN(areaNum) || areaNum <= 0) {
+        newErrors.area = 'Diện tích chỉ điền số và phải lớn hơn 0 m².';
+      }
     }
+
+    // 7. Giá cơ bản
     const priceNum = Number(formData.basePrice);
-    if (isNaN(priceNum) || priceNum <= 0) {
+    if (!formData.basePrice || isNaN(priceNum) || priceNum <= 0) {
       newErrors.basePrice = 'Giá cơ bản phải lớn hơn 0 VND.';
     }
+
+    // 8. Chống mã độc cho mô tả và URL ảnh
+    if (formData.description) {
+      const descMalware = detectMaliciousCode(formData.description);
+      if (descMalware.hasMalware) {
+        newErrors.description = `Mô tả chứa mã độc hoặc ký tự nguy hiểm (${descMalware.reason}).`;
+      }
+    }
+
+    if (formData.imageUrl) {
+      const imgMalware = detectMaliciousCode(formData.imageUrl);
+      if (imgMalware.hasMalware) {
+        newErrors.imageUrl = `URL hình ảnh chứa mã độc hoặc ký tự nguy hiểm (${imgMalware.reason}).`;
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -109,7 +179,7 @@ export const AddRoomTypeModal = ({
       maxChildren: Number(formData.maxChildren || 0),
       bedCount: Number(formData.bedCount || 1),
       numberOfBeds: Number(formData.bedCount || 1),
-      area: formData.area?.trim() || '50 m²',
+      area: parseFloat(String(formData.area)) || 50,
     };
 
     if (onSave) {
@@ -155,7 +225,8 @@ export const AddRoomTypeModal = ({
               </label>
               <input
                 type="text"
-                placeholder="Ví dụ: Grand Celestial Penthouse"
+                maxLength={50}
+                placeholder="Ví dụ: Grand Celestial Penthouse (tối đa 50 ký tự)"
                 value={formData.name}
                 onChange={(e) => {
                   setFormData({ ...formData, name: e.target.value });
@@ -180,11 +251,25 @@ export const AddRoomTypeModal = ({
               </label>
               <input
                 type="text"
+                maxLength={50}
                 placeholder="PNT-GCP-01"
                 value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono focus:outline-none focus:border-stone-900"
+                onChange={(e) => {
+                  setFormData({ ...formData, code: e.target.value });
+                  if (errors.code) setErrors({ ...errors, code: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono focus:outline-none transition-colors ${
+                  errors.code
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.code && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.code}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -196,11 +281,25 @@ export const AddRoomTypeModal = ({
               </label>
               <input
                 type="text"
+                maxLength={50}
                 placeholder="Ví dụ: Penthouse, Suites Hướng Biển..."
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
+                onChange={(e) => {
+                  setFormData({ ...formData, category: e.target.value });
+                  if (errors.category) setErrors({ ...errors, category: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.category
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.category && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.category}</span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -209,11 +308,25 @@ export const AddRoomTypeModal = ({
               </label>
               <input
                 type="text"
+                maxLength={50}
                 placeholder="Ví dụ: VIP SIGNATURE, PRIVATE POOL..."
                 value={formData.badge}
-                onChange={(e) => setFormData({ ...formData, badge: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
+                onChange={(e) => {
+                  setFormData({ ...formData, badge: e.target.value });
+                  if (errors.badge) setErrors({ ...errors, badge: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.badge
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.badge && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.badge}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -277,18 +390,39 @@ export const AddRoomTypeModal = ({
               />
             </div>
 
+            {/* Diện tích: Chỉ điền số, mặc định là mét vuông m² */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
                 <Maximize2 size={12} className="text-stone-500" />
-                <span>Diện tích</span>
+                <span>Diện tích (m²) <span className="text-rose-500">*</span></span>
               </label>
-              <input
-                type="text"
-                placeholder="Ví dụ: 85 m²"
-                value={formData.area}
-                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.5"
+                  min="1"
+                  placeholder="Ví dụ: 85"
+                  value={formData.area}
+                  onChange={(e) => {
+                    setFormData({ ...formData, area: e.target.value });
+                    if (errors.area) setErrors({ ...errors, area: null });
+                  }}
+                  className={`w-full pl-3.5 pr-8 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    errors.area
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-stone-400 pointer-events-none">
+                  m²
+                </span>
+              </div>
+              {errors.area && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.area}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -300,11 +434,25 @@ export const AddRoomTypeModal = ({
               </label>
               <input
                 type="text"
+                maxLength={50}
                 placeholder="Ví dụ: 01 Giường King Bed 2.0m x 2.2m"
                 value={formData.bedType}
-                onChange={(e) => setFormData({ ...formData, bedType: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+                onChange={(e) => {
+                  setFormData({ ...formData, bedType: e.target.value });
+                  if (errors.bedType) setErrors({ ...errors, bedType: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                  errors.bedType
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.bedType && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.bedType}</span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -317,8 +465,15 @@ export const AddRoomTypeModal = ({
                   type="url"
                   placeholder="https://..."
                   value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+                  onChange={(e) => {
+                    setFormData({ ...formData, imageUrl: e.target.value });
+                    if (errors.imageUrl) setErrors({ ...errors, imageUrl: null });
+                  }}
+                  className={`flex-1 px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    errors.imageUrl
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
                 />
                 {formData.imageUrl && (
                   <img
@@ -331,6 +486,12 @@ export const AddRoomTypeModal = ({
                   />
                 )}
               </div>
+              {errors.imageUrl && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.imageUrl}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -343,9 +504,22 @@ export const AddRoomTypeModal = ({
               rows="3"
               placeholder="Mô tả không gian, tầm nhìn, tiện nghi nổi bật..."
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
+                if (errors.description) setErrors({ ...errors, description: null });
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                errors.description
+                  ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                  : 'border-stone-300 focus:border-stone-900'
+              }`}
             ></textarea>
+            {errors.description && (
+              <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                <span>{errors.description}</span>
+              </p>
+            )}
           </div>
 
           {/* Footer Buttons */}

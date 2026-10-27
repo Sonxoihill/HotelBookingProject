@@ -1,142 +1,163 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ConciergeBell,
   Search,
   Plus,
   Edit2,
   Trash2,
-  Download,
   Coins,
   Sparkles,
-  Utensils,
-  Car,
-  Wine,
   CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  RefreshCw,
+  Utensils,
+  Tag,
   Clock,
-  MoreVertical,
-  ShieldCheck,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
+import serviceService from '../../services/serviceService';
 import AddServiceModal from '../../components/admin/AddServiceModal';
-
-const INITIAL_SERVICES = [
-  {
-    id: 1,
-    name: 'Rượu vang Chateau Margaux Grand Cru',
-    sku: 'MB-WINE-01',
-    category: 'Minibar & Đồ uống cao cấp',
-    unit: 'Chai 750ml',
-    price: 3800000,
-    department: 'Bộ phận F&B & Quầy Bar',
-    slaTime: 'Phục vụ ngay trong 15 phút',
-    status: 'ACTIVE',
-    statusLabel: 'Đang phục vụ',
-  },
-  {
-    id: 2,
-    name: 'Bữa sáng Floating Breakfast tại hồ bơi riêng',
-    sku: 'FNB-FLT-02',
-    category: 'In-room Dining (Ẩm thực tại phòng)',
-    unit: 'Set 2 người',
-    price: 1450000,
-    department: 'Bếp trưởng & Bếp phòng',
-    slaTime: 'Báo trước 30 phút',
-    status: 'ACTIVE',
-    statusLabel: 'Đang phục vụ',
-  },
-  {
-    id: 3,
-    name: 'Liệu trình Spa Thảo mộc Cung đình 90 phút',
-    sku: 'SPA-ROY-03',
-    category: 'Dịch vụ Spa & Wellness',
-    unit: 'Liệu trình (90 Phút)',
-    price: 2200000,
-    department: "L'Étoile Spa & Trị liệu",
-    slaTime: 'Báo trước 02 giờ',
-    status: 'ACTIVE',
-    statusLabel: 'Đang phục vụ',
-  },
-  {
-    id: 4,
-    name: 'Đưa đón sân bay Cam Ranh 1 chiều xe Maybach S680',
-    sku: 'TRN-MAY-04',
-    category: 'Đưa đón xe sang Maybach',
-    unit: 'Chuyến 1 chiều',
-    price: 2500000,
-    department: 'Đội xe & Concierge sân bay',
-    slaTime: 'Đặt trước 24 giờ',
-    status: 'ACTIVE',
-    statusLabel: 'Đang phục vụ',
-  },
-  {
-    id: 5,
-    name: 'Tour Du thuyền ngắm hoàng hôn vịnh biển',
-    sku: 'EXP-YCT-05',
-    category: 'Tour & Du thuyền riêng biệt',
-    unit: 'Chuyến riêng 4 giờ',
-    price: 18500000,
-    department: 'Đội xe & Concierge sân bay',
-    slaTime: 'Đặt trước 24 giờ',
-    status: 'ACTIVE',
-    statusLabel: 'Đang phục vụ',
-  },
-  {
-    id: 6,
-    name: 'Giặt sấy ủi cao cấp trang phục dạ tiệc',
-    sku: 'LND-EXP-06',
-    category: 'Giặt ủi & Chăm sóc trang phục',
-    unit: 'Bộ',
-    price: 350000,
-    department: 'Buồng phòng & Giặt ủi',
-    slaTime: 'Phục vụ ngay trong 15 phút',
-    status: 'ACTIVE',
-    statusLabel: 'Đang phục vụ',
-  },
-];
+import ConfirmDeleteModal from '../../components/common/ConfirmDeleteModal';
 
 export const ServiceManagementPage = () => {
-  const [services, setServices] = useState(INITIAL_SERVICES);
+  const [services, setServices] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
+  const [toast, setToast] = useState(null); // { message, type: 'success' | 'warning' | 'error' }
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3500);
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingService, setEditingService] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    item: null,
+    isDeleting: false,
+  });
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4500);
   };
 
-  const handleAddService = (newServiceData) => {
-    const created = {
-      id: Date.now(),
-      ...newServiceData,
-      status: 'ACTIVE',
-      statusLabel: 'Đang phục vụ',
-    };
-    setServices([created, ...services]);
-    showToast(`Đã thêm dịch vụ "${created.name}" thành công!`);
-  };
+  // Tải danh sách dịch vụ từ API (Xóa toàn bộ mock data)
+  const fetchServices = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      let list = [];
+      try {
+        const res = await serviceService.getAdminServices();
+        const data = res?.data || res;
+        list = Array.isArray(data) ? data : (data?.content || data?.items || []);
+      } catch (adminErr) {
+        console.warn('Thử gọi getServices():', adminErr);
+        const fbRes = await serviceService.getServices();
+        const fbData = fbRes?.data || fbRes;
+        list = Array.isArray(fbData) ? fbData : (fbData?.content || fbData?.items || []);
+      }
+      setServices(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Lỗi khi tải danh sách dịch vụ:', err);
+      const msg = err.response?.data?.message || err.message || 'Không thể tải danh sách dịch vụ từ máy chủ.';
+      showToast(msg, 'error');
+      setServices([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const handleDelete = (id, name) => {
-    if (window.confirm(`Xóa dịch vụ "${name}" khỏi danh mục phục vụ?`)) {
-      setServices(services.filter((s) => s.id !== id));
-      showToast(`Đã xóa dịch vụ "${name}"`);
+  useEffect(() => {
+    fetchServices();
+  }, [fetchServices]);
+
+  // Thêm hoặc sửa dịch vụ
+  const handleSaveService = async (payload) => {
+    try {
+      if (editingService?.id) {
+        await serviceService.updateService(editingService.id, payload);
+        showToast(`Cập nhật dịch vụ "${payload.name}" thành công!`, 'success');
+      } else {
+        await serviceService.createService(payload);
+        showToast(`Thêm mới dịch vụ "${payload.name}" thành công!`, 'success');
+      }
+      setIsModalOpen(false);
+      setEditingService(null);
+      await fetchServices();
+    } catch (err) {
+      console.error('Lỗi khi lưu dịch vụ:', err);
+      const status = err.response?.status || err.status;
+      const msg = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi lưu dịch vụ.';
+      showToast(msg, 'error');
     }
   };
 
+  // Mở modal xác nhận xóa dịch vụ
+  const handleOpenDelete = (service) => {
+    setDeleteModal({
+      isOpen: true,
+      item: service,
+      isDeleting: false,
+    });
+  };
+
+  // Xác nhận xóa dịch vụ
+  const handleConfirmDelete = async () => {
+    const item = deleteModal.item;
+    if (!item?.id) return;
+
+    setDeleteModal((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      const res = await serviceService.deleteService(item.id);
+      const resMsg =
+        (typeof res === 'string' ? res : (res?.message || res?.data?.message || ''));
+
+      // Riêng trang Dịch vụ: Nếu response trả về thông báo có chuỗi "chuyển sang Ngừng hoạt động"
+      // -> hiện Toast cảnh báo màu vàng, rồi gọi lại hàm tải danh sách.
+      if (resMsg && resMsg.includes('chuyển sang Ngừng hoạt động')) {
+        showToast(resMsg, 'warning');
+      } else {
+        showToast(resMsg || `Đã xóa dịch vụ "${item.name}" thành công!`, 'success');
+      }
+
+      setDeleteModal({ isOpen: false, item: null, isDeleting: false });
+      await fetchServices();
+    } catch (err) {
+      console.error('Lỗi khi xóa dịch vụ:', err);
+      const status = err.response?.status || err.status;
+      const msg = err.response?.data?.message || err.message || 'Không thể xóa dịch vụ này.';
+
+      // Bắt lỗi catch từ axios: Nếu status là 400 hoặc 409 -> hiện Toast lỗi lấy đúng nội dung backend trả về
+      // Hoặc nếu backend trả về message chứa "chuyển sang Ngừng hoạt động"
+      if (msg.includes('chuyển sang Ngừng hoạt động')) {
+        showToast(msg, 'warning');
+        setDeleteModal({ isOpen: false, item: null, isDeleting: false });
+        await fetchServices();
+      } else {
+        showToast(msg, 'error');
+        setDeleteModal((prev) => ({ ...prev, isDeleting: false }));
+      }
+    }
+  };
+
+  // Lọc theo danh mục và tìm kiếm
   const filteredServices = useMemo(() => {
-    return services.filter((s) => {
+    return services.filter((srv) => {
+      const srvCat = srv.category || '';
       const matchCat =
         activeCategory === 'ALL' ||
-        (activeCategory === 'MINIBAR' && s.category.includes('Minibar')) ||
-        (activeCategory === 'DINING' && s.category.includes('Dining')) ||
-        (activeCategory === 'SPA' && s.category.includes('Spa')) ||
-        (activeCategory === 'TRANSPORT' && s.category.includes('Maybach'));
+        (activeCategory === 'MINIBAR' && srvCat.toLowerCase().includes('minibar')) ||
+        (activeCategory === 'DINING' && (srvCat.toLowerCase().includes('dining') || srvCat.toLowerCase().includes('ẩm thực'))) ||
+        (activeCategory === 'SPA' && (srvCat.toLowerCase().includes('spa') || srvCat.toLowerCase().includes('wellness'))) ||
+        (activeCategory === 'TRANSPORT' && (srvCat.toLowerCase().includes('maybach') || srvCat.toLowerCase().includes('xe')));
 
+      const term = searchTerm.toLowerCase();
       const matchSearch =
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.category.toLowerCase().includes(searchTerm.toLowerCase());
+        !searchTerm.trim() ||
+        srv.name?.toLowerCase().includes(term) ||
+        srv.sku?.toLowerCase().includes(term) ||
+        srvCat.toLowerCase().includes(term) ||
+        srv.description?.toLowerCase().includes(term);
 
       return matchCat && matchSearch;
     });
@@ -145,10 +166,24 @@ export const ServiceManagementPage = () => {
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Alert */}
-      {toastMessage && (
-        <div className="fixed top-20 right-8 z-50 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-xl border border-stone-700 flex items-center gap-3 animate-fade-in text-xs font-medium">
-          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+      {toast && (
+        <div
+          className={`fixed top-20 right-8 z-50 px-5 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 animate-fade-in text-xs font-semibold ${
+            toast.type === 'error'
+              ? 'bg-rose-900/95 text-white border-rose-700'
+              : toast.type === 'warning'
+              ? 'bg-amber-800/95 text-white border-amber-600'
+              : 'bg-stone-900/95 text-white border-stone-700'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle size={17} className="text-rose-400 shrink-0" />
+          ) : toast.type === 'warning' ? (
+            <AlertTriangle size={17} className="text-amber-300 shrink-0" />
+          ) : (
+            <CheckCircle2 size={17} className="text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 
@@ -162,22 +197,27 @@ export const ServiceManagementPage = () => {
             Quản lý Danh mục Dịch vụ
           </h1>
           <p className="text-xs text-stone-500 mt-1 max-w-2xl">
-            Cấu hình bảng giá thực đơn ẩm thực tại phòng, minibar rượu vang, spa & wellness, đưa đón xe sang Maybach và trải nghiệm riêng biệt.
+            Cấu hình bảng giá thực đơn ẩm thực tại phòng, minibar rượu vang, spa & wellness, đưa đón xe sang Maybach và dịch vụ bổ sung.
           </p>
         </div>
 
         {/* Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => showToast('Đang kết xuất bảng giá dịch vụ Menu PDF chuẩn 5 sao...')}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-stone-200/90 text-stone-700 text-xs font-semibold hover:bg-stone-50 shadow-2xs transition-colors cursor-pointer"
+            onClick={fetchServices}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-white border border-stone-200/90 text-stone-700 text-xs font-semibold hover:bg-stone-50 shadow-2xs transition-colors cursor-pointer"
+            title="Làm mới danh sách"
           >
-            <Download size={14} className="text-stone-500" />
-            <span>Xuất thực đơn / Menu PDF</span>
+            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+            <span>Làm mới</span>
           </button>
 
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              setEditingService(null);
+              setIsModalOpen(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 rounded-full bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <Plus size={14} />
@@ -186,9 +226,8 @@ export const ServiceManagementPage = () => {
         </div>
       </div>
 
-      {/* 2. 4 KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Card 1 */}
+      {/* 2. KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
@@ -199,65 +238,50 @@ export const ServiceManagementPage = () => {
             </div>
           </div>
           <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            {services.length} <span className="text-sm font-normal font-sans text-stone-500">mục dịch vụ</span>
+            {services.length < 10 ? '0' + services.length : services.length}{' '}
+            <span className="text-sm font-normal font-sans text-stone-500">Mục tiện ích</span>
           </div>
-          <div className="text-[11px] text-stone-500 mt-2">
-            Đang niêm yết phục vụ khách
-          </div>
-        </div>
-
-        {/* Card 2 */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
-              DANH MỤC HOẠT ĐỘNG
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-[#FAF5EE] flex items-center justify-center text-amber-800">
-              <Utensils size={16} />
-            </div>
-          </div>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            06 <span className="text-sm font-normal font-sans text-stone-500">nhóm dịch vụ</span>
-          </div>
-          <div className="text-[11px] text-stone-500 mt-2">
-            Minibar, F&B, Spa, Xe sang, Tour, Giặt
+          <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Khả dụng cho lễ tân & khách đặt</span>
           </div>
         </div>
 
-        {/* Card 3 */}
         <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
-              TỶ LỆ GHI NỢ FOLIO
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-700">
-              <Coins size={16} />
-            </div>
-          </div>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            94% <span className="text-sm font-normal font-sans text-stone-500">Room Charge</span>
-          </div>
-          <div className="text-[11px] text-stone-500 mt-2">
-            Khách thanh toán khi trả phòng
-          </div>
-        </div>
-
-        {/* Card 4 */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
-              DOANH THU TRUNG BÌNH / NGÀY
+              ĐANG HOẠT ĐỘNG
             </span>
             <div className="w-8 h-8 rounded-xl bg-[#FAF5EE] flex items-center justify-center text-amber-800">
               <Sparkles size={16} />
             </div>
           </div>
           <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            24.850.000 <span className="text-sm font-normal font-sans text-stone-500">đ</span>
+            {services.filter((s) => s.status === 'ACTIVE' || !s.status).length}{' '}
+            <span className="text-sm font-normal font-sans text-stone-500">Đang phục vụ</span>
           </div>
           <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span>Tăng trưởng +18.4%</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+            <span>Trạng thái: ACTIVE</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
+              NGỪNG HOẠT ĐỘNG
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-700">
+              <Coins size={16} />
+            </div>
+          </div>
+          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
+            {services.filter((s) => s.status === 'INACTIVE').length}{' '}
+            <span className="text-sm font-normal font-sans text-stone-500">Tạm dừng</span>
+          </div>
+          <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
+            <span>Trạng thái: INACTIVE</span>
           </div>
         </div>
       </div>
@@ -331,95 +355,172 @@ export const ServiceManagementPage = () => {
         </div>
       </div>
 
-      {/* 4. Services Table */}
+      {/* 4. Table: ID, NAME, DESCRIPTION, PRICE/UNIT, STATUS, ACTIONS (✏️, 🗑️) */}
       <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-stone-50/50 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
-                <th className="py-3.5 px-6">DỊCH VỤ & SKU</th>
-                <th className="py-3.5 px-4">NHÓM DANH MỤC</th>
-                <th className="py-3.5 px-4 text-center">ĐƠN VỊ TÍNH</th>
-                <th className="py-3.5 px-4 text-right">ĐƠN GIÁ NIÊM YẾT</th>
-                <th className="py-3.5 px-4">THỜI GIAN SLA</th>
-                <th className="py-3.5 px-4 text-center">TRẠNG THÁI</th>
-                <th className="py-3.5 px-6 text-right">THAO TÁC</th>
+              <tr className="bg-stone-50/60 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
+                <th className="py-3.5 px-6">ID</th>
+                <th className="py-3.5 px-4">NAME</th>
+                <th className="py-3.5 px-6">DESCRIPTION</th>
+                <th className="py-3.5 px-4 text-right">PRICE/UNIT</th>
+                <th className="py-3.5 px-4 text-center">STATUS</th>
+                <th className="py-3.5 px-6 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filteredServices.map((srv) => (
-                <tr key={srv.id} className="hover:bg-stone-50/60 transition-colors">
-                  {/* Tên dịch vụ & SKU */}
-                  <td className="py-4 px-6">
-                    <p className="font-bold text-stone-900">{srv.name}</p>
-                    <p className="text-[11px] font-mono text-stone-400 mt-0.5">
-                      {srv.sku} • {srv.department}
-                    </p>
-                  </td>
-
-                  {/* Nhóm danh mục */}
-                  <td className="py-4 px-4">
-                    <span className="inline-block px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 font-medium text-[11px] border border-stone-200/70">
-                      {srv.category}
-                    </span>
-                  </td>
-
-                  {/* Đơn vị tính */}
-                  <td className="py-4 px-4 text-center text-stone-600 font-medium whitespace-nowrap">
-                    {srv.unit}
-                  </td>
-
-                  {/* Đơn giá niêm yết */}
-                  <td className="py-4 px-4 text-right whitespace-nowrap">
-                    <p className="font-bold text-stone-900 text-xs">{formatVND(srv.price)}</p>
-                    <p className="text-[9px] text-stone-400 uppercase tracking-wider">ĐÃ GỒM VAT & SVC</p>
-                  </td>
-
-                  {/* SLA */}
-                  <td className="py-4 px-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5 text-stone-600 text-[11px]">
-                      <Clock size={12} className="text-stone-400" />
-                      <span>{srv.slaTime}</span>
+              {isLoading ? (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-stone-400">
+                    <div className="inline-flex items-center gap-2 text-xs">
+                      <RefreshCw size={16} className="animate-spin text-stone-600" />
+                      <span>Đang tải danh sách dịch vụ từ máy chủ...</span>
                     </div>
                   </td>
-
-                  {/* Trạng thái */}
-                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-[#FDF4E7] text-amber-900 border border-amber-200/70">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-                      {srv.statusLabel}
-                    </span>
-                  </td>
-
-                  {/* Thao tác */}
-                  <td className="py-4 px-6 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1">
+                </tr>
+              ) : filteredServices.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-stone-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <ConciergeBell size={28} className="text-stone-300" />
+                      <p className="text-xs font-medium text-stone-500">
+                        {searchTerm || activeCategory !== 'ALL'
+                          ? 'Không tìm thấy dịch vụ nào phù hợp.'
+                          : 'Chưa có dịch vụ nào trong hệ thống.'}
+                      </p>
                       <button
-                        onClick={() => showToast(`Mở chỉnh sửa dịch vụ: ${srv.name}`)}
-                        className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-800 flex items-center justify-center transition-colors cursor-pointer"
+                        onClick={() => {
+                          setEditingService(null);
+                          setIsModalOpen(true);
+                        }}
+                        className="mt-2 text-xs font-semibold text-black underline underline-offset-4 cursor-pointer"
                       >
-                        <Edit2 size={13} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(srv.id, srv.name)}
-                        className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer"
-                      >
-                        <Trash2 size={13} />
+                        + Thêm dịch vụ mới
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredServices.map((srv) => {
+                  const srvId = srv.id;
+                  const srvName = srv.name || 'Dịch vụ';
+                  const srvPrice = srv.price || 0;
+                  const srvUnit = srv.unit || 'Lần';
+                  const srvStatus = (srv.status || 'ACTIVE').toUpperCase();
+                  const srvDesc = srv.description || srv.category || 'Dịch vụ lưu trú tiêu chuẩn';
+
+                  return (
+                    <tr key={srvId} className="hover:bg-stone-50/70 transition-colors">
+                      {/* Cột 1: ID */}
+                      <td className="py-4 px-6 whitespace-nowrap">
+                        <span className="font-mono text-xs font-bold text-stone-500 bg-stone-100 px-2 py-1 rounded-md border border-stone-200">
+                          #{srvId}
+                        </span>
+                      </td>
+
+                      {/* Cột 2: NAME */}
+                      <td className="py-4 px-4">
+                        <p className="font-bold text-stone-900">{srvName}</p>
+                        <p className="text-[11px] font-mono text-stone-400 mt-0.5">
+                          {srv.sku || `SKU-${srvId}`} {srv.category ? `• ${srv.category}` : ''}
+                        </p>
+                      </td>
+
+                      {/* Cột 3: DESCRIPTION */}
+                      <td className="py-4 px-6">
+                        <p className="text-stone-700 text-xs font-medium line-clamp-2">{srvDesc}</p>
+                        {srv.department && (
+                          <p className="text-[10px] text-stone-400 mt-0.5">
+                            Điều phối: {srv.department} {srv.slaTime ? `(${srv.slaTime})` : ''}
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Cột 4: PRICE/UNIT */}
+                      <td className="py-4 px-4 text-right whitespace-nowrap">
+                        <p className="font-bold text-stone-900 text-xs">{formatVND(srvPrice)}</p>
+                        <p className="text-[10px] text-stone-400 font-semibold uppercase tracking-wider mt-0.5">
+                          / {srvUnit}
+                        </p>
+                      </td>
+
+                      {/* Cột 5: STATUS */}
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        {srvStatus === 'ACTIVE' ? (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            ACTIVE (Đang phục vụ)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
+                            INACTIVE (Ngừng hoạt động)
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Cột 6: ACTIONS (✏️, 🗑️) */}
+                      <td className="py-4 px-6 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingService(srv);
+                              setIsModalOpen(true);
+                            }}
+                            className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Chỉnh sửa dịch vụ"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDelete(srv)}
+                            className="w-8 h-8 rounded-lg hover:bg-rose-50 text-stone-400 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Xóa dịch vụ"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
+          <span>
+            Đang hiển thị <strong>{filteredServices.length}</strong> trên <strong>{services.length}</strong> dịch vụ trong hệ thống.
+          </span>
+          <span className="text-[11px] text-stone-400">
+            PMS L'Étoile • Quản trị dịch vụ & Thực đơn
+          </span>
+        </div>
       </div>
 
-      {/* Add Service Modal */}
+      {/* Add / Edit Service Modal */}
       <AddServiceModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAddService={handleAddService}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingService(null);
+        }}
+        onSave={handleSaveService}
+        initialData={editingService}
+      />
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, item: null, isDeleting: false })}
+        onConfirm={handleConfirmDelete}
+        title="Xác nhận xóa dịch vụ"
+        message="Bạn có chắc chắn muốn xóa dịch vụ này không? Nếu dịch vụ đang phát sinh trong các đơn phòng, hệ thống sẽ chuyển sang trạng thái Ngừng hoạt động."
+        itemName={deleteModal.item?.name}
+        isLoading={deleteModal.isDeleting}
       />
     </div>
   );

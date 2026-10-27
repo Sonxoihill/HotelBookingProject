@@ -122,6 +122,31 @@ export const BookingPaymentPage = () => {
   const checkInDate = queryCheckIn || defaultCheckIn;
   const checkOutDate = queryCheckOut || defaultCheckOut;
 
+  // State báo giá linh hoạt từ API GET /rooms/{id}/price-quote
+  const [priceQuote, setPriceQuote] = useState(null);
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+
+  useEffect(() => {
+    const fetchPriceQuote = async () => {
+      if (!roomId || !checkInDate || !checkOutDate) return;
+      setIsLoadingQuote(true);
+      try {
+        const res = await roomService.getPriceQuote(roomId, {
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+        });
+        const data = res?.data || res;
+        setPriceQuote(data);
+      } catch (err) {
+        console.warn('Lỗi khi lấy báo giá linh hoạt tại trang thanh toán:', err);
+      } finally {
+        setIsLoadingQuote(false);
+      }
+    };
+
+    fetchPriceQuote();
+  }, [roomId, checkInDate, checkOutDate]);
+
   // Tính số đêm lưu trú
   const calculateNights = () => {
     const start = new Date(checkInDate);
@@ -132,10 +157,36 @@ export const BookingPaymentPage = () => {
 
   const nights = calculateNights();
 
-  // Tính toán chi phí (không có voucher mẫu)
-  const roomPriceSubtotal = pricePerNight * nights;
-  const taxAndService = Math.round(roomPriceSubtotal * 0.1); // 10% thuế GTGT & phí dịch vụ
-  const totalAmount = roomPriceSubtotal + taxAndService;
+  // Trích xuất danh sách giá từng đêm từ dữ liệu priceQuote trả về từ API
+  const dailyPrices =
+    priceQuote?.nights ||
+    priceQuote?.dailyPrices ||
+    priceQuote?.dailyRates ||
+    priceQuote?.nightlyPrices ||
+    priceQuote?.details ||
+    priceQuote?.items ||
+    [];
+
+  // Hiển thị Tạm tính, VAT, Tổng tiền từ priceQuote (không tự tính trên client)
+  const roomPriceSubtotal =
+    priceQuote?.subtotal ??
+    priceQuote?.roomSubtotal ??
+    priceQuote?.totalBasePrice ??
+    (dailyPrices.length > 0
+      ? dailyPrices.reduce((sum, item) => sum + Number(item.price || item.finalPrice || 0), 0)
+      : pricePerNight * nights);
+
+  const taxAndService =
+    priceQuote?.vat ??
+    priceQuote?.tax ??
+    priceQuote?.vatAmount ??
+    Math.round(roomPriceSubtotal * 0.08);
+
+  const totalAmount =
+    priceQuote?.totalAmount ??
+    priceQuote?.total ??
+    priceQuote?.finalTotal ??
+    (roomPriceSubtotal + taxAndService);
 
   // ============================================================================
   // VALIDATION LOGIC CHẶN REQUEST RÁC
@@ -266,12 +317,11 @@ export const BookingPaymentPage = () => {
 
       // FLOW 1: THANH TOÁN TRỰC TUYẾN QUA CỔNG VNPAY
       if (paymentMethod === 'VNPAY') {
-        // Bước 1: Lưu đơn đặt phòng vào cơ sở dữ liệu MySQL thật qua API POST /bookings
+        // Bước 1: Lưu đơn đặt phòng vào cơ sở dữ liệu MySQL thật qua API POST /bookings (Không gửi totalAmount)
         const bookingRes = await bookingService.createBooking({
           roomId: roomData?.id || Number(roomId) || 1,
           checkIn: checkInDate,
           checkOut: checkOutDate,
-          totalAmount: totalAmount,
           paymentMethod: 'VNPAY',
           specialRequests: safeSpecialRequests,
           fullName: fullNameTrimmed,
@@ -323,12 +373,11 @@ export const BookingPaymentPage = () => {
         }
       }
 
-      // FLOW 2: CÁC PHƯƠNG THỨC KHÁC (THANH TOÁN TẠI QUẦY, THẺ...) GIỮ NGUYÊN BUSINESS LOGIC
+      // FLOW 2: CÁC PHƯƠNG THỨC KHÁC (THANH TOÁN TẠI QUẦY, THẺ...) (Không gửi totalAmount)
       const res = await bookingService.createBooking({
         roomId: roomData?.id || Number(roomId) || 1,
         checkIn: checkInDate,
         checkOut: checkOutDate,
-        totalAmount: totalAmount,
         paymentMethod: paymentMethod,
         specialRequests: safeSpecialRequests,
         fullName: fullNameTrimmed,
@@ -550,23 +599,78 @@ export const BookingPaymentPage = () => {
             </div>
           </div>
 
-          {/* KHỐI 3: CHI TIẾT CHI PHÍ (GIÁ PHÒNG, THUẾ & DỊCH VỤ, TỔNG TIỀN, CHECKBOX ĐIỀU KHOẢN) */}
+          {/* KHỐI 3: CHI TIẾT CHI PHÍ (GIÁ TỪNG ĐÊM LINH HOẠT, TẠM TÍNH, THUẾ, TỔNG TIỀN) */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Chi tiết chi phí
-            </h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Chi tiết chi phí
+              </h3>
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                Báo giá linh hoạt
+              </span>
+            </div>
 
-            {/* Bảng giá kê khai */}
+            {/* Bảng giá từng đêm từ priceQuote */}
+            {isLoadingQuote ? (
+              <div className="py-3 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                <span>Đang tải bảng giá từng đêm...</span>
+              </div>
+            ) : dailyPrices.length > 0 ? (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 pt-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Giá từng đêm lưu trú
+                </span>
+                {dailyPrices.map((item, idx) => {
+                  const nightDate = item.date || item.nightDate || '';
+                  const nightPrice = item.finalPrice ?? item.price ?? item.rate ?? 0;
+                  const ruleName = item.appliedRuleName || item.ruleName || item.rule || '';
+                  const percent = item.adjustmentPercent ?? item.percentage ?? 0;
+                  const hasAdjustment = Boolean(ruleName || percent !== 0);
+
+                  let dateLabel = `Đêm ${idx + 1}`;
+                  if (nightDate) {
+                    const parts = String(nightDate).split('T')[0].split('-');
+                    dateLabel = parts.length === 3 ? `${parts[2]}/${parts[1]}` : nightDate;
+                  }
+
+                  let label = dateLabel;
+                  if (hasAdjustment) {
+                    const ruleText = ruleName ? `${ruleName}` : 'Điều chỉnh';
+                    const percentText = percent ? ` (${percent > 0 ? '+' : ''}${percent}%)` : '';
+                    label = `${label} – ${ruleText}${percentText}`;
+                  }
+
+                  return (
+                    <div
+                      key={nightDate || idx}
+                      className={`flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl border ${
+                        hasAdjustment
+                          ? 'bg-amber-50/80 border-amber-200 text-amber-950 font-medium'
+                          : 'bg-slate-50 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span className="truncate pr-2">{label}</span>
+                      <span className="font-bold text-slate-900 shrink-0">
+                        {formatVND(nightPrice)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {/* Bảng kê khai chi phí */}
             <div className="space-y-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
               <div className="flex justify-between items-center">
                 <span>
-                  Giá phòng ({nights} đêm × {formatVND(pricePerNight)}):
+                  Tạm tính tiền phòng ({nights} đêm):
                 </span>
                 <span className="font-semibold text-slate-800">{formatVND(roomPriceSubtotal)}</span>
               </div>
 
               <div className="flex justify-between items-center">
-                <span>Thuế GTGT & phí dịch vụ (10%):</span>
+                <span>Thuế VAT:</span>
                 <span className="font-semibold text-slate-800">{formatVND(taxAndService)}</span>
               </div>
 

@@ -12,15 +12,20 @@ import { tokenStorage } from '../../utils/tokenStorage';
 export const ProtectedRoute = ({ allowedRoles = [] }) => {
   const location = useLocation();
 
-  // 1. Kiểm tra xác thực token (có token và chưa hết hạn)
+  // 1. Kiểm tra xác thực token (chưa đăng nhập hoặc token đã hết hạn) -> Chuyển về /login
   if (!tokenStorage.isAuthenticated()) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // 2. Kiểm tra phân quyền Role nếu có chỉ định allowedRoles
+  // Nếu role là GUEST, CUSTOMER, hoặc RECEPTIONIST khi vào route ADMIN -> Chuyển về /403
   if (allowedRoles && allowedRoles.length > 0) {
     const userRole = tokenStorage.getUserRole();
-    const hasPermission = allowedRoles.includes(userRole);
+    const cleanRole = userRole ? String(userRole).replace(/^ROLE_/, '').toUpperCase() : '';
+    const hasPermission = allowedRoles.some((role) => {
+      const cleanAllowed = String(role).replace(/^ROLE_/, '').toUpperCase();
+      return cleanRole === cleanAllowed || userRole === role;
+    });
 
     if (!hasPermission) {
       return <Navigate to="/403" replace />;

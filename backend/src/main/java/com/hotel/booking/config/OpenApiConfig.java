@@ -47,7 +47,7 @@ public class OpenApiConfig {
                 .servers(List.of(
                         new Server().url("/api/v1").description("Local Context Path Server (/api/v1)"),
                         new Server().url("/").description("Direct Root Server (/)"),
-                        new Server().url("https://hotelbookingproject-5wqz.onrender.com/api/v1").description("Production Server (Render)")
+                        new Server().url("https://hotelbookingproject-backend2-63bf.onrender.com/api/v1").description("Production Server (Render)")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()

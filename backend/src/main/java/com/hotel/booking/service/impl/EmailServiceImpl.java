@@ -180,4 +180,85 @@ public class EmailServiceImpl implements EmailService {
             </html>
             """.formatted(guestName, booking.getId(), roomName, checkInStr, checkOutStr, formattedAmount, booking.getId());
     }
+
+    @Override
+    @Async
+    public void sendStaffAccountEmail(User user, String rawPassword) {
+        if (user == null || user.getEmail() == null) {
+            log.warn("Không thể gửi email cấp tài khoản nhân sự: Đối tượng User hoặc Email bị null");
+            return;
+        }
+
+        try {
+            log.info("Bắt đầu gửi email cấp tài khoản nhân sự tới: {}", user.getEmail());
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail, "Khách sạn Nghỉ dưỡng Sonxoi Hill");
+            helper.setTo(user.getEmail());
+            helper.setSubject("[Sonxoi Hill] Thông tin tài khoản nhân sự & quyền truy cập hệ thống");
+
+            String content = buildStaffAccountEmailContent(user, rawPassword);
+            helper.setText(content, true);
+
+            mailSender.send(message);
+            log.info("Gửi email cấp tài khoản nhân sự thành công tới: {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cấp tài khoản tới {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    private String buildStaffAccountEmailContent(User user, String rawPassword) {
+        String staffName = user.getFullName() != null ? user.getFullName() : "Nhân sự mới";
+        String loginUrl = "http://localhost:5173/login";
+        String departmentName = user.getDepartment() != null ? user.getDepartment().getDisplayName() : "Vận hành";
+
+        return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+                    .header { background: linear-gradient(135deg, #1e293b 0%%, #334155 100%%); color: #ffffff; padding: 30px; text-align: center; }
+                    .header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #f8fafc; }
+                    .content { padding: 30px; }
+                    .cred-box { background-color: #f1f5f9; border: 1px dashed #94a3b8; border-radius: 8px; padding: 20px; margin: 20px 0; }
+                    .cred-item { font-size: 15px; margin: 8px 0; }
+                    .btn-login { display: inline-block; background-color: #0f172a; color: #ffffff !important; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; margin-top: 15px; }
+                    .footer { background-color: #f8fafc; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>SONXOI HILL RESORT</h1>
+                        <p style="margin: 5px 0 0; font-size: 14px; color: #cbd5e1;">HỆ THỐNG QUẢN TRỊ NỘI BỘ</p>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 16px;">Kính gửi <strong>%s</strong>,</p>
+                        <p style="font-size: 14px; line-height: 1.6;">
+                            Tài khoản nhân sự của bạn đã được Quản trị viên kích hoạt trên hệ thống Quản lý Khách sạn <strong>Sonxoi Hill</strong> với vai trò: <strong>%s</strong> (Phòng ban: %s).
+                        </p>
+                        <div class="cred-box">
+                            <div class="cred-item">📧 <strong>Email đăng nhập:</strong> %s</div>
+                            <div class="cred-item">🔑 <strong>Mật khẩu mặc định:</strong> <code style="background: #e2e8f0; padding: 3px 8px; border-radius: 4px; font-size: 16px; color: #0f172a; font-weight: bold;">%s</code></div>
+                        </div>
+                        <p style="font-size: 13px; color: #dc2626; line-height: 1.5;">
+                            ⚠️ <strong>Lời nhắc bảo mật:</strong> Đây là mật khẩu ngẫu nhiên tạm thời. Vui lòng truy cập hệ thống và đổi mật khẩu ngay sau lần đăng nhập đầu tiên để bảo vệ an toàn thông tin nội bộ.
+                        </p>
+                        <div style="text-align: center; margin: 25px 0;">
+                            <a href="%s" class="btn-login">ĐĂNG NHẬP VÀO HỆ THỐNG</a>
+                        </div>
+                    </div>
+                    <div class="footer">
+                        Email này được gửi tự động từ hệ thống quản trị Sonxoi Hill. Vui lòng không trả lời email này.<br>
+                        &copy; 2026 Sonxoi Hill Resort & Spa. All rights reserved.
+                    </div>
+                </div>
+            </body>
+            </html>
+            """.formatted(staffName, user.getRole(), departmentName, user.getEmail(), rawPassword, loginUrl);
+    }
 }

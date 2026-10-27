@@ -32,7 +32,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
         log.warn("AppException: code={}, message={}", ex.getErrorCode(), ex.getMessage());
-        ApiResponse<Void> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Void> response = ex.getErrors() != null
+                ? ApiResponse.error(ex.getMessage(), ex.getErrors())
+                : ApiResponse.error(ex.getMessage());
         return ResponseEntity.status(ex.getErrorCode().getHttpStatus()).body(response);
     }
 
@@ -119,6 +121,13 @@ public class GlobalExceptionHandler {
         log.warn("Resource not found: {}", ex.getMessage());
         ApiResponse<Void> response = ApiResponse.error(ErrorCode.RESOURCE_NOT_FOUND.getDefaultMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolationException(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error("Dữ liệu vi phạm ràng buộc toàn vẹn cơ sở dữ liệu");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(Exception.class)

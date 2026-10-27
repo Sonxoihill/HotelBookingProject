@@ -30,6 +30,13 @@ public class RoomCategory extends BaseEntity {
     @Column(name = "bed_type", length = 50)
     private String bedType;
 
+    @Column(name = "bed_count", nullable = false)
+    @Builder.Default
+    private Integer bedCount = 1;
+
+    @Column(name = "area", precision = 6, scale = 2)
+    private BigDecimal area;
+
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 }

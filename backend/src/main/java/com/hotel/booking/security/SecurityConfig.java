@@ -41,7 +41,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
 
-    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://*.onrender.com,https://hotelbookingproject-5wqz.onrender.com}")
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://*.onrender.com,https://hotelbookingproject-fontend-l6ru.onrender.com}")
     private String allowedOrigins;
 
     @Bean

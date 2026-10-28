@@ -8,9 +8,10 @@ import axiosInstance from './axiosInstance';
  * Kết nối 100% API Backend thật qua /bookings
  */
 export const bookingService = {
-  // Khách hàng tạo yêu cầu đặt phòng mới
+  // Khách hàng tạo yêu cầu đặt phòng mới (Không gửi totalAmount trong body request - Backend tự tính)
   createBooking: async (bookingData) => {
-    return await axiosInstance.post('/bookings', bookingData);
+    const { totalAmount, ...payload } = bookingData || {};
+    return await axiosInstance.post('/bookings', payload);
   },
 
   // Khách hàng xem lịch sử các đơn đặt phòng của mình (GET /api/v1/bookings/my-history)

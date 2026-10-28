@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Hotel,
@@ -6,69 +6,134 @@ import {
   Layers,
   Compass,
   BedDouble,
-  Users,
-  Wifi,
-  Tv,
-  Coffee,
   Sparkles,
-  Bath,
   CheckCircle2,
-  ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
+import { validateSafeText, detectMaliciousCode } from '../../utils/sanitize';
 
-export const AddRoomModal = ({ isOpen, onClose, onAddRoom, roomTypes = [] }) => {
+export const AddRoomModal = ({
+  isOpen,
+  onClose,
+  onAddRoom,
+  onSave,
+  roomTypes = [],
+  initialData = null,
+}) => {
+  const isEditing = Boolean(initialData?.id);
+
   const [formData, setFormData] = useState({
     roomNumber: '',
-    roomTypeId: roomTypes[0]?.id || 1,
-    floor: 'Tầng 12',
-    zone: 'Khu Penthouse & Suites',
+    roomTypeId: roomTypes[0]?.id || '',
+    floor: 'Tầng 1',
+    zone: 'Khu trung tâm',
     viewType: 'Hướng biển toàn cảnh (Oceanfront)',
-    bedType: '01 Giường King Bed 2.0m x 2.2m',
-    allowExtraBed: true,
-    initialStatus: 'AVAILABLE',
+    bedType: '01 Giường King Bed',
+    status: 'AVAILABLE',
     rfidCode: 'RFID-' + Math.floor(100000 + Math.random() * 900000),
-    amenities: ['Bồn tắm Jacuzzi ngắm biển', 'Smart TV 75 inch 4K', 'Máy pha cà phê Nespresso', 'Ban công Panorama'],
-    notes: 'Phòng đã hoàn tất kiểm tra nghiệm thu bàn giao.',
+    amenities: ['Bồn tắm Jacuzzi ngắm biển', 'Smart TV 75 inch 4K'],
+    notes: '',
   });
+
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        id: initialData.id,
+        roomNumber: initialData.roomNumber || initialData.code || '',
+        roomTypeId: initialData.roomTypeId || initialData.categoryId || (roomTypes[0]?.id || ''),
+        floor: initialData.floor ? (String(initialData.floor).startsWith('Tầng') ? initialData.floor : `Tầng ${initialData.floor}`) : 'Tầng 1',
+        zone: initialData.zone || 'Khu trung tâm',
+        viewType: initialData.viewType || 'Hướng biển toàn cảnh (Oceanfront)',
+        bedType: initialData.bedType || '01 Giường King Bed',
+        status: ['AVAILABLE', 'DIRTY', 'MAINTENANCE'].includes(initialData.status) ? initialData.status : 'AVAILABLE',
+        rfidCode: initialData.rfidCode || ('RFID-' + Math.floor(100000 + Math.random() * 900000)),
+        amenities: Array.isArray(initialData.amenities) ? initialData.amenities : ['Bồn tắm Jacuzzi ngắm biển'],
+        notes: initialData.notes || initialData.specialNotes || '',
+      });
+    } else {
+      setFormData({
+        roomNumber: '',
+        roomTypeId: roomTypes[0]?.id || '',
+        floor: 'Tầng 1',
+        zone: 'Khu trung tâm',
+        viewType: 'Hướng biển toàn cảnh (Oceanfront)',
+        bedType: '01 Giường King Bed',
+        status: 'AVAILABLE',
+        rfidCode: 'RFID-' + Math.floor(100000 + Math.random() * 900000),
+        amenities: ['Bồn tắm Jacuzzi ngắm biển', 'Smart TV 75 inch 4K'],
+        notes: '',
+      });
+    }
+    setErrors({});
+  }, [initialData, isOpen, roomTypes]);
 
   if (!isOpen) return null;
 
-  const AVAILABLE_AMENITIES = [
-    'Bồn tắm Jacuzzi ngắm biển',
-    'Hồ bơi vô cực riêng',
-    'Smart TV 75 inch 4K',
-    'Máy pha cà phê Nespresso',
-    'Két sắt điện tử chống cháy',
-    'Ban công Panorama đón gió',
-    'Rượu vang đón khách & Trái cây',
-    'Quản gia riêng Butler 24/7',
-  ];
+  const validate = () => {
+    const newErrors = {};
 
-  const toggleAmenity = (item) => {
-    setFormData((prev) => ({
-      ...prev,
-      amenities: prev.amenities.includes(item)
-        ? prev.amenities.filter((a) => a !== item)
-        : [...prev.amenities, item],
-    }));
+    // 1. Số phòng: Bắt buộc, max 50 ký tự, chống mã độc
+    const roomNumberErr = validateSafeText(formData.roomNumber, {
+      fieldName: 'Số phòng',
+      maxLength: 50,
+      required: true,
+    });
+    if (roomNumberErr) newErrors.roomNumber = roomNumberErr;
+
+    // 2. Thuộc loại phòng: Bắt buộc
+    if (!formData.roomTypeId) {
+      newErrors.roomTypeId = 'Vui lòng chọn loại phòng áp dụng.';
+    }
+
+    // 3. Mã thẻ từ (RFID): max 50 ký tự, chống mã độc
+    const rfidErr = validateSafeText(formData.rfidCode, {
+      fieldName: 'Mã thẻ từ (RFID)',
+      maxLength: 50,
+      required: false,
+    });
+    if (rfidErr) newErrors.rfidCode = rfidErr;
+
+    // 4. Ghi chú: Chống mã độc
+    if (formData.notes) {
+      const notesMalware = detectMaliciousCode(formData.notes);
+      if (notesMalware.hasMalware) {
+        newErrors.notes = `Ghi chú chứa mã độc hoặc ký tự nguy hiểm (${notesMalware.reason}).`;
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.roomNumber.trim()) return;
+    if (!validate()) return;
 
-    const selectedType = roomTypes.find((r) => r.id === Number(formData.roomTypeId)) || roomTypes[0];
+    const selectedType = roomTypes.find((r) => String(r.id) === String(formData.roomTypeId)) || roomTypes[0];
+    const floorNumber = parseInt(String(formData.floor).replace(/\D/g, ''), 10) || 1;
+    const categoryIdNum = Number(selectedType?.id || formData.roomTypeId);
 
-    onAddRoom({
+    const payload = {
       ...formData,
+      roomNumber: formData.roomNumber.trim(),
+      floor: floorNumber,
+      roomTypeId: categoryIdNum,
+      categoryId: categoryIdNum,
       roomTypeName: selectedType?.name || 'Hạng phòng cao cấp',
-      roomTypeCode: selectedType?.code || 'PNT-GCP-01',
-    });
-    onClose();
+      roomTypeCode: selectedType?.code || 'RM-CAT',
+    };
+
+    if (onSave) {
+      onSave(payload);
+    } else if (onAddRoom) {
+      onAddRoom(payload);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-stone-200 my-8 animate-scale-up">
         {/* Modal Header */}
         <div className="p-6 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
@@ -81,7 +146,7 @@ export const AddRoomModal = ({ isOpen, onClose, onAddRoom, roomTypes = [] }) => 
                 KHO PHÒNG VẬT LÝ • KHỞI TẠO ĐỊNH DANH
               </span>
               <h3 className="font-serif text-xl font-bold text-stone-900">
-                Thêm Phòng Vật Lý Mới
+                {isEditing ? 'Cập Nhật Phòng Vật Lý' : 'Thêm Phòng Vật Lý Mới'}
               </h3>
             </div>
           </div>
@@ -95,7 +160,7 @@ export const AddRoomModal = ({ isOpen, onClose, onAddRoom, roomTypes = [] }) => 
 
         {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Section 1: Định danh & Phân nhóm */}
+          {/* Section 1: Định danh & Phân loại */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3 flex items-center gap-2">
               <Hotel size={14} className="text-stone-600" />
@@ -104,49 +169,85 @@ export const AddRoomModal = ({ isOpen, onClose, onAddRoom, roomTypes = [] }) => 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                  Số phòng định danh *
+                  Số phòng định danh <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="Ví dụ: P1205, V107"
+                  maxLength={50}
+                  placeholder="Ví dụ: 101, 201, P1205"
                   value={formData.roomNumber}
-                  onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-bold focus:outline-none focus:border-stone-900"
+                  onChange={(e) => {
+                    setFormData({ ...formData, roomNumber: e.target.value });
+                    if (errors.roomNumber) setErrors({ ...errors, roomNumber: null });
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none transition-colors ${
+                    errors.roomNumber
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
                 />
+                {errors.roomNumber && (
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle size={12} />
+                    <span>{errors.roomNumber}</span>
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                  Thuộc loại phòng *
+                  Thuộc loại phòng <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={formData.roomTypeId}
-                  onChange={(e) => setFormData({ ...formData, roomTypeId: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
+                  onChange={(e) => {
+                    setFormData({ ...formData, roomTypeId: e.target.value });
+                    if (errors.roomTypeId) setErrors({ ...errors, roomTypeId: null });
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                    errors.roomTypeId
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
                 >
                   {roomTypes.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} ({t.code})
+                      {t.name} ({t.code || `ID:${t.id}`})
                     </option>
                   ))}
+                  {roomTypes.length === 0 && (
+                    <option value="">Chưa có loại phòng</option>
+                  )}
                 </select>
+                {errors.roomTypeId && (
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle size={12} />
+                    <span>{errors.roomTypeId}</span>
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                  Vị trí Tầng / Khuôn viên *
+                  Vị trí Tầng <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={formData.floor}
                   onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
                 >
-                  <option value="Tầng 12">Tầng 12 (Sky Penthouse)</option>
-                  <option value="Tầng 8">Tầng 8 (Ocean Suites)</option>
-                  <option value="Tầng 5">Tầng 5 (Deluxe Wings)</option>
-                  <option value="Tầng 3">Tầng 3 (Deluxe Wings)</option>
-                  <option value="Tầng Trệt">Tầng Trệt (Khu Biệt thự Villa)</option>
+                  <option value="Tầng 1">Tầng 1</option>
+                  <option value="Tầng 2">Tầng 2</option>
+                  <option value="Tầng 3">Tầng 3</option>
+                  <option value="Tầng 4">Tầng 4</option>
+                  <option value="Tầng 5">Tầng 5</option>
+                  <option value="Tầng 6">Tầng 6</option>
+                  <option value="Tầng 7">Tầng 7</option>
+                  <option value="Tầng 8">Tầng 8</option>
+                  <option value="Tầng 9">Tầng 9</option>
+                  <option value="Tầng 10">Tầng 10</option>
+                  <option value="Tầng 11">Tầng 11</option>
+                  <option value="Tầng 12">Tầng 12</option>
                 </select>
               </div>
             </div>
@@ -172,23 +273,37 @@ export const AddRoomModal = ({ isOpen, onClose, onAddRoom, roomTypes = [] }) => 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
                   <Key size={13} className="text-stone-500" />
-                  <span>Mã thẻ từ khóa cửa thông minh (RFID)</span>
+                  <span>Mã thẻ từ khóa cửa (RFID)</span>
                 </label>
                 <input
                   type="text"
+                  maxLength={50}
                   value={formData.rfidCode}
-                  onChange={(e) => setFormData({ ...formData, rfidCode: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono focus:outline-none focus:border-stone-900"
+                  onChange={(e) => {
+                    setFormData({ ...formData, rfidCode: e.target.value });
+                    if (errors.rfidCode) setErrors({ ...errors, rfidCode: null });
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono focus:outline-none transition-colors ${
+                    errors.rfidCode
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
                 />
+                {errors.rfidCode && (
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle size={12} />
+                    <span>{errors.rfidCode}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Section 2: Cấu hình giường & Trạng thái khởi tạo */}
+          {/* Section 2: Trạng thái & Giường */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3 flex items-center gap-2">
               <BedDouble size={14} className="text-stone-600" />
-              <span>2. Cấu hình giường & Tiêu chuẩn vận hành</span>
+              <span>2. Cấu hình vận hành & Trạng thái phòng</span>
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
@@ -200,94 +315,62 @@ export const AddRoomModal = ({ isOpen, onClose, onAddRoom, roomTypes = [] }) => 
                   onChange={(e) => setFormData({ ...formData, bedType: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
                 >
-                  <option value="01 Giường King Bed 2.0m x 2.2m">01 Giường King Bed (2.0m x 2.2m)</option>
-                  <option value="02 Giường Twin Beds 1.2m x 2.0m">02 Giường Twin Beds (1.2m x 2.0m)</option>
-                  <option value="01 Super King 2.2m x 2.4m + 01 Sofa Bed">01 Super King + 01 Sofa Bed cao cấp</option>
-                  <option value="02 Giường King Master Suites">02 Giường King Master Suites</option>
+                  <option value="01 Giường King Bed">01 Giường King Bed</option>
+                  <option value="02 Giường Twin Beds">02 Giường Twin Beds</option>
+                  <option value="01 Super King + 01 Sofa Bed">01 Super King + 01 Sofa Bed</option>
+                  <option value="02 Giường King Master">02 Giường King Master</option>
                 </select>
               </div>
 
+              {/* DROPDOWN TRẠNG THÁI: Chỉ hiển thị 3 lựa chọn AVAILABLE, DIRTY, MAINTENANCE */}
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                  Trạng thái khởi tạo đưa vào PMS
+                  Trạng thái vận hành <span className="text-rose-500">*</span>
                 </label>
                 <select
-                  value={formData.initialStatus}
-                  onChange={(e) => setFormData({ ...formData, initialStatus: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-semibold focus:outline-none focus:border-stone-900 bg-white"
                 >
-                  <option value="AVAILABLE">Sẵn sàng đón khách (Clean & Ready)</option>
-                  <option value="CLEANING">Đang vệ sinh / kiểm tra buồng</option>
-                  <option value="MAINTENANCE">Bảo trì kỹ thuật (Out of Order)</option>
+                  <option value="AVAILABLE">AVAILABLE - Sẵn sàng đón khách</option>
+                  <option value="DIRTY">DIRTY - Cần dọn dẹp</option>
+                  <option value="MAINTENANCE">MAINTENANCE - Bảo trì kỹ thuật</option>
                 </select>
               </div>
             </div>
-
-            <div className="mt-3.5">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-stone-700">
-                <input
-                  type="checkbox"
-                  checked={formData.allowExtraBed}
-                  onChange={(e) => setFormData({ ...formData, allowExtraBed: e.target.checked })}
-                  className="rounded border-stone-300 text-black focus:ring-black w-4 h-4"
-                />
-                <span>Cho phép kê thêm giường phụ (Extra Bed) khi khách yêu cầu (+850.000đ/đêm)</span>
-              </label>
-            </div>
           </div>
 
-          {/* Section 3: Trang thiết bị & Tiện nghi phòng */}
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-2 flex items-center gap-2">
-              <Sparkles size={14} className="text-amber-700" />
-              <span>3. Trang thiết bị & Tiện nghi tiêu chuẩn</span>
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
-              {AVAILABLE_AMENITIES.map((amenity) => {
-                const isSelected = formData.amenities.includes(amenity);
-                return (
-                  <button
-                    type="button"
-                    key={amenity}
-                    onClick={() => toggleAmenity(amenity)}
-                    className={`flex items-center gap-2 p-2.5 rounded-xl text-xs font-medium border text-left transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#FAF5EE] text-amber-950 border-amber-300 font-semibold'
-                        : 'bg-stone-50/70 text-stone-600 border-stone-200/80 hover:bg-stone-100'
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-amber-800 text-white' : 'border border-stone-300'
-                      }`}
-                    >
-                      {isSelected && <CheckCircle2 size={12} />}
-                    </div>
-                    <span className="truncate">{amenity}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Section 4: Ghi chú bàn giao */}
+          {/* Section 3: Ghi chú */}
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              Ghi chú nghiệp vụ / Kiểm toán phòng
+              Ghi chú nghiệp vụ / Kiểm toán buồng phòng
             </label>
             <textarea
               rows="2"
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
-              placeholder="Ghi chú thêm về thiết bị, vật tư phòng..."
+              onChange={(e) => {
+                setFormData({ ...formData, notes: e.target.value });
+                if (errors.notes) setErrors({ ...errors, notes: null });
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                errors.notes
+                  ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                  : 'border-stone-300 focus:border-stone-900'
+              }`}
+              placeholder="Ghi chú thêm về trang thiết bị, tình trạng phòng..."
             ></textarea>
+            {errors.notes && (
+              <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                <span>{errors.notes}</span>
+              </p>
+            )}
           </div>
 
           {/* Footer Buttons */}
           <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
             <span className="text-[11px] text-stone-400">
-              * Phòng mới sẽ hiển thị ngay trên sơ đồ Rack & Buồng phòng.
+              * Dữ liệu buồng phòng sẽ được đồng bộ trực tiếp vào hệ thống PMS.
             </span>
             <div className="flex items-center gap-2.5">
               <button
@@ -301,7 +384,7 @@ export const AddRoomModal = ({ isOpen, onClose, onAddRoom, roomTypes = [] }) => 
                 type="submit"
                 className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs"
               >
-                Xác nhận tạo phòng
+                {isEditing ? 'Lưu thay đổi' : 'Xác nhận tạo phòng'}
               </button>
             </div>
           </div>

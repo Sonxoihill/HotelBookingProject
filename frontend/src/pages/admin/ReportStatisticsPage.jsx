@@ -1,591 +1,778 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar,
   Download,
-  Star,
   ChevronDown,
-  PieChart as PieChartIcon,
-  Sparkles,
+  BarChart3,
   TrendingUp,
-  ArrowUpRight,
-  ChevronRight,
-  DollarSign,
-  Building2,
-  BedDouble,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
   CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Building2,
+  DollarSign,
+  BedDouble,
+  Layers,
+  ArrowUpRight,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts';
+import { reportService } from '../../services/reportService';
 import { formatVND } from '../../utils/formatters';
 
-export const ReportStatisticsPage = () => {
-  const [timeFilter, setTimeFilter] = useState('Tháng 10/2025');
-  const [showAppliedToast, setShowAppliedToast] = useState(false);
+// Bảng màu sang trọng L'Étoile cho Biểu đồ tròn
+const PIE_COLORS = [
+  '#0E1524', // Đen than chì (Luxury Navy/Black)
+  '#8E6941', // Đồng ấm (Warm Bronze)
+  '#D97706', // Hổ phách (Amber Gold)
+  '#57534E', // Đá Bazan (Stone 600)
+  '#78716C', // Xám đá (Stone 500)
+  '#A8A29E', // Bạc kim (Stone 400)
+];
 
-  const handleApplyYield = () => {
-    setShowAppliedToast(true);
-    setTimeout(() => setShowAppliedToast(false), 3500);
+export const ReportStatisticsPage = () => {
+  // =========================================================================
+  // 1. STATE BỘ LỌC THỜI GIAN & LOẠI BÁO CÁO (Mặc định 6 tháng gần nhất)
+  // =========================================================================
+  const getDefaultDateRange = () => {
+    const today = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(today.getMonth() - 6);
+
+    const formatToYMD = (date) => date.toISOString().split('T')[0];
+    return {
+      start: formatToYMD(sixMonthsAgo),
+      end: formatToYMD(today),
+    };
+  };
+
+  const defaultRange = useMemo(() => getDefaultDateRange(), []);
+
+  const [startDate, setStartDate] = useState(defaultRange.start);
+  const [endDate, setEndDate] = useState(defaultRange.end);
+  const [reportType, setReportType] = useState('MONTHLY');
+
+  // Ràng buộc kiểm tra ngày: Từ ngày không được đứng sau Đến ngày
+  const dateError = useMemo(() => {
+    if (startDate && endDate && startDate > endDate) {
+      return 'Từ ngày không được đứng sau Đến ngày.';
+    }
+    return null;
+  }, [startDate, endDate]); // 'DAILY', 'MONTHLY', 'BY_CATEGORY'
+
+  // =========================================================================
+  // 2. STATE DỮ LIỆU BÁO CÁO & LOADING
+  // =========================================================================
+  const [reportData, setReportData] = useState(null);
+  const [hasData, setHasData] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+  // Toast thông báo
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // =========================================================================
+  // 3. TẢI DỮ LIỆU BÁO CÁO THỐNG KÊ TỪ BACKEND (/admin/reports/revenue)
+  // =========================================================================
+  const fetchReportData = useCallback(async () => {
+    if (startDate && endDate && startDate > endDate) {
+      showToast('Khoảng thời gian không hợp lệ: Từ ngày không được đứng sau Đến ngày.', 'error');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const params = {
+        startDate,
+        endDate,
+        reportType,
+      };
+
+      const response = await reportService.getRevenueReport(params);
+      const data = response?.data || response;
+
+      // Kiểm tra trạng thái hasData từ RevenueReportResponse DTO
+      if (!data || data.hasData === false) {
+        setHasData(false);
+        setReportData(null);
+        return;
+      }
+
+      // Map đúng các trường từ SummaryMetrics DTO
+      const summary = data.summaryMetrics || {};
+      const metrics = {
+        totalRevenue: summary.totalRevenue ?? 0,
+        roomRevenue: summary.roomRevenue ?? 0,
+        serviceRevenue: summary.serviceRevenue ?? 0,
+        completedBookings: summary.completedBookings ?? 0,
+        occupancyRate: summary.occupancyRate ?? 0,
+        mostBookedRoomType: summary.topCategory || 'Chưa xác định',
+      };
+
+      // Map mốc thời gian từ RevenueByTime DTO: { label, roomRevenue, serviceRevenue, totalRevenue, occupancyRate }
+      const timeline = (data.revenueByTime || []).map((t) => ({
+        ...t,
+        label: t.label || t.period || '',
+        roomRevenue: Number(t.roomRevenue || 0),
+        serviceRevenue: Number(t.serviceRevenue || 0),
+        totalRevenue: Number(t.totalRevenue || 0),
+        occupancyRate: Number(t.occupancyRate || 0),
+      }));
+
+      // Map tỷ trọng phòng từ RoomCategoryShare DTO: { categoryName, bookingCount, revenue, percentage }
+      const roomTypes = (data.roomCategoryShare || []).map((c) => ({
+        ...c,
+        categoryName: c.categoryName || 'Hạng phòng',
+        name: c.categoryName || 'Hạng phòng',
+        revenue: Number(c.revenue || 0),
+        value: Number(c.revenue || 0),
+        percentage: Number(c.percentage || 0),
+        bookingCount: Number(c.bookingCount || 0),
+      }));
+
+      // Kiểm tra dữ liệu rỗng
+      const isEmpty =
+        metrics.totalRevenue === 0 &&
+        metrics.completedBookings === 0 &&
+        timeline.length === 0 &&
+        roomTypes.length === 0;
+
+      if (isEmpty) {
+        setHasData(false);
+        setReportData(null);
+      } else {
+        setHasData(Boolean(data.hasData ?? true));
+        setReportData({
+          metrics,
+          timeline,
+          roomTypes,
+        });
+      }
+    } catch (err) {
+      console.warn('Không thể tải dữ liệu báo cáo từ API:', err);
+      setHasData(false);
+      setReportData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [startDate, endDate, reportType]);
+
+  // Gọi API khi mở trang hoặc khi bộ lọc thay đổi hợp lệ
+  useEffect(() => {
+    if (!dateError) {
+      fetchReportData();
+    }
+  }, [fetchReportData, dateError]);
+
+  // Đặt lại bộ lọc mặc định
+  const handleResetFilters = () => {
+    const range = getDefaultDateRange();
+    setStartDate(range.start);
+    setEndDate(range.end);
+    setReportType('MONTHLY');
+  };
+
+  // =========================================================================
+  // 4. XỬ LÝ XUẤT FILE BÁO CÁO (EXCEL / PDF QUA BLOB)
+  // =========================================================================
+  const handleExport = async (format) => {
+    if (!hasData || isExporting) return;
+    setIsExportMenuOpen(false);
+    setIsExporting(true);
+
+    try {
+      const fileFormat = (format || 'EXCEL').toUpperCase();
+      const params = {
+        startDate,
+        endDate,
+        reportType,
+      };
+
+      const response = await reportService.exportReport(fileFormat, params);
+
+      // Đọc tên file từ header Content-Disposition
+      const headers = response?.headers || {};
+      const disposition =
+        headers['content-disposition'] ||
+        headers['Content-Disposition'] ||
+        (headers.get ? headers.get('content-disposition') : null);
+
+      let filename = `Bao_cao_Doanh_thu_${startDate}_${endDate}.${
+        fileFormat === 'EXCEL' ? 'xlsx' : 'pdf'
+      }`;
+
+      if (disposition) {
+        const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^;"']+)["']?/i);
+        if (match && match[1]) {
+          filename = decodeURIComponent(match[1]);
+        }
+      }
+
+      // Tạo Blob từ dữ liệu nhị phân tải về
+      const blobData = response?.data instanceof Blob ? response.data : new Blob([response.data || response]);
+      const blob = new Blob([blobData], {
+        type:
+          fileFormat === 'EXCEL'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'application/pdf',
+      });
+
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      showToast(`Đã xuất file báo cáo ${fileFormat} thành công!`, 'success');
+    } catch (err) {
+      console.error('Lỗi khi xuất file báo cáo:', err);
+      showToast(
+        err?.response?.data?.message ||
+          'Không thể xuất file báo cáo lúc này. Vui lòng thử lại sau.',
+        'error'
+      );
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Toast Notification */}
-      {showAppliedToast && (
-        <div className="fixed top-20 right-8 z-50 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-xl border border-stone-700 flex items-center gap-3 animate-fade-in text-xs font-medium">
-          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-          <span>Đã áp dụng đề xuất Yield AI: Tăng +12% giá Penthouse và kích hoạt gói ẩm thực!</span>
+    <div className="space-y-7 pb-16">
+      {/* Toast thông báo */}
+      {toast && (
+        <div
+          className={`fixed top-20 right-8 z-50 px-5 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 animate-fade-in text-xs font-medium max-w-md ${
+            toast.type === 'error'
+              ? 'bg-rose-950 text-rose-100 border-rose-800'
+              : 'bg-stone-900 text-white border-stone-700'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle size={17} className="text-rose-400 shrink-0" />
+          ) : (
+            <CheckCircle2 size={17} className="text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 
-      {/* 1. Header & Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      {/* =================================================================== */}
+      {/* 1. HEADER & KHU VỰC THANH LỌC (FILTER BAR)                         */}
+      {/* =================================================================== */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-white p-6 rounded-3xl border border-stone-200/90 shadow-sm">
         <div>
           <span className="text-[11px] font-bold tracking-[0.2em] text-amber-800 uppercase block mb-1">
-            • EXECUTIVE ANALYTICS • UC-17
+            • EXECUTIVE ANALYTICS • SCRUM 53
           </span>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-stone-900 leading-tight">
-            Báo cáo & Thống kê
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900 leading-tight">
+            Dashboard Báo cáo & Thống kê
           </h1>
           <p className="text-xs text-stone-500 mt-1 max-w-2xl">
-            Tổng hợp số liệu doanh thu, công suất phòng và hiệu quả vận hành khách sạn theo thời gian thực.
+            Tổng hợp dữ liệu doanh thu, phân bổ cơ cấu phòng và công suất hoạt động theo thời gian thực.
           </p>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Time Filter Pills */}
-          <div className="bg-stone-100/90 p-1 rounded-full border border-stone-200/70 flex items-center gap-1">
-            {['Tháng 10/2025', 'Quý 3/2025', 'Năm 2025'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setTimeFilter(tab)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                  timeFilter === tab
-                    ? 'bg-black text-white shadow-xs font-semibold'
-                    : 'text-stone-600 hover:text-stone-900'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+        {/* Thanh lọc (Từ ngày, Đến ngày, Report Type, Xem báo cáo, Export) */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Ô chọn Từ ngày */}
+          <div className={`flex items-center gap-2 rounded-2xl px-3.5 py-2 shadow-2xs border transition-colors ${
+            dateError ? 'bg-rose-50/60 border-rose-400' : 'bg-stone-50 border-stone-200/90'
+          }`}>
+            <span className="text-[11px] font-semibold text-stone-500 shrink-0">Từ ngày:</span>
+            <input
+              type="date"
+              value={startDate}
+              max={endDate || undefined}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent text-xs text-stone-800 font-semibold focus:outline-none cursor-pointer"
+            />
           </div>
 
-          {/* Date Picker Button */}
-          <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-stone-200/90 text-stone-700 text-xs font-medium hover:bg-stone-50 shadow-2xs transition-colors cursor-pointer">
-            <Calendar size={13} className="text-stone-400" />
-            <span>Tùy chọn ngày</span>
+          {/* Ô chọn Đến ngày */}
+          <div className={`flex items-center gap-2 rounded-2xl px-3.5 py-2 shadow-2xs border transition-colors ${
+            dateError ? 'bg-rose-50/60 border-rose-400' : 'bg-stone-50 border-stone-200/90'
+          }`}>
+            <span className="text-[11px] font-semibold text-stone-500 shrink-0">Đến ngày:</span>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent text-xs text-stone-800 font-semibold focus:outline-none cursor-pointer"
+            />
+          </div>
+
+          {/* Dropdown Report Type: Theo ngày, Theo tháng, Theo loại phòng */}
+          <div className="relative">
+            <select
+              value={reportType}
+              onChange={(e) => setReportType(e.target.value)}
+              className="pl-3.5 pr-8 py-2.5 rounded-2xl border border-stone-200/90 bg-stone-50 text-xs font-semibold text-stone-800 shadow-2xs focus:outline-none focus:border-stone-900 appearance-none cursor-pointer"
+            >
+              <option value="DAILY">Theo ngày</option>
+              <option value="MONTHLY">Theo tháng</option>
+              <option value="BY_CATEGORY">Theo loại phòng</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-stone-400">
+              ▼
+            </div>
+          </div>
+
+          {/* Nút Xem báo cáo */}
+          <button
+            onClick={fetchReportData}
+            disabled={isLoading || Boolean(dateError)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs hover:shadow-md transition-all ${
+              dateError ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer disabled:opacity-60'
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={13} className="animate-spin text-amber-400" />
+                <span>Đang tải...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw size={13} />
+                <span>Xem báo cáo</span>
+              </>
+            )}
           </button>
 
-          {/* Export Button */}
-          <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer">
-            <Download size={13} />
-            <span>Xuất báo cáo</span>
-            <ChevronDown size={13} className="text-stone-400" />
+          {/* Nút Export (Có menu chọn Excel hoặc PDF, disabled khi hasData = false) */}
+          <div className="relative">
+            <button
+              onClick={() => setIsExportMenuOpen((prev) => !prev)}
+              disabled={!hasData || isExporting}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold shadow-xs transition-all ${
+                !hasData || isExporting
+                  ? 'bg-stone-100 text-stone-300 border border-stone-200 cursor-not-allowed'
+                  : 'bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 cursor-pointer shadow-2xs'
+              }`}
+            >
+              {isExporting ? (
+                <Loader2 size={13} className="animate-spin text-amber-600" />
+              ) : (
+                <Download size={13} className="text-stone-600" />
+              )}
+              <span>{isExporting ? 'Đang xuất file...' : 'Export'}</span>
+              <ChevronDown size={13} className="text-stone-400" />
+            </button>
+
+            {/* Menu thả xuống chọn định dạng xuất file */}
+            {isExportMenuOpen && hasData && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-40 animate-scale-up text-xs">
+                <button
+                  onClick={() => handleExport('EXCEL')}
+                  className="w-full px-4 py-2.5 text-left text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <FileSpreadsheet size={15} className="text-emerald-600" />
+                  <span>Xuất file Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleExport('PDF')}
+                  className="w-full px-4 py-2.5 text-left text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <FileText size={15} className="text-rose-600" />
+                  <span>Xuất file PDF (.pdf)</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        {dateError && (
+          <div className="w-full text-xs text-rose-600 font-semibold flex items-center gap-1.5 animate-fade-in pt-3 border-t border-rose-100">
+            <AlertCircle size={14} className="shrink-0 text-rose-500" />
+            <span>{dateError}</span>
+          </div>
+        )}
+      </div>
+
+      {/* =================================================================== */}
+      {/* 2. TRẠNG THÁI EMPTY STATE KHI hasData = false                       */}
+      {/* =================================================================== */}
+      {!hasData && !isLoading ? (
+        <div className="bg-white rounded-3xl p-16 border border-stone-200/90 shadow-2xs text-center flex flex-col items-center justify-center animate-fade-in">
+          <div className="w-16 h-16 rounded-3xl bg-stone-100 text-stone-400 flex items-center justify-center mb-4 border border-stone-200/60">
+            <BarChart3 size={32} />
+          </div>
+          <h3 className="font-serif text-xl font-bold text-stone-800 mb-2">
+            Không có dữ liệu trong khoảng thời gian này
+          </h3>
+          <p className="text-xs text-stone-500 max-w-md mx-auto mb-6 leading-relaxed">
+            Hệ thống không ghi nhận bất kỳ phát sinh doanh thu hay lượt đặt phòng nào trong phạm vi bộ lọc đã chọn. Hãy thử thay đổi mốc thời gian hoặc đặt lại mặc định.
+          </p>
+          <button
+            onClick={handleResetFilters}
+            className="px-5 py-2.5 rounded-full bg-stone-900 hover:bg-black text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          >
+            Đặt lại 6 tháng gần nhất
           </button>
         </div>
-      </div>
+      ) : (
+        /* =================================================================== */
+        /* 3. HIỂN THỊ BIỂU ĐỒ & BẢNG SỐ LIỆU KHI hasData = true               */
+        /* =================================================================== */
+        <div className="space-y-7 animate-fade-in">
+          {/* Hàng 1: Bar Chart (Doanh thu phòng & Dịch vụ) + Pie Chart (Tỷ trọng theo loại phòng) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Biểu đồ 1: Bar Chart Doanh thu phòng và dịch vụ (2/3 width) */}
+            <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                  <div>
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-amber-800 block">
+                      CƠ CẤU DOANH SỐ
+                    </span>
+                    <h2 className="font-serif text-lg font-bold text-stone-900">
+                      Doanh thu Phòng & Dịch vụ theo Thời gian
+                    </h2>
+                  </div>
+                  <div className="text-[11px] text-stone-400 font-medium">
+                    Đơn vị: VNĐ (₫)
+                  </div>
+                </div>
 
-      {/* 2. 4 KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Card 1: Tổng Doanh Thu */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs hover:shadow-xs transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center text-stone-700 border border-stone-200/70">
-              <DollarSign size={16} />
+                <div className="h-72 w-full pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={reportData?.timeline || []}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F4" />
+                      <XAxis
+                        dataKey="label"
+                        stroke="#78716C"
+                        fontSize={11}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        stroke="#78716C"
+                        fontSize={11}
+                        tickLine={false}
+                        tickFormatter={(v) => {
+                          if (v >= 1000000000) return `${(v / 1000000000).toFixed(1)}T`;
+                          if (v >= 1000000) return `${(v / 1000000).toFixed(0)}M`;
+                          return v;
+                        }}
+                      />
+                      <Tooltip
+                        formatter={(val, name) => [formatVND(val), name]}
+                        contentStyle={{
+                          backgroundColor: '#1C1917',
+                          borderColor: '#44403C',
+                          borderRadius: '14px',
+                          color: '#FFFFFF',
+                          fontSize: '12px',
+                        }}
+                        itemStyle={{ color: '#F5F5F4' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <Bar
+                        dataKey="roomRevenue"
+                        name="Doanh thu phòng"
+                        fill="#0E1524"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="serviceRevenue"
+                        name="Doanh thu dịch vụ"
+                        fill="#8E6941"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
-            <span className="flex items-center gap-0.5 text-[11px] font-bold text-amber-800 bg-[#FDF4E7] border border-amber-200/60 px-2 py-0.5 rounded-full">
-              <ArrowUpRight size={12} />
-              +14.2%
-            </span>
-          </div>
-          <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-            TỔNG DOANH THU THÁNG
-          </span>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            1.845.000.000 <span className="text-base font-normal font-sans text-stone-500">đ</span>
-          </div>
-          <div className="text-[11px] text-stone-500 mt-2">
-            <span className="font-medium text-emerald-600">+228M đ</span> so với tháng trước
-          </div>
-        </div>
 
-        {/* Card 2: Công Suất Phòng */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs hover:shadow-xs transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center text-stone-700 border border-stone-200/70">
-              <Building2 size={16} />
+            {/* Biểu đồ 2: Pie Chart Tỷ trọng doanh thu theo loại phòng (1/3 width) */}
+            <div className="bg-white rounded-3xl p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="mb-4">
+                  <span className="text-[10px] font-bold tracking-wider uppercase text-amber-800 block">
+                    PHÂN BỔ DANH MỤC
+                  </span>
+                  <h2 className="font-serif text-lg font-bold text-stone-900">
+                    Tỷ trọng Doanh thu theo Loại phòng
+                  </h2>
+                </div>
+
+                <div className="h-60 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={reportData?.roomTypes || []}
+                        dataKey="revenue"
+                        nameKey="categoryName"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={3}
+                      >
+                        {(reportData?.roomTypes || []).map((_, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={PIE_COLORS[index % PIE_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      {/* Tooltip hiển thị giá trị tiền tệ và tỷ lệ % */}
+                      <Tooltip
+                        formatter={(value, name, item) => [
+                          `${formatVND(value)} (${item?.payload?.percentage || 0}%)`,
+                          name,
+                        ]}
+                        contentStyle={{
+                          backgroundColor: '#1C1917',
+                          borderColor: '#44403C',
+                          borderRadius: '14px',
+                          color: '#FFFFFF',
+                          fontSize: '12px',
+                        }}
+                        itemStyle={{ color: '#F5F5F4' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Danh sách chú giải theo màu */}
+              <div className="space-y-1.5 pt-3 border-t border-stone-100 text-xs">
+                {(reportData?.roomTypes || []).slice(0, 4).map((item, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between text-[11px]"
+                  >
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: PIE_COLORS[index % PIE_COLORS.length],
+                        }}
+                      ></span>
+                      <span className="text-stone-700 truncate font-medium">
+                        {item.categoryName}
+                      </span>
+                    </div>
+                    <span className="font-bold text-stone-900 shrink-0">
+                      {item.percentage}%
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <span className="text-[11px] font-bold text-amber-800 bg-[#FDF4E7] border border-amber-200/60 px-2 py-0.5 rounded-full">
-              RevPAR: 3.42M đ
-            </span>
           </div>
-          <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-            CÔNG SUẤT PHÒNG TB (OCC)
-          </span>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            84.6%
-          </div>
-          <div className="text-[11px] text-stone-500 mt-2 flex items-center justify-between">
-            <span>ADR: <strong className="text-stone-700 font-semibold">4.050.000 đ</strong></span>
-            <span className="text-stone-400">Mục tiêu 80%</span>
-          </div>
-        </div>
 
-        {/* Card 3: Lượt Đặt Phòng */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs hover:shadow-xs transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center text-stone-700 border border-stone-200/70">
-              <BedDouble size={16} />
-            </div>
-            <span className="text-[11px] font-bold text-stone-700 bg-stone-100 border border-stone-200/70 px-2 py-0.5 rounded-full">
-              Hủy: 1.8% (Tối ưu)
-            </span>
-          </div>
-          <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-            LƯỢT ĐẶT PHÒNG (BOOKINGS)
-          </span>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            342 <span className="text-base font-normal font-sans text-stone-500">lượt</span>
-          </div>
-          <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span>328 hoàn tất • 6 chờ nhận phòng</span>
-          </div>
-        </div>
-
-        {/* Card 4: Mức Độ Hài Lòng */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs hover:shadow-xs transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center text-amber-500 border border-stone-200/70">
-              <Star size={16} fill="currentColor" />
-            </div>
-            <span className="text-[11px] font-bold text-amber-800 bg-[#FDF4E7] border border-amber-200/60 px-2 py-0.5 rounded-full">
-              98.2% Hài lòng
-            </span>
-          </div>
-          <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-            MỨC ĐỘ HÀI LÒNG (CSAT)
-          </span>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            4.96 <span className="text-base font-normal font-sans text-stone-400">/ 5.0</span>
-          </div>
-          <div className="text-[11px] text-stone-500 mt-2">
-            Dựa trên 189 lượt đánh giá định danh
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Charts Row: Biến Động Doanh Số & Channel Mix */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Biến Động Doanh Số (2/3 width) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
+          {/* Hàng 2: Line Chart (Doanh thu & Công suất phòng - Cấu hình 2 trục Y) */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/90 shadow-2xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
               <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block">
-                  DOANH THU 30 NGÀY
+                <span className="text-[10px] font-bold tracking-wider uppercase text-amber-800 block">
+                  CHỈ SỐ TƯƠNG QUAN
                 </span>
                 <h2 className="font-serif text-lg font-bold text-stone-900">
-                  Biến Động Doanh Số & Dòng Tiền
+                  Tương quan Tổng Doanh thu & Công suất phòng (2 Trục Y)
                 </h2>
               </div>
-              {/* Legends */}
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5 text-stone-700">
-                  <span className="w-2.5 h-2.5 rounded-full bg-black"></span>
-                  <span>Tiền phòng</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-stone-700">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#8E6941]"></span>
-                  <span>Ẩm thực & Spa</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-stone-700">
-                  <span className="w-2.5 h-2.5 rounded-full bg-stone-300"></span>
-                  <span>Dịch vụ phát sinh</span>
-                </div>
+              <div className="flex items-center gap-4 text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-stone-800">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#0E1524]"></span>
+                  Trục trái: Doanh thu (₫)
+                </span>
+                <span className="flex items-center gap-1.5 text-amber-700">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]"></span>
+                  Trục phải: Công suất (%)
+                </span>
               </div>
             </div>
 
-            {/* Custom Interactive SVG Chart matching image */}
-            <div className="h-64 w-full relative pt-6">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 600 200" preserveAspectRatio="none">
-                {/* Horizontal baseline */}
-                <line x1="0" y1="180" x2="600" y2="180" stroke="#E7E5E4" strokeWidth="1" />
-
-                {/* Stacked Vertical Bars for key checkpoints */}
-                {[
-                  { x: 40, room: 60, fb: 30, extra: 20 },
-                  { x: 125, room: 75, fb: 40, extra: 25 },
-                  { x: 210, room: 55, fb: 35, extra: 20 },
-                  { x: 295, room: 80, fb: 45, extra: 30 },
-                  { x: 380, room: 70, fb: 35, extra: 25 },
-                  { x: 465, room: 65, fb: 40, extra: 20 },
-                  { x: 550, room: 90, fb: 50, extra: 35 },
-                ].map((bar, i) => {
-                  const totalHeight = bar.room + bar.fb + bar.extra;
-                  const baseY = 180;
-                  const roomY = baseY - bar.room;
-                  const fbY = roomY - bar.fb;
-                  const extraY = fbY - bar.extra;
-
-                  return (
-                    <g key={i} className="transition-all hover:opacity-85 cursor-pointer">
-                      {/* Tiền phòng (Black) */}
-                      <rect x={bar.x - 5} y={roomY} width="10" height={bar.room} rx="2" fill="#0E1524" />
-                      {/* Ẩm thực & Spa (Brown/Bronze) */}
-                      <rect x={bar.x - 5} y={fbY} width="10" height={bar.fb} rx="2" fill="#8E6941" />
-                      {/* Dịch vụ phát sinh (Light stone/gray) */}
-                      <rect x={bar.x - 5} y={extraY} width="10" height={bar.extra} rx="2" fill="#D6D3D1" />
-                    </g>
-                  );
-                })}
-
-                {/* Smooth Curve Connecting Peaks */}
-                <path
-                  d="M 40 70 Q 80 50, 125 40 T 210 70 T 295 25 T 380 50 T 465 55 T 550 5"
-                  fill="none"
-                  stroke="#0E1524"
-                  strokeWidth="2"
-                />
-
-                {/* Peak Nodes */}
-                {[
-                  { cx: 40, cy: 70 },
-                  { cx: 125, cy: 40 },
-                  { cx: 210, cy: 70 },
-                  { cx: 295, cy: 25 },
-                  { cx: 380, cy: 50 },
-                  { cx: 465, cy: 55 },
-                  { cx: 550, cy: 5 },
-                ].map((node, i) => (
-                  <circle
-                    key={i}
-                    cx={node.cx}
-                    cy={node.cy}
-                    r="4"
-                    fill="#0E1524"
-                    stroke="#FFFFFF"
-                    strokeWidth="2"
-                    className="hover:r-6 transition-all"
+            <div className="h-80 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={reportData?.timeline || []}
+                  margin={{ top: 15, right: 20, left: 15, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F4" />
+                  <XAxis
+                    dataKey="label"
+                    stroke="#78716C"
+                    fontSize={11}
+                    tickLine={false}
                   />
-                ))}
-              </svg>
 
-              {/* X Axis Labels */}
-              <div className="flex justify-between text-[11px] text-stone-500 pt-2 font-medium">
-                <span>01/10</span>
-                <span>05/10</span>
-                <span>10/10</span>
-                <span>15/10</span>
-                <span>20/10</span>
-                <span>25/10</span>
-                <span className="font-bold text-stone-900">30/10 (HÔM NAY)</span>
-              </div>
-            </div>
-          </div>
-        </div>
+                  {/* Trục Y Trái: Doanh thu */}
+                  <YAxis
+                    yAxisId="left"
+                    orientation="left"
+                    stroke="#0E1524"
+                    fontSize={11}
+                    tickLine={false}
+                    tickFormatter={(v) => {
+                      if (v >= 1000000000) return `${(v / 1000000000).toFixed(1)}T`;
+                      if (v >= 1000000) return `${(v / 1000000).toFixed(0)}M`;
+                      return v;
+                    }}
+                  />
 
-        {/* Right: Tỷ Trọng Nguồn Channel Mix (1/3 width) */}
-        <div className="bg-white rounded-2xl p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block">
-                  PHÂN PHỐI ĐẶT PHÒNG
-                </span>
-                <h2 className="font-serif text-lg font-bold text-stone-900">
-                  Tỷ Trọng Nguồn (Channel Mix)
-                </h2>
-              </div>
-              <PieChartIcon size={18} className="text-stone-400" />
-            </div>
+                  {/* Trục Y Phải: Công suất phòng (%) */}
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={[0, 100]}
+                    stroke="#D97706"
+                    fontSize={11}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}%`}
+                  />
 
-            {/* Donut Chart Simulation */}
-            <div className="relative w-44 h-44 mx-auto my-2 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                {/* Background track */}
-                <circle cx="50" cy="50" r="38" stroke="#F5F5F4" strokeWidth="11" fill="none" />
-                {/* Direct Web: 48% (circumference ~ 238.76 -> 48% is ~114.6) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#0E1524"
-                  strokeWidth="11"
-                  strokeDasharray="114.6 238.76"
-                  strokeDashoffset="0"
-                  fill="none"
-                  strokeLinecap="round"
-                />
-                {/* OTA: 32% (~76.4) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#8E6941"
-                  strokeWidth="11"
-                  strokeDasharray="76.4 238.76"
-                  strokeDashoffset="-118"
-                  fill="none"
-                  strokeLinecap="round"
-                />
-                {/* Concierge VIP: 20% (~47.7) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#D6D3D1"
-                  strokeWidth="11"
-                  strokeDasharray="47.7 238.76"
-                  strokeDashoffset="-196"
-                  fill="none"
-                  strokeLinecap="round"
-                />
-              </svg>
+                  <Tooltip
+                    formatter={(val, name) => {
+                      if (name.includes('Công suất')) {
+                        return [`${val}%`, name];
+                      }
+                      return [formatVND(val), name];
+                    }}
+                    contentStyle={{
+                      backgroundColor: '#1C1917',
+                      borderColor: '#44403C',
+                      borderRadius: '14px',
+                      color: '#FFFFFF',
+                      fontSize: '12px',
+                    }}
+                    itemStyle={{ color: '#F5F5F4' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
 
-              {/* Center Donut Label */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="font-serif text-2xl font-bold text-stone-900 leading-none">
-                  48%
-                </span>
-                <span className="text-[9px] font-bold tracking-wider text-stone-400 uppercase mt-0.5">
-                  DIRECT WEB
-                </span>
-              </div>
+                  {/* Đường Doanh thu kết nối trục Y trái */}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="totalRevenue"
+                    name="Tổng doanh thu"
+                    stroke="#0E1524"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: '#0E1524' }}
+                    activeDot={{ r: 6 }}
+                  />
+
+                  {/* Đường Công suất phòng kết nối trục Y phải */}
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="occupancyRate"
+                    name="Công suất phòng (%)"
+                    stroke="#D97706"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: '#D97706' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Breakdown List */}
-          <div className="space-y-2.5 pt-4 border-t border-stone-100 text-xs">
-            <div className="flex items-center justify-between p-2 rounded-xl bg-stone-50 border border-stone-200/60">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-black shrink-0"></span>
-                <span className="font-medium text-stone-800">Trực tiếp (Website & App)</span>
-              </div>
-              <div className="text-right">
-                <span className="font-bold text-stone-900 block">48%</span>
-                <span className="text-[10px] text-stone-500">(885M)</span>
-              </div>
+          {/* Hàng 3: Bảng METRIC / VALUE */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/90 shadow-2xs overflow-hidden">
+            <div className="pb-4 border-b border-stone-100 mb-4">
+              <span className="text-[10px] font-bold tracking-[0.2em] text-amber-800 uppercase block">
+                BẢNG TỔNG HỢP CHỈ SỐ
+              </span>
+              <h3 className="font-serif text-lg font-bold text-stone-900">
+                Chỉ số Hiệu suất Vận hành (Metric / Value)
+              </h3>
             </div>
 
-            <div className="flex items-center justify-between p-2 rounded-xl bg-stone-50 border border-stone-200/60">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#8E6941] shrink-0"></span>
-                <span className="font-medium text-stone-800">OTA (Agoda, Booking.com)</span>
-              </div>
-              <div className="text-right">
-                <span className="font-bold text-stone-900 block">32%</span>
-                <span className="text-[10px] text-stone-500">(590M)</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-2 rounded-xl bg-stone-50 border border-stone-200/60">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-stone-400 shrink-0"></span>
-                <span className="font-medium text-stone-800">Khách quen VIP • Concierge</span>
-              </div>
-              <div className="text-right">
-                <span className="font-bold text-stone-900 block">20%</span>
-                <span className="text-[10px] text-stone-500">(370M)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Bottom Row: High-tier Revenue Story Card (Left) & Room Type Ranking Table (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Featured Dark Luxury Card (1/3 width) */}
-        <div className="relative rounded-2xl overflow-hidden min-h-[380px] flex flex-col justify-end p-6 bg-stone-900 shadow-md">
-          <img
-            src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&auto=format&fit=crop&q=80"
-            alt="Biệt Thự Hướng Biển"
-            className="absolute inset-0 w-full h-full object-cover opacity-45 scale-105 transition-transform duration-700 hover:scale-100"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
-
-          <div className="relative z-10 space-y-3">
-            <span className="inline-block text-[10px] font-bold tracking-widest text-[#F7DFBC] bg-black/50 border border-[#F7DFBC]/30 px-2.5 py-1 rounded-full uppercase">
-              CƠ CẤU DOANH THU CAO CẤP
-            </span>
-            <h3 className="font-serif text-2xl font-bold text-white leading-snug">
-              Hiệu Quả Vượt Trội Từ Các Biệt Thự Hướng Biển
-            </h3>
-            <p className="text-xs text-stone-300 font-light leading-relaxed">
-              Các hạng Penthouse và Villa đóng góp hơn 66% tổng dòng tiền lưu trú trong tháng với tỷ lệ khách đặt kéo dài trên 3.4 đêm.
-            </p>
-          </div>
-        </div>
-
-        {/* Right: Xếp Hạng Hiệu Suất Loại Phòng (2/3 width) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block">
-                  PHÂN TÍCH HẠNG PHÒNG
-                </span>
-                <h2 className="font-serif text-lg font-bold text-stone-900">
-                  Xếp Hạng Hiệu Suất Loại Phòng
-                </h2>
-              </div>
-              <button className="flex items-center gap-1 text-xs font-semibold text-stone-700 hover:text-black transition-colors cursor-pointer">
-                <span>Xem tất cả 12 phòng</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-
-            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100 pb-2">
-                    <th className="pb-3">LOẠI PHÒNG • VỊ TRÍ</th>
-                    <th className="pb-3 text-right">DOANH THU</th>
-                    <th className="pb-3 px-6">CÔNG SUẤT (OCC)</th>
-                    <th className="pb-3 text-right">ĐÁNH GIÁ</th>
+                  <tr className="bg-stone-50/70 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
+                    <th className="py-3 px-6">METRIC</th>
+                    <th className="py-3 px-6 text-right">VALUE</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
-                  {/* Row 1 */}
-                  <tr className="hover:bg-stone-50/70 transition-colors">
-                    <td className="py-3.5 pr-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=100&auto=format&fit=crop&q=80"
-                          alt="Penthouse Ocean View"
-                          className="w-10 h-10 rounded-xl object-cover ring-1 ring-stone-200 shrink-0"
-                        />
-                        <div>
-                          <p className="font-bold text-stone-900">Penthouse Ocean View</p>
-                          <p className="text-[11px] text-stone-400">Tầng 05 • 04 Căn • 180m²</p>
-                        </div>
-                      </div>
+                <tbody className="divide-y divide-stone-100 font-medium">
+                  {/* 1. Tổng doanh thu */}
+                  <tr className="hover:bg-stone-50/50 transition-colors">
+                    <td className="py-3.5 px-6 font-semibold text-stone-800 flex items-center gap-2">
+                      <DollarSign size={14} className="text-amber-800" />
+                      <span>Tổng doanh thu</span>
                     </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <p className="font-bold text-stone-900">680.000.000 đ</p>
-                      <p className="text-[10px] text-stone-400">36.8% Tổng DT</p>
-                    </td>
-                    <td className="py-3.5 px-6 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-stone-900 w-8">92%</span>
-                        <div className="w-24 h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-stone-900 rounded-full" style={{ width: '92%' }}></div>
-                        </div>
-                        <span className="text-[10px] text-stone-500">Rất cao</span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 font-semibold text-stone-800">
-                        <Star size={12} className="text-amber-500 fill-amber-500" />
-                        4.98
-                      </span>
+                    <td className="py-3.5 px-6 text-right font-serif text-base font-bold text-stone-900">
+                      {formatVND(reportData?.metrics?.totalRevenue || 0)}
                     </td>
                   </tr>
 
-                  {/* Row 2 */}
-                  <tr className="hover:bg-stone-50/70 transition-colors">
-                    <td className="py-3.5 pr-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=100&auto=format&fit=crop&q=80"
-                          alt="Garden Sanctuary Villa"
-                          className="w-10 h-10 rounded-xl object-cover ring-1 ring-stone-200 shrink-0"
-                        />
-                        <div>
-                          <p className="font-bold text-stone-900">Garden Sanctuary Villa</p>
-                          <p className="text-[11px] text-stone-400">Khu Vườn Thiền • 06 Căn • 140m²</p>
-                        </div>
-                      </div>
+                  {/* 2. Doanh thu phòng */}
+                  <tr className="hover:bg-stone-50/50 transition-colors">
+                    <td className="py-3.5 px-6 font-semibold text-stone-800">
+                      Doanh thu phòng
                     </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <p className="font-bold text-stone-900">540.000.000 đ</p>
-                      <p className="text-[10px] text-stone-400">29.2% Tổng DT</p>
-                    </td>
-                    <td className="py-3.5 px-6 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-stone-900 w-8">88%</span>
-                        <div className="w-24 h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-stone-900 rounded-full" style={{ width: '88%' }}></div>
-                        </div>
-                        <span className="text-[10px] text-stone-500">Ổn định</span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 font-semibold text-stone-800">
-                        <Star size={12} className="text-amber-500 fill-amber-500" />
-                        4.95
-                      </span>
+                    <td className="py-3.5 px-6 text-right font-semibold text-stone-900">
+                      {formatVND(reportData?.metrics?.roomRevenue || 0)}
                     </td>
                   </tr>
 
-                  {/* Row 3 */}
-                  <tr className="hover:bg-stone-50/70 transition-colors">
-                    <td className="py-3.5 pr-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src="https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=100&auto=format&fit=crop&q=80"
-                          alt="Ocean Horizon Suite"
-                          className="w-10 h-10 rounded-xl object-cover ring-1 ring-stone-200 shrink-0"
-                        />
-                        <div>
-                          <p className="font-bold text-stone-900">Ocean Horizon Suite</p>
-                          <p className="text-[11px] text-stone-400">Tầng 03-04 • 08 Căn • 95m²</p>
-                        </div>
-                      </div>
+                  {/* 3. Doanh thu dịch vụ */}
+                  <tr className="hover:bg-stone-50/50 transition-colors">
+                    <td className="py-3.5 px-6 font-semibold text-stone-800">
+                      Doanh thu dịch vụ
                     </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <p className="font-bold text-stone-900">420.000.000 đ</p>
-                      <p className="text-[10px] text-stone-400">22.8% Tổng DT</p>
-                    </td>
-                    <td className="py-3.5 px-6 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-stone-900 w-8">79%</span>
-                        <div className="w-24 h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-stone-900 rounded-full" style={{ width: '79%' }}></div>
-                        </div>
-                        <span className="text-[10px] text-stone-500">Tốt</span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 font-semibold text-stone-800">
-                        <Star size={12} className="text-amber-500 fill-amber-500" />
-                        4.93
-                      </span>
+                    <td className="py-3.5 px-6 text-right font-semibold text-stone-900">
+                      {formatVND(reportData?.metrics?.serviceRevenue || 0)}
                     </td>
                   </tr>
 
-                  {/* Row 4 */}
-                  <tr className="hover:bg-stone-50/70 transition-colors">
-                    <td className="py-3.5 pr-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src="https://images.unsplash.com/photo-1591088398332-8a7791972843?w=100&auto=format&fit=crop&q=80"
-                          alt="Deluxe Pine Forest"
-                          className="w-10 h-10 rounded-xl object-cover ring-1 ring-stone-200 shrink-0"
-                        />
-                        <div>
-                          <p className="font-bold text-stone-900">Deluxe Pine Forest</p>
-                          <p className="text-[11px] text-stone-400">Khu Rừng Thông • 10 Căn • 70m²</p>
-                        </div>
-                      </div>
+                  {/* 4. Công suất phòng (%) */}
+                  <tr className="hover:bg-stone-50/50 transition-colors">
+                    <td className="py-3.5 px-6 font-semibold text-stone-800">
+                      Công suất phòng (%)
                     </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <p className="font-bold text-stone-900">205.000.000 đ</p>
-                      <p className="text-[10px] text-stone-400">11.2% Tổng DT</p>
+                    <td className="py-3.5 px-6 text-right font-bold text-amber-800">
+                      {reportData?.metrics?.occupancyRate || 0}%
                     </td>
-                    <td className="py-3.5 px-6 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-stone-900 w-8">75%</span>
-                        <div className="w-24 h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-stone-900 rounded-full" style={{ width: '75%' }}></div>
-                        </div>
-                        <span className="text-[10px] text-stone-500">Mục tiêu đạt</span>
-                      </div>
+                  </tr>
+
+                  {/* 5. Tổng số đơn hoàn thành */}
+                  <tr className="hover:bg-stone-50/50 transition-colors">
+                    <td className="py-3.5 px-6 font-semibold text-stone-800">
+                      Tổng số đơn hoàn thành
                     </td>
-                    <td className="py-3.5 text-right whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 font-semibold text-stone-800">
-                        <Star size={12} className="text-amber-500 fill-amber-500" />
-                        4.91
-                      </span>
+                    <td className="py-3.5 px-6 text-right font-bold text-stone-900">
+                      {reportData?.metrics?.completedBookings || 0} đơn
+                    </td>
+                  </tr>
+
+                  {/* 6. Loại phòng đặt nhiều nhất */}
+                  <tr className="hover:bg-stone-50/50 transition-colors">
+                    <td className="py-3.5 px-6 font-semibold text-stone-800">
+                      Loại phòng đặt nhiều nhất
+                    </td>
+                    <td className="py-3.5 px-6 text-right font-bold text-emerald-800 bg-emerald-50/40 rounded-xl">
+                      {reportData?.metrics?.mostBookedRoomType || '—'}
                     </td>
                   </tr>
                 </tbody>
@@ -593,36 +780,7 @@ export const ReportStatisticsPage = () => {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 5. Bottom AI Yield Bar Banner */}
-      <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#FDF4E7] text-amber-900 border border-amber-200/60 flex items-center justify-center shrink-0">
-            <Sparkles size={18} />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-stone-900">
-              Đề xuất Tối ưu Doanh thu (Yield Management AI)
-            </h4>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Dự báo công suất cuối tuần tới (01/11 - 03/11) chạm 96%. Đề xuất tăng giá linh hoạt hạng <span className="font-semibold text-stone-700">Penthouse Ocean View +12%</span> và kích hoạt gói ưu đãi ẩm thực tại phòng.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button className="px-3.5 py-2 rounded-full border border-stone-200 text-stone-700 text-xs font-medium hover:bg-stone-50 transition-colors cursor-pointer">
-            Xem chi tiết dự báo
-          </button>
-          <button
-            onClick={handleApplyYield}
-            className="px-4 py-2 rounded-full bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            Áp dụng điều chỉnh giá
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

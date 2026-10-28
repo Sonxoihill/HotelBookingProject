@@ -1,49 +1,59 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   BarChart3,
+  Layers,
   DoorOpen,
   ConciergeBell,
   BadgePercent,
   Users,
-  Settings,
   Server,
 } from 'lucide-react';
+import { tokenStorage } from '../../utils/tokenStorage';
 
 export const AdminSidebar = () => {
-  const navigate = useNavigate();
+  const currentUser = tokenStorage.getUser();
+  const userRole = tokenStorage.getUserRole();
+  const fullName = currentUser?.fullName || currentUser?.name || 'Quản trị viên';
+  const email = currentUser?.email || '';
+  const initial = (fullName.trim()[0] || 'A').toUpperCase();
+  const roleLabel =
+    userRole === 'ADMIN'
+      ? 'QUẢN TRỊ VIÊN'
+      : userRole === 'RECEPTIONIST'
+      ? 'LỄ TÂN'
+      : (userRole || 'QUẢN TRỊ VIÊN');
 
   const navItems = [
     {
-      name: 'Tổng quan & Thống kê',
-      path: '/admin',
+      name: 'Dashboard',
+      path: '/admin/dashboard',
       icon: BarChart3,
-      exact: true,
     },
     {
-      name: 'Phòng & Loại phòng',
+      name: 'Loại phòng',
+      path: '/admin/room-categories',
+      icon: Layers,
+    },
+    {
+      name: 'Quản lý Phòng',
       path: '/admin/rooms',
       icon: DoorOpen,
     },
     {
-      name: 'Quản lý Dịch vụ',
+      name: 'Dịch vụ',
       path: '/admin/services',
       icon: ConciergeBell,
     },
     {
-      name: 'Cài đặt Giá linh hoạt',
+      name: 'Giá linh hoạt',
       path: '/admin/pricing',
       icon: BadgePercent,
     },
     {
-      name: 'Nhân sự & Phân quyền',
-      path: '/admin/staff',
+      name: 'Người dùng',
+      path: '/admin/users',
       icon: Users,
-    },
-    {
-      name: 'Cài đặt Hệ thống',
-      path: '/admin/settings',
-      icon: Settings,
     },
   ];
 
@@ -75,7 +85,6 @@ export const AdminSidebar = () => {
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.exact}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                   isActive
@@ -95,19 +104,28 @@ export const AdminSidebar = () => {
       <div className="p-3.5 border-t border-stone-100">
         <div className="bg-[#F8F9FA] border border-stone-200/80 rounded-2xl p-3 flex flex-col gap-2 shadow-2xs">
           <div className="flex items-center gap-2.5">
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
-              alt="Lê Hoàng Phúc"
-              className="w-8 h-8 rounded-full object-cover ring-1 ring-stone-200 shadow-2xs shrink-0"
-            />
+            {currentUser?.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={fullName}
+                className="w-8 h-8 rounded-full object-cover ring-1 ring-stone-200 shadow-2xs shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#0E1524] text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0">
+                {initial}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-stone-900 truncate">
-                  Lê Hoàng Phúc
+                <span
+                  className="text-xs font-bold text-stone-900 truncate"
+                  title={email ? `${fullName} (${email})` : fullName}
+                >
+                  {fullName}
                 </span>
               </div>
               <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 leading-none mt-0.5">
-                QUẢN TRỊ VIÊN
+                {roleLabel}
               </span>
             </div>
           </div>

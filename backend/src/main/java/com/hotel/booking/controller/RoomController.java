@@ -127,4 +127,20 @@ public class RoomController {
         Page<Room> rooms = roomService.getPublicRooms(pageable);
         return ApiResponse.success("Lấy danh sách phòng thành công", rooms);
     }
+
+    @Operation(
+            summary = "Xem trước báo giá phòng theo ngày lưu trú (Public)",
+            description = "Hệ thống tự động áp dụng các quy tắc giá linh hoạt (cuối tuần, lễ tết, mùa cao điểm) cho từng đêm và tính 10% VAT."
+    )
+    @GetMapping("/{id}/price-quote")
+    public ApiResponse<com.hotel.booking.dto.response.PriceQuote> getPriceQuote(
+            @Parameter(description = "ID phòng cần tính giá", example = "1", required = true)
+            @PathVariable Long id,
+            @Parameter(description = "Ngày nhận phòng (YYYY-MM-DD)", example = "2027-09-01", required = true)
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @Parameter(description = "Ngày trả phòng (YYYY-MM-DD)", example = "2027-09-03", required = true)
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut) {
+        com.hotel.booking.dto.response.PriceQuote quote = roomService.getPriceQuote(id, checkIn, checkOut);
+        return ApiResponse.success("Lấy báo giá phòng thành công", quote);
+    }
 }

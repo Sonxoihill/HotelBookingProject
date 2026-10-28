@@ -1,101 +1,173 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { validateSafeText } from '../../utils/sanitize';
 import {
   X,
   BadgePercent,
-  SlidersHorizontal,
   Calendar,
-  Zap,
-  TrendingUp,
-  Building2,
-  ShieldAlert,
+  AlertCircle,
+  Info,
   CheckCircle2,
-  Sparkles,
+  Percent,
+  Sliders,
 } from 'lucide-react';
 
-export const AddPricingRuleModal = ({ isOpen, onClose, onAddRule }) => {
-  const [formData, setFormData] = useState({
+export const AddPricingRuleModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  roomCategories = [],
+  initialData = null,
+}) => {
+  const isEditing = Boolean(initialData?.id);
+
+  // Helper định dạng ngày ISO
+  const getTodayISO = () => new Date().toISOString().split('T')[0];
+  const getDefaultEndISO = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
+  const initialFormState = {
     name: '',
-    ruleCode: 'RATE-DYN-' + Math.floor(100 + Math.random() * 900),
-    type: 'OCCUPANCY_SURGE',
-    targetScope: 'ALL',
-    specificRooms: ['Grand Celestial Penthouse', 'Garden Sanctuary Pool Villa'],
-    adjustmentType: 'PERCENT_INCREASE',
-    adjustmentValue: 15,
-    startDate: '2026-11-01',
-    endDate: '2026-12-31',
-    selectedDays: ['Friday', 'Saturday'],
-    occupancyThreshold: 80,
-    allowStacking: false,
-    priceCeiling: 35000000,
-    status: 'ACTIVE',
-    notes: 'Quy tắc tự động tăng giá nhằm bảo vệ biên lợi nhuận khi công suất chạm ngưỡng cao.',
-  });
+    ruleType: 'WEEKEND', // 'WEEKEND', 'HOLIDAY', 'PEAK_SEASON'
+    startDate: getTodayISO(),
+    endDate: getDefaultEndISO(),
+    adjustmentPercent: 15,
+    categoryId: '', // '' hoặc null = Tất cả loại phòng
+    isActive: true,
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+  const [errors, setErrors] = useState({});
+  const [serverErrors, setServerErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        id: initialData.id,
+        name: initialData.name || '',
+        ruleType: initialData.ruleType || initialData.type || 'WEEKEND',
+        startDate: initialData.startDate ? initialData.startDate.split('T')[0] : getTodayISO(),
+        endDate: initialData.endDate ? initialData.endDate.split('T')[0] : getDefaultEndISO(),
+        adjustmentPercent: initialData.adjustmentPercent ?? initialData.percentage ?? 15,
+        categoryId: initialData.categoryId !== null && initialData.categoryId !== undefined ? String(initialData.categoryId) : '',
+        isActive: initialData.isActive !== undefined ? Boolean(initialData.isActive) : true,
+      });
+    } else {
+      setFormData(initialFormState);
+    }
+    setErrors({});
+    setServerErrors({});
+  }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
-  const ROOM_OPTIONS = [
-    'Grand Celestial Penthouse',
-    'Ocean Horizon Executive Suite',
-    'Garden Sanctuary Pool Villa',
-    'Deluxe Pine Forest View',
-  ];
-
-  const DAYS_OF_WEEK = [
-    { key: 'Monday', label: 'T2' },
-    { key: 'Tuesday', label: 'T3' },
-    { key: 'Wednesday', label: 'T4' },
-    { key: 'Thursday', label: 'T5' },
-    { key: 'Friday', label: 'T6' },
-    { key: 'Saturday', label: 'T7' },
-    { key: 'Sunday', label: 'CN' },
-  ];
-
-  const toggleDay = (dayKey) => {
-    setFormData((prev) => ({
-      ...prev,
-      selectedDays: prev.selectedDays.includes(dayKey)
-        ? prev.selectedDays.filter((d) => d !== dayKey)
-        : [...prev.selectedDays, dayKey],
-    }));
-  };
-
-  const toggleRoom = (roomName) => {
-    setFormData((prev) => ({
-      ...prev,
-      specificRooms: prev.specificRooms.includes(roomName)
-        ? prev.specificRooms.filter((r) => r !== roomName)
-        : [...prev.specificRooms, roomName],
-    }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.name.trim()) return;
-
-    let adjustmentString = `+${formData.adjustmentValue}%`;
-    if (formData.adjustmentType === 'PERCENT_DECREASE') {
-      adjustmentString = `Giảm ${formData.adjustmentValue}%`;
-    } else if (formData.adjustmentType === 'FIXED_AMOUNT') {
-      adjustmentString = `+${Number(formData.adjustmentValue).toLocaleString('vi-VN')} đ`;
-    }
-
-    onAddRule({
-      ...formData,
-      adjustment: adjustmentString,
-      adjustmentScope: formData.targetScope === 'ALL' ? 'toàn bộ hạng phòng' : 'hạng phòng chỉ định',
-      timeRange: `${formData.startDate} — ${formData.endDate}`,
-      timeBadge: formData.type === 'OCCUPANCY_SURGE' ? 'TỰ ĐỘNG THEO CÔNG SUẤT' : 'CHÍNH SÁCH MÙA VỤ',
-      target: formData.targetScope === 'ALL' ? 'Toàn bộ 42 phòng và villa' : formData.specificRooms.join(', '),
-      status: 'ACTIVE',
-      statusLabel: 'Đang kích hoạt',
-      isActive: true,
-    });
+  // Xóa form về mặc định & xóa toàn bộ lỗi khi bấm Hủy bỏ
+  const handleCancel = () => {
+    setFormData(initialFormState);
+    setErrors({});
+    setServerErrors({});
     onClose();
   };
 
+  // Validate phía Client: endDate >= startDate và adjustmentPercent > -100
+  const validateClient = () => {
+    const errs = {};
+
+    const nameErr = validateSafeText(formData.name, {
+      fieldName: 'Tên quy tắc',
+      maxLength: 50,
+      required: true,
+    });
+    if (nameErr) errs.name = nameErr;
+
+    if (!formData.startDate) {
+      errs.startDate = 'Vui lòng chọn ngày bắt đầu.';
+    }
+
+    if (!formData.endDate) {
+      errs.endDate = 'Vui lòng chọn ngày kết thúc.';
+    } else if (formData.startDate && formData.endDate < formData.startDate) {
+      errs.dateRange = 'Từ ngày không được đứng sau Đến ngày.';
+    }
+
+    const percentNum = Number(formData.adjustmentPercent);
+    if (isNaN(percentNum)) {
+      errs.adjustmentPercent = 'Tỷ lệ điều chỉnh phải là số hợp lệ.';
+    } else if (percentNum <= -100) {
+      errs.adjustmentPercent = 'Tỷ lệ điều chỉnh phải lớn hơn -100% (Ví dụ: -10%, +20%).';
+    }
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setServerErrors({});
+
+    if (!validateClient()) return;
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        ruleType: formData.ruleType,
+        type: formData.ruleType,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        adjustmentPercent: Number(formData.adjustmentPercent),
+        // Lựa chọn "Tất cả loại phòng" gửi categoryId: null
+        categoryId: formData.categoryId ? Number(formData.categoryId) : null,
+        isActive: Boolean(formData.isActive),
+      };
+
+      await onSave(payload);
+    } catch (err) {
+      console.error('Lỗi khi lưu quy tắc giá:', err);
+      const status = err.response?.status || err.status;
+      const data = err.response?.data || err.data;
+      const errorMsg = data?.message || err.message || '';
+
+      const newServerErrors = {};
+
+      // Bắt lỗi từ response Server: Lỗi trùng lặp (409) -> hiện chữ đỏ dưới ô Từ ngày/Đến ngày
+      if (
+        status === 409 ||
+        errorMsg.toLowerCase().includes('trùng') ||
+        errorMsg.toLowerCase().includes('conflict') ||
+        errorMsg.toLowerCase().includes('overlap')
+      ) {
+        newServerErrors.dateRange =
+          errorMsg || 'Khoảng thời gian này đã bị trùng lặp với quy tắc giá hiện có.';
+      }
+
+      // Lỗi tỷ lệ -> hiện chữ đỏ dưới ô %
+      if (
+        (status === 400 || status === 422) &&
+        (errorMsg.toLowerCase().includes('tỷ lệ') ||
+          errorMsg.toLowerCase().includes('percent') ||
+          errorMsg.toLowerCase().includes('adjustment'))
+      ) {
+        newServerErrors.adjustmentPercent =
+          errorMsg || 'Tỷ lệ điều chỉnh không hợp lệ (phải lớn hơn -100%).';
+      }
+
+      if (Object.keys(newServerErrors).length > 0) {
+        setServerErrors(newServerErrors);
+      } else {
+        setServerErrors({ general: errorMsg || 'Có lỗi xảy ra khi lưu quy tắc giá.' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-stone-200 my-8 animate-scale-up">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+      <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl border border-stone-200 my-8 animate-scale-up">
         {/* Header */}
         <div className="p-6 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
           <div className="flex items-center gap-3">
@@ -104,252 +176,270 @@ export const AddPricingRuleModal = ({ isOpen, onClose, onAddRule }) => {
             </div>
             <div>
               <span className="text-[10px] font-bold tracking-[0.2em] text-amber-800 uppercase block">
-                YIELD MANAGEMENT RMS • THUẬT TOÁN ĐỊNH GIÁ ĐỘNG
+                CẤU HÌNH GIÁ LINH HOẠT • YIELD MANAGEMENT
               </span>
               <h3 className="font-serif text-xl font-bold text-stone-900">
-                Thiết Lập Quy Tắc Giá Linh Hoạt Mới
+                {isEditing ? 'Cập Nhật Quy Tắc Giá' : 'Thêm Quy Tắc Giá Mới'}
               </h3>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="w-9 h-9 rounded-full hover:bg-stone-200 text-stone-400 hover:text-stone-700 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Body Form */}
+        {/* Server General Error */}
+        {serverErrors.general && (
+          <div className="mx-6 mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+            <AlertCircle size={15} className="shrink-0 text-rose-600" />
+            <span>{serverErrors.general}</span>
+          </div>
+        )}
+
+        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
-          {/* Section 1: Tên & Phân loại chính sách */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Tên quy tắc định giá *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="Ví dụ: Tăng giá tự động khi công suất vượt 80%"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-bold focus:outline-none focus:border-stone-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Mã quy tắc RMS
-              </label>
-              <input
-                type="text"
-                value={formData.ruleCode}
-                onChange={(e) => setFormData({ ...formData, ruleCode: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono focus:outline-none focus:border-stone-900"
-              />
-            </div>
-          </div>
-
-          {/* Section 2: Loại hình quy tắc & Phương thức điều chỉnh */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Loại hình quy tắc điều chỉnh
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
-              >
-                <option value="OCCUPANCY_SURGE">Tăng giá tự động theo Công suất phòng (Yield AI)</option>
-                <option value="WEEKEND_SURCHARGE">Phụ thu Cuối tuần (Weekend Surcharge)</option>
-                <option value="PEAK_SEASON">Phụ thu Mùa cao điểm & Lễ Tết (Festive Season)</option>
-                <option value="EARLY_BIRD">Ưu đãi Đặt phòng sớm (Early Bird Discount)</option>
-                <option value="LONG_STAY">Ưu đãi Khách lưu trú dài hạn (Long Stay)</option>
-                <option value="VIP_TIER">Đặc quyền Thành viên VIP Black Diamond</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Mức biến động giá áp dụng *
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={formData.adjustmentType}
-                  onChange={(e) => setFormData({ ...formData, adjustmentType: e.target.value })}
-                  className="w-full px-2.5 py-2 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
-                >
-                  <option value="PERCENT_INCREASE">Tăng giá theo % (+)</option>
-                  <option value="PERCENT_DECREASE">Giảm giá theo % (-)</option>
-                  <option value="FIXED_AMOUNT">Cộng tiền cố định (VND)</option>
-                </select>
-                <input
-                  type="number"
-                  required
-                  value={formData.adjustmentValue}
-                  onChange={(e) => setFormData({ ...formData, adjustmentValue: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-xs font-bold focus:outline-none focus:border-stone-900"
-                  placeholder={formData.adjustmentType === 'FIXED_AMOUNT' ? '500000' : '15'}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Điều kiện kích hoạt tự động (Ngưỡng công suất & Ngày trong tuần) */}
-          <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-stone-200/90 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
-                <Zap size={14} className="text-amber-700 fill-amber-700" />
-                Ngưỡng công suất kích hoạt tự động (Occupancy Threshold)
-              </span>
-              <span className="text-xs font-bold text-amber-900 bg-white px-2.5 py-1 rounded-full border border-amber-200 shadow-2xs">
-                {formData.occupancyThreshold}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="50"
-              max="95"
-              step="5"
-              value={formData.occupancyThreshold}
-              onChange={(e) => setFormData({ ...formData, occupancyThreshold: e.target.value })}
-              className="w-full accent-amber-800 cursor-pointer"
-            />
-            <p className="text-[11px] text-stone-500">
-              * Khi tỷ lệ lấp đầy phòng chạm ngưỡng <strong className="text-stone-800">{formData.occupancyThreshold}%</strong>, thuật toán PMS sẽ tự động đẩy giá bán để tối ưu doanh thu RevPAR.
-            </p>
-
-            {/* Day of Week Selector */}
-            <div className="pt-2 border-t border-stone-200/60">
-              <span className="block text-[11px] font-semibold text-stone-700 mb-2">
-                Áp dụng vào các ngày trong tuần:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {DAYS_OF_WEEK.map((d) => {
-                  const isChecked = formData.selectedDays.includes(d.key);
-                  return (
-                    <button
-                      type="button"
-                      key={d.key}
-                      onClick={() => toggleDay(d.key)}
-                      className={`w-9 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        isChecked
-                          ? 'bg-black text-white shadow-2xs'
-                          : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
-                      }`}
-                    >
-                      {d.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Phạm vi phòng áp dụng */}
+          {/* 1. Tên quy tắc */}
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-2">
-              Phạm vi hạng phòng áp dụng
+            <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+              Tên quy tắc định giá <span className="text-rose-500">*</span>
             </label>
-            <div className="flex items-center gap-4 mb-2">
-              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                <input
-                  type="radio"
-                  name="targetScope"
-                  value="ALL"
-                  checked={formData.targetScope === 'ALL'}
-                  onChange={() => setFormData({ ...formData, targetScope: 'ALL' })}
-                  className="accent-black"
-                />
-                <span>Áp dụng toàn bộ 42 phòng và villa</span>
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                <input
-                  type="radio"
-                  name="targetScope"
-                  value="CUSTOM"
-                  checked={formData.targetScope === 'CUSTOM'}
-                  onChange={() => setFormData({ ...formData, targetScope: 'CUSTOM' })}
-                  className="accent-black"
-                />
-                <span>Chọn hạng phòng cụ thể</span>
-              </label>
-            </div>
+            <input
+              type="text"
+              maxLength={50}
+              placeholder="Ví dụ: Phụ thu Cuối tuần Mùa hè 2026, Giảm giá Mùa thấp điểm... (tối đa 50 ký tự)"
+              value={formData.name}
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                if (errors.name) setErrors({ ...errors, name: null });
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none transition-colors ${
+                errors.name
+                  ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                  : 'border-stone-300 focus:border-stone-900'
+              }`}
+            />
+            {errors.name && (
+              <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                <span>{errors.name}</span>
+              </p>
+            )}
+          </div>
 
-            {formData.targetScope === 'CUSTOM' && (
-              <div className="grid grid-cols-2 gap-2 mt-2 p-3 bg-stone-50 rounded-xl border border-stone-200">
-                {ROOM_OPTIONS.map((room) => {
-                  const isChecked = formData.specificRooms.includes(room);
-                  return (
-                    <button
-                      type="button"
-                      key={room}
-                      onClick={() => toggleRoom(room)}
-                      className={`flex items-center gap-2 p-2 rounded-lg text-xs text-left transition-all cursor-pointer ${
-                        isChecked
-                          ? 'bg-white text-stone-900 font-bold shadow-2xs border border-stone-300'
-                          : 'text-stone-500 hover:bg-stone-100'
-                      }`}
-                    >
-                      <div
-                        className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 ${
-                          isChecked ? 'bg-black text-white' : 'border border-stone-300'
-                        }`}
-                      >
-                        {isChecked && <CheckCircle2 size={10} />}
-                      </div>
-                      <span className="truncate">{room}</span>
-                    </button>
-                  );
-                })}
+          {/* 2. Dropdown Loại quy tắc (Cuối tuần, Lễ Tết, Mùa cao điểm) */}
+          <div>
+            <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+              Loại quy tắc áp dụng <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={formData.ruleType}
+              onChange={(e) => setFormData({ ...formData, ruleType: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-semibold focus:outline-none focus:border-stone-900 bg-white"
+            >
+              <option value="WEEKEND">Cuối tuần (Weekend)</option>
+              <option value="HOLIDAY">Lễ Tết (Holiday)</option>
+              <option value="PEAK_SEASON">Mùa cao điểm (Peak Season)</option>
+            </select>
+
+            {/* Khi chọn loại "Cuối tuần": Hiện dòng ghi chú */}
+            {formData.ruleType === 'WEEKEND' && (
+              <div className="mt-2 p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 flex items-start gap-2 text-xs text-amber-900">
+                <Info size={14} className="text-amber-700 shrink-0 mt-0.5" />
+                <span>Chỉ áp dụng cho đêm Thứ 6 và Thứ 7 trong khoảng thời gian đã chọn.</span>
               </div>
             )}
           </div>
 
-          {/* Section 5: Trần giá an toàn & Cộng dồn */}
+          {/* 3. Từ ngày (startDate) & Đến ngày (endDate) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
-                <ShieldAlert size={13} className="text-stone-500" />
-                <span>Trần giá tối đa bảo vệ khách (Price Ceiling)</span>
+                <Calendar size={13} className="text-stone-500" />
+                <span>Từ ngày (startDate) <span className="text-rose-500">*</span></span>
               </label>
               <input
-                type="number"
-                step="1000000"
-                value={formData.priceCeiling}
-                onChange={(e) => setFormData({ ...formData, priceCeiling: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+                type="date"
+                max={formData.endDate || undefined}
+                value={formData.startDate}
+                onChange={(e) => {
+                  setFormData({ ...formData, startDate: e.target.value });
+                  if (errors.dateRange || errors.startDate) {
+                    setErrors({ ...errors, dateRange: null, startDate: null });
+                  }
+                  if (serverErrors.dateRange) {
+                    setServerErrors({ ...serverErrors, dateRange: null });
+                  }
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                  errors.startDate || errors.dateRange || serverErrors.dateRange
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.startDate && (
+                <p className="text-[11px] text-rose-600 mt-1 font-medium">{errors.startDate}</p>
+              )}
             </div>
 
-            <div className="flex items-center">
-              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-stone-700 pt-4">
-                <input
-                  type="checkbox"
-                  checked={formData.allowStacking}
-                  onChange={(e) => setFormData({ ...formData, allowStacking: e.target.checked })}
-                  className="rounded border-stone-300 text-black focus:ring-black w-4 h-4"
-                />
-                <span>Cho phép cộng dồn với mã giảm giá thành viên</span>
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
+                <Calendar size={13} className="text-stone-500" />
+                <span>Đến ngày (endDate) <span className="text-rose-500">*</span></span>
               </label>
+              <input
+                type="date"
+                min={formData.startDate || undefined}
+                value={formData.endDate}
+                onChange={(e) => {
+                  setFormData({ ...formData, endDate: e.target.value });
+                  if (errors.dateRange || errors.endDate) {
+                    setErrors({ ...errors, dateRange: null, endDate: null });
+                  }
+                  if (serverErrors.dateRange) {
+                    setServerErrors({ ...serverErrors, dateRange: null });
+                  }
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                  errors.endDate || errors.dateRange || serverErrors.dateRange
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
+              />
+              {errors.endDate && (
+                <p className="text-[11px] text-rose-600 mt-1 font-medium">{errors.endDate}</p>
+              )}
             </div>
           </div>
 
-          {/* Footer */}
+          {/* Bắt lỗi trùng lặp từ Server (409) hoặc lỗi Validate Client: hiện chữ đỏ dưới ô Từ ngày/Đến ngày */}
+          {(errors.dateRange || serverErrors.dateRange) && (
+            <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1.5 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{serverErrors.dateRange || errors.dateRange}</span>
+            </p>
+          )}
+
+          {/* 4. Tỷ lệ điều chỉnh (%) (adjustmentPercent) */}
+          <div>
+            <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Percent size={13} className="text-stone-500" />
+                <span>Tỷ lệ điều chỉnh (%) <span className="text-rose-500">*</span></span>
+              </span>
+              <span className="text-[11px] font-normal text-stone-500 italic">
+                Số âm = giảm giá (VD: -15% giảm, 20% tăng)
+              </span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="1"
+                placeholder="Ví dụ: 20 hoặc -10"
+                value={formData.adjustmentPercent}
+                onChange={(e) => {
+                  setFormData({ ...formData, adjustmentPercent: e.target.value });
+                  if (errors.adjustmentPercent) {
+                    setErrors({ ...errors, adjustmentPercent: null });
+                  }
+                  if (serverErrors.adjustmentPercent) {
+                    setServerErrors({ ...serverErrors, adjustmentPercent: null });
+                  }
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none transition-colors ${
+                  errors.adjustmentPercent || serverErrors.adjustmentPercent
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
+              />
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400">
+                %
+              </span>
+            </div>
+
+            {/* Bắt lỗi tỷ lệ từ Server hoặc Client: hiện chữ đỏ dưới ô % */}
+            {(errors.adjustmentPercent || serverErrors.adjustmentPercent) && (
+              <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                <span>{serverErrors.adjustmentPercent || errors.adjustmentPercent}</span>
+              </p>
+            )}
+
+            <div className="mt-1.5 text-[11px] text-stone-500">
+              {Number(formData.adjustmentPercent) > 0 ? (
+                <span className="text-rose-600 font-semibold">
+                  Tăng +{formData.adjustmentPercent}% so với giá cơ bản
+                </span>
+              ) : Number(formData.adjustmentPercent) < 0 ? (
+                <span className="text-emerald-600 font-semibold">
+                  Giảm {Math.abs(Number(formData.adjustmentPercent))}% so với giá cơ bản
+                </span>
+              ) : (
+                <span>Không thay đổi mức giá (0%)</span>
+              )}
+            </div>
+          </div>
+
+          {/* 5. Dropdown Loại phòng áp dụng (Lựa chọn "Tất cả loại phòng" gửi categoryId: null) */}
+          <div>
+            <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+              Loại phòng áp dụng
+            </label>
+            <select
+              value={formData.categoryId}
+              onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-medium focus:outline-none focus:border-stone-900 bg-white"
+            >
+              <option value="">Tất cả loại phòng (Áp dụng toàn bộ hệ thống)</option>
+              {roomCategories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name} ({cat.code || `ID:${cat.id}`})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 6. Checkbox Kích hoạt */}
+          <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200">
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-stone-800">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="rounded border-stone-300 text-black focus:ring-black w-4 h-4 cursor-pointer"
+              />
+              <span>Kích hoạt quy tắc giá này ngay sau khi lưu</span>
+            </label>
+            <p className="text-[11px] text-stone-500 ml-6.5 mt-0.5">
+              Khi được kích hoạt, khách hàng đặt phòng trong khoảng thời gian này sẽ tự động nhận đơn giá mới.
+            </p>
+          </div>
+
+          {/* Footer Buttons */}
           <div className="pt-4 border-t border-stone-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
+              onClick={handleCancel}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer disabled:opacity-50"
             >
-              Hủy
+              Hủy bỏ
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs"
+              disabled={isSubmitting}
+              className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
             >
-              Kích hoạt quy tắc giá
+              {isSubmitting ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <span>Đang lưu...</span>
+                </>
+              ) : (
+                <span>{isEditing ? 'Lưu thay đổi' : 'Lưu quy tắc giá'}</span>
+              )}
             </button>
           </div>
         </form>

@@ -20,6 +20,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByUserId(Long userId);
     List<Booking> findByRoomId(Long roomId);
     List<Booking> findByStatus(BookingStatus status);
+    boolean existsByRoomId(Long roomId);
+    boolean existsByRoomIdAndStatusIn(Long roomId, List<BookingStatus> statuses);
 
     @Query("SELECT b FROM Booking b JOIN FETCH b.user u JOIN FETCH b.room r LEFT JOIN FETCH r.category c WHERE b.id = :id")
     java.util.Optional<Booking> findByIdWithDetails(@Param("id") Long id);

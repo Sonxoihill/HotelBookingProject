@@ -70,6 +70,39 @@ export const detectMaliciousCode = (text) => {
 };
 
 /**
+ * Kiểm tra tính hợp lệ và an toàn của các trường text input trong giao diện quản trị
+ * - Chống mã độc, script injection, XSS
+ * - Giới hạn tối đa số ký tự (mặc định 50 ký tự)
+ * - Kiểm tra trường bắt buộc
+ * @param {string} text
+ * @param {object} options
+ * @returns {string | null} Trả về thông báo lỗi hoặc null nếu hợp lệ
+ */
+export const validateSafeText = (
+  text,
+  { fieldName = 'Trường này', maxLength = 50, required = false } = {}
+) => {
+  const str = text === null || text === undefined ? '' : String(text).trim();
+
+  if (required && !str) {
+    return `${fieldName} không được để trống.`;
+  }
+
+  if (str.length > maxLength) {
+    return `${fieldName} không được vượt quá ${maxLength} ký tự (hiện có ${str.length} ký tự).`;
+  }
+
+  if (str) {
+    const malwareResult = detectMaliciousCode(str);
+    if (malwareResult.hasMalware) {
+      return `Phát hiện ký tự hoặc mã độc không an toàn (${malwareResult.reason}). Vui lòng nhập dữ liệu hợp lệ.`;
+    }
+  }
+
+  return null;
+};
+
+/**
  * Thoát các ký tự đặc biệt HTML (HTML Entity Encoding)
  * Đảm bảo trình duyệt xem text thuần túy, tuyệt đối không render thành thẻ hay chạy script popup
  * @param {string} text
@@ -188,6 +221,7 @@ export const validateBookingNotes = (note) => {
 
 export default {
   detectMaliciousCode,
+  validateSafeText,
   escapeHtml,
   sanitizeText,
   validateBookingNotes,

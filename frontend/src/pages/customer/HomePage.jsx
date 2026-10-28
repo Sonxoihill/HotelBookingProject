@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, Search, Calendar, Users, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Search, Calendar, Users, Loader2, RefreshCw } from 'lucide-react';
 import RoomCard from '../../components/customer/RoomCard';
 import { roomService } from '../../services/roomService';
 
@@ -31,8 +31,8 @@ export const HomePage = () => {
   // Trạng thái tìm kiếm phòng
   const [checkIn, setCheckIn] = useState(todayStr);
   const [checkOut, setCheckOut] = useState(tomorrowStr);
-  const [capacities, setCapacities] = useState([]);
-  const [guests, setGuests] = useState('');
+  const [capacities, setCapacities] = useState([1, 2, 4]);
+  const [guests, setGuests] = useState('1');
   const [searchError, setSearchError] = useState('');
 
   // Trạng thái danh sách phòng tải từ Database (SCRUM-40)
@@ -41,37 +41,39 @@ export const HomePage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
+  const [loadRoomsError, setLoadRoomsError] = useState(null);
 
   // Lấy số sức chứa (capacity) của phòng từ CSDL, tránh trùng lặp số sức chứa giống nhau
-  useEffect(() => {
-    const fetchCapacitiesFromDB = async () => {
-      try {
-        const response = await roomService.getPublicRooms({ page: 0, size: 100 });
-        const pageData = response?.data || response;
-        const roomList = pageData?.content || pageData?.items || [];
+  const fetchCapacitiesFromDB = useCallback(async () => {
+    try {
+      const response = await roomService.getPublicRooms({ page: 0, size: 100 });
+      const pageData = response?.data || response;
+      const roomList = pageData?.content || pageData?.items || [];
 
-        // Tránh trùng lặp số sức chứa bằng Set
-        const capacitySet = new Set();
-        roomList.forEach((r) => {
-          const cap = r.capacity || r.category?.capacity;
-          if (cap) {
-            capacitySet.add(Number(cap));
-          }
-        });
-
-        // Sắp xếp tăng dần: ví dụ [1, 2, 4]
-        const uniqueCapacities = Array.from(capacitySet).sort((a, b) => a - b);
-        setCapacities(uniqueCapacities);
-        if (uniqueCapacities.length > 0) {
-          setGuests(String(uniqueCapacities[0]));
+      // Tránh trùng lặp số sức chứa bằng Set
+      const capacitySet = new Set();
+      roomList.forEach((r) => {
+        const cap = r.capacity || r.category?.capacity;
+        if (cap) {
+          capacitySet.add(Number(cap));
         }
-      } catch (err) {
-        console.error('Lỗi lấy sức chứa phòng từ database:', err);
-      }
-    };
+      });
 
-    fetchCapacitiesFromDB();
+      // Sắp xếp tăng dần: ví dụ [1, 2, 4]
+      const uniqueCapacities = Array.from(capacitySet).sort((a, b) => a - b);
+
+      if (uniqueCapacities.length > 0) {
+        setCapacities(uniqueCapacities);
+        setGuests((prev) => (uniqueCapacities.includes(Number(prev)) ? prev : String(uniqueCapacities[0])));
+      }
+    } catch (err) {
+      console.error('Lỗi lấy sức chứa phòng từ database:', err);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchCapacitiesFromDB();
+  }, [fetchCapacitiesFromDB]);
 
   // Thay đổi ngày Check-in
   const handleCheckInChange = (e) => {
@@ -96,31 +98,33 @@ export const HomePage = () => {
   };
 
   // Gọi API GET /api/v1/rooms/public (truyền page, size)
-  useEffect(() => {
-    const fetchRooms = async () => {
-      setIsLoadingRooms(true);
-      try {
-        const response = await roomService.getPublicRooms({
-          page: currentPage - 1,
-          size: 3,
-        });
+  const fetchRooms = useCallback(async () => {
+    setIsLoadingRooms(true);
+    setLoadRoomsError(null);
+    try {
+      const response = await roomService.getPublicRooms({
+        page: currentPage - 1,
+        size: 3,
+      });
 
-        const pageData = response?.data || response;
-        if (pageData) {
-          const roomList = pageData.content || pageData.items || [];
-          setRooms(roomList);
-          setTotalPages(pageData.totalPages || 1);
-          setTotalElements(pageData.totalElements || roomList.length);
-        }
-      } catch (err) {
-        console.error('Lỗi tải danh sách phòng trang chủ:', err);
-      } finally {
-        setIsLoadingRooms(false);
+      const pageData = response?.data || response;
+      if (pageData) {
+        const roomList = pageData.content || pageData.items || [];
+        setRooms(roomList);
+        setTotalPages(pageData.totalPages || 1);
+        setTotalElements(pageData.totalElements || roomList.length);
       }
-    };
-
-    fetchRooms();
+    } catch (err) {
+      console.error('Lỗi tải danh sách phòng trang chủ:', err);
+      setLoadRoomsError(err?.message || 'Không thể tải danh sách phòng từ hệ thống.');
+    } finally {
+      setIsLoadingRooms(false);
+    }
   }, [currentPage]);
+
+  useEffect(() => {
+    fetchRooms();
+  }, [fetchRooms]);
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
@@ -291,6 +295,30 @@ export const HomePage = () => {
           <div className="min-h-[300px] flex flex-col items-center justify-center space-y-3">
             <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
             <span className="text-xs text-stone-500 font-medium">Đang tải danh sách phòng từ hệ thống...</span>
+          </div>
+        ) : loadRoomsError && rooms.length === 0 ? (
+          <div className="bg-amber-50/70 rounded-3xl border border-amber-200 p-8 sm:p-12 text-center space-y-4 shadow-sm max-w-xl mx-auto">
+            <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto">
+              <RefreshCw className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-serif text-lg font-medium text-amber-950 mb-1">
+                Máy chủ đang khởi động hoặc phản hồi chậm
+              </h3>
+              <p className="text-xs text-stone-600 leading-relaxed">
+                {loadRoomsError}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                fetchRooms();
+                fetchCapacitiesFromDB();
+              }}
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-full shadow-md transition-colors cursor-pointer"
+            >
+              <RefreshCw size={14} />
+              <span>Thử kết nối lại</span>
+            </button>
           </div>
         ) : rooms.length === 0 ? (
           <div className="bg-white rounded-3xl border border-stone-200 p-12 text-center space-y-3 shadow-2xs">

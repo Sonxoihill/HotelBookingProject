@@ -342,6 +342,33 @@ export const RoomDetailPage = () => {
   const [phone, setPhone] = useState(profilePhone || queryPhone || '');
   const [phoneTouched, setPhoneTouched] = useState(Boolean(profilePhone || queryPhone));
 
+  // State báo giá linh hoạt từ API GET /rooms/{id}/price-quote
+  const [priceQuote, setPriceQuote] = useState(null);
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+
+  // Khi khách chọn ngày check-in/check-out, gọi hàm price-quote từ roomService.js
+  useEffect(() => {
+    const fetchPriceQuote = async () => {
+      if (!id || !checkIn || !checkOut || checkOut <= checkIn) {
+        setPriceQuote(null);
+        return;
+      }
+      setIsLoadingQuote(true);
+      try {
+        const res = await roomService.getPriceQuote(id, { checkIn, checkOut });
+        const data = res?.data || res;
+        setPriceQuote(data);
+      } catch (err) {
+        console.warn('Lỗi khi lấy báo giá linh hoạt:', err);
+        setPriceQuote(null);
+      } finally {
+        setIsLoadingQuote(false);
+      }
+    };
+
+    fetchPriceQuote();
+  }, [id, checkIn, checkOut]);
+
   // Tự động điền số điện thoại theo số trong profile từ API khi người dùng đã đăng nhập
   useEffect(() => {
     const fetchProfilePhone = async () => {
@@ -449,9 +476,37 @@ export const RoomDetailPage = () => {
   };
 
   const nights = calculateNights();
-  const roomPriceSubtotal = room.price * nights;
-  const taxAndServiceFee = Math.round(roomPriceSubtotal * 0.1); // 10% VAT và phí phục vụ
-  const totalAmount = roomPriceSubtotal + taxAndServiceFee;
+
+  // Trích xuất danh sách giá từng đêm từ dữ liệu priceQuote trả về từ API
+  const dailyPrices =
+    priceQuote?.nights ||
+    priceQuote?.dailyPrices ||
+    priceQuote?.dailyRates ||
+    priceQuote?.nightlyPrices ||
+    priceQuote?.details ||
+    priceQuote?.items ||
+    [];
+
+  // Hiển thị Tạm tính, VAT, Tổng tiền từ priceQuote (không tự tính)
+  const roomPriceSubtotal =
+    priceQuote?.subtotal ??
+    priceQuote?.roomSubtotal ??
+    priceQuote?.totalBasePrice ??
+    (dailyPrices.length > 0
+      ? dailyPrices.reduce((sum, item) => sum + Number(item.price || item.finalPrice || 0), 0)
+      : room.price * nights);
+
+  const taxAndServiceFee =
+    priceQuote?.vat ??
+    priceQuote?.tax ??
+    priceQuote?.vatAmount ??
+    Math.round(roomPriceSubtotal * 0.08);
+
+  const totalAmount =
+    priceQuote?.totalAmount ??
+    priceQuote?.total ??
+    priceQuote?.finalTotal ??
+    (roomPriceSubtotal + taxAndServiceFee);
 
   const handleBookingProceed = () => {
     setPhoneTouched(true);
@@ -982,28 +1037,77 @@ export const RoomDetailPage = () => {
               </div>
             </div>
 
-            {/* Bảng kê khai chi phí minh bạch */}
+            {/* Bảng kê khai chi phí linh hoạt */}
             <div className="bg-slate-50 rounded-2xl p-4.5 space-y-3 border border-slate-200/70">
-              <span className="text-xs font-bold text-slate-800 block uppercase tracking-wider">
-                Bảng chi tiết giá thanh toán
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Bảng chi tiết giá từng đêm
+                </span>
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  Báo giá linh hoạt
+                </span>
+              </div>
 
-              <div className="space-y-2 text-xs text-slate-600">
-                {/* 1. Giá phòng */}
+              {isLoadingQuote ? (
+                <div className="py-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Đang tính toán giá từng đêm theo quy tắc linh hoạt...</span>
+                </div>
+              ) : dailyPrices.length > 0 ? (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {dailyPrices.map((item, idx) => {
+                    const nightDate = item.date || item.nightDate || '';
+                    const nightPrice = item.price || item.finalPrice || item.rate || 0;
+                    const ruleName = item.ruleName || item.appliedRuleName || item.rule || '';
+                    const percent = item.adjustmentPercent ?? item.percentage ?? 0;
+                    const hasAdjustment = Boolean(ruleName || percent !== 0);
+
+                    // Helper format dd/MM
+                    let dateLabel = `Đêm ${idx + 1}`;
+                    if (nightDate) {
+                      const parts = String(nightDate).split('T')[0].split('-');
+                      dateLabel = parts.length === 3 ? `${parts[2]}/${parts[1]}` : nightDate;
+                    }
+
+                    // Đêm nào có điều chỉnh thì hiển thị tên quy tắc (Ví dụ: "02/09 – Quốc Khánh +20%: 1.140.000đ")
+                    let label = dateLabel;
+                    if (hasAdjustment) {
+                      const ruleText = ruleName ? `${ruleName}` : 'Điều chỉnh';
+                      const percentText = percent ? ` (${percent > 0 ? '+' : ''}${percent}%)` : '';
+                      label = `${label} – ${ruleText}${percentText}`;
+                    }
+
+                    return (
+                      <div
+                        key={nightDate || idx}
+                        className={`flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl border ${
+                          hasAdjustment
+                            ? 'bg-amber-50/80 border-amber-200 text-amber-950 font-medium'
+                            : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <span className="truncate pr-2">{label}</span>
+                        <span className="font-bold text-slate-900 shrink-0">
+                          {formatVND(nightPrice)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="space-y-2 text-xs text-slate-600 pt-2 border-t border-slate-200">
+                {/* 1. Tạm tính */}
                 <div className="flex items-center justify-between">
-                  <span>
-                    Giá phòng ({nights > 0 ? `${nights} đêm` : '0 đêm'} × {formatVND(room.price)}):
-                  </span>
+                  <span>Tạm tính tiền phòng ({nights > 0 ? `${nights} đêm` : '0 đêm'}):</span>
                   <span className="font-bold text-slate-900">
                     {formatVND(roomPriceSubtotal)}
                   </span>
                 </div>
 
-                {/* 2. Thuế & dịch vụ */}
+                {/* 2. Thuế VAT */}
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1">
-                    <span>Thuế GTGT & Phí dịch vụ (10%):</span>
-                  </span>
+                  <span>Thuế VAT:</span>
                   <span className="font-bold text-slate-900">
                     {formatVND(taxAndServiceFee)}
                   </span>

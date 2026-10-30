@@ -90,19 +90,19 @@ export const AddServiceModal = ({
     // 4. Đơn giá: Số hợp lệ, khác 0, không âm, không quá nhỏ (< 1.000 VND), không quá lớn (> 1.000.000.000 VND)
     const rawPrice = String(formData.price ?? '').trim();
     if (!rawPrice) {
-      newErrors.price = 'Đơn giá dịch vụ không được để trống.';
+      newErrors.price = 'Giá dịch vụ không được để trống';
     } else {
       const priceNum = Number(rawPrice);
       if (isNaN(priceNum)) {
-        newErrors.price = 'Đơn giá dịch vụ phải là số hợp lệ.';
+        newErrors.price = 'Giá dịch vụ phải là số hợp lệ';
       } else if (priceNum < 0) {
-        newErrors.price = 'Đơn giá dịch vụ không được là số âm.';
+        newErrors.price = 'Đơn giá dịch vụ không được là số âm';
       } else if (priceNum === 0) {
-        newErrors.price = 'Đơn giá dịch vụ phải lớn hơn 0 VND.';
+        newErrors.price = 'Giá dịch vụ phải lớn hơn 0';
       } else if (priceNum < 1000) {
-        newErrors.price = 'Đơn giá dịch vụ quá nhỏ (tối thiểu 1.000 VND).';
+        newErrors.price = 'Đơn giá dịch vụ quá nhỏ (tối thiểu 1.000 VND)';
       } else if (priceNum > 1000000000) {
-        newErrors.price = 'Đơn giá dịch vụ quá lớn (tối đa 1.000.000.000 VND).';
+        newErrors.price = 'Đơn giá dịch vụ quá lớn (tối đa 1.000.000.000 VND)';
       }
     }
 

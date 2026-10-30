@@ -288,11 +288,14 @@ export const StaffManagementPage = () => {
         department: deptMap[formData.department] || formData.department || 'FRONT_DESK',
       };
 
-      await staffService.createStaff(payload);
+      const res = await staffService.createStaff(payload);
 
       // Khi API trả về thành công:
+      const tempPass = res?.data?.temporaryPassword || res?.temporaryPassword;
       showToast(
-        'Tạo tài khoản thành công. Mật khẩu đã được gửi tới email nhân sự',
+        tempPass
+          ? `Tạo tài khoản thành công! Mật khẩu tạm thời: ${tempPass}`
+          : 'Tạo tài khoản thành công. Mật khẩu đã được gửi tới email nhân sự',
         'success'
       );
 

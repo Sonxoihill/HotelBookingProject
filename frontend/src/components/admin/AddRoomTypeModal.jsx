@@ -132,30 +132,30 @@ export const AddRoomTypeModal = ({
     // 6. Diện tích: Chỉ điền số, mặc định m², phải > 0
     const rawArea = String(formData.area ?? '').trim();
     if (!rawArea) {
-      newErrors.area = 'Vui lòng nhập diện tích phòng.';
+      newErrors.area = 'Diện tích không được để trống';
     } else {
       const areaNum = Number(rawArea);
       if (isNaN(areaNum) || areaNum <= 0) {
-        newErrors.area = 'Diện tích chỉ điền số và phải lớn hơn 0 m².';
+        newErrors.area = 'Diện tích phải lớn hơn 0';
       }
     }
 
     // 7. Giá cơ bản: Số hợp lệ, khác 0, không âm, không quá nhỏ (< 10.000 VND), không quá lớn (> 1.000.000.000 VND)
     const rawPrice = String(formData.basePrice ?? '').trim();
     if (!rawPrice) {
-      newErrors.basePrice = 'Giá cơ bản không được để trống.';
+      newErrors.basePrice = 'Giá cơ bản không được để trống';
     } else {
       const priceNum = Number(rawPrice);
       if (isNaN(priceNum)) {
-        newErrors.basePrice = 'Giá cơ bản phải là số hợp lệ.';
+        newErrors.basePrice = 'Giá cơ bản phải là số hợp lệ';
       } else if (priceNum < 0) {
-        newErrors.basePrice = 'Giá phòng không được là số âm.';
+        newErrors.basePrice = 'Giá phòng không được là số âm';
       } else if (priceNum === 0) {
-        newErrors.basePrice = 'Giá phòng phải lớn hơn 0 VND.';
+        newErrors.basePrice = 'Giá cơ bản phải lớn hơn 0';
       } else if (priceNum < 10000) {
-        newErrors.basePrice = 'Giá phòng quá nhỏ (tối thiểu 10.000 VND/đêm).';
+        newErrors.basePrice = 'Giá phòng quá nhỏ (tối thiểu 10.000 VND/đêm)';
       } else if (priceNum > 1000000000) {
-        newErrors.basePrice = 'Giá phòng quá lớn (tối đa 1.000.000.000 VND/đêm).';
+        newErrors.basePrice = 'Giá phòng quá lớn (tối đa 1.000.000.000 VND/đêm)';
       }
     }
 

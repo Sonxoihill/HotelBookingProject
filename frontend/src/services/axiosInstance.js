@@ -1,10 +1,5 @@
 import axios from 'axios';
 import { tokenStorage } from '../utils/tokenStorage';
-import {
-  translateErrorMessage,
-  translateErrorsMap,
-  formatValidationErrorsSummary,
-} from '../utils/errorTranslation';
 
 /**
  * Cấu hình Axios Instance kết nối Backend API
@@ -39,7 +34,7 @@ axiosInstance.interceptors.request.use(
 /**
  * Response Interceptor:
  * Tự động xử lý lỗi tập trung, phát hiện token hết hạn (401),
- * và chuẩn hóa 100% lỗi validation từ backend sang Tiếng Việt.
+ * truyền trực tiếp thông báo lỗi và danh sách lỗi validation Tiếng Việt từ Backend.
  */
 axiosInstance.interceptors.response.use(
   (response) => {
@@ -70,22 +65,13 @@ axiosInstance.interceptors.response.use(
         }
       }
 
-      // Chuẩn hóa & Việt hóa toàn bộ thông báo lỗi validation trả về từ Spring Boot
-      if (data && typeof data === 'object') {
-        if (data.errors && typeof data.errors === 'object') {
-          data.errors = translateErrorsMap(data.errors);
-        }
-
-        const hasFieldErrors = data.errors && Object.keys(data.errors).length > 0;
-        if (hasFieldErrors) {
-          data.message = formatValidationErrorsSummary(data.errors, data.message);
-        } else if (data.message) {
-          data.message = translateErrorMessage(data.message);
+      let errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      if (data?.errors && typeof data.errors === 'object') {
+        const fieldErrorValues = Object.values(data.errors).filter(Boolean);
+        if (fieldErrorValues.length > 0 && (errorMessage === 'Dữ liệu đầu vào không hợp lệ' || !errorMessage)) {
+          errorMessage = fieldErrorValues.join('; ');
         }
       }
-
-      const rawErrorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
-      const errorMessage = translateErrorMessage(rawErrorMessage);
 
       const customError = new Error(errorMessage);
       customError.status = status;
@@ -103,9 +89,7 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(timeoutError);
     }
 
-    const genericMsg = translateErrorMessage(error.message || 'Lỗi kết nối máy chủ.');
-    const connectionError = new Error(genericMsg);
-    return Promise.reject(connectionError);
+    return Promise.reject(error);
   }
 );
 

@@ -85,7 +85,7 @@ export const AddRoomModal = ({
 
     // 2. Thuộc loại phòng: Bắt buộc
     if (!formData.roomTypeId) {
-      newErrors.roomTypeId = 'Vui lòng chọn loại phòng áp dụng.';
+      newErrors.roomTypeId = 'Loại phòng không được để trống';
     }
 
     // 3. Mã thẻ từ (RFID): max 50 ký tự, chống mã độc
@@ -137,7 +137,11 @@ export const AddRoomModal = ({
       console.error('Lỗi khi gửi dữ liệu phòng:', err);
       const serverErrs = err?.errors || err?.response?.data?.errors;
       if (serverErrs && typeof serverErrs === 'object') {
-        setErrors((prev) => ({ ...prev, ...serverErrs }));
+        const mappedErrors = { ...serverErrs };
+        if (mappedErrors.categoryId && !mappedErrors.roomTypeId) {
+          mappedErrors.roomTypeId = mappedErrors.categoryId;
+        }
+        setErrors((prev) => ({ ...prev, ...mappedErrors }));
       }
     } finally {
       setIsSubmitting(false);

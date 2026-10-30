@@ -84,28 +84,28 @@ export const AddPricingRuleModal = ({
     if (nameErr) errs.name = nameErr;
 
     if (!formData.startDate) {
-      errs.startDate = 'Vui lòng chọn ngày bắt đầu.';
+      errs.startDate = 'Ngày bắt đầu không được để trống';
     }
 
     if (!formData.endDate) {
-      errs.endDate = 'Vui lòng chọn ngày kết thúc.';
+      errs.endDate = 'Ngày kết thúc không được để trống';
     } else if (formData.startDate && formData.endDate < formData.startDate) {
-      errs.dateRange = 'Từ ngày không được đứng sau Đến ngày.';
+      errs.dateRange = 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu';
     }
 
     const rawPercent = String(formData.adjustmentPercent ?? '').trim();
     if (rawPercent === '') {
-      errs.adjustmentPercent = 'Vui lòng nhập tỷ lệ điều chỉnh giá.';
+      errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không được để trống';
     } else {
       const percentNum = Number(rawPercent);
       if (isNaN(percentNum)) {
-        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh phải là số hợp lệ.';
+        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh phải là số hợp lệ';
       } else if (percentNum === 0) {
-        errs.adjustmentPercent = 'Phần trăm điều chỉnh phải khác 0.';
+        errs.adjustmentPercent = 'Phần trăm điều chỉnh phải khác 0';
       } else if (percentNum <= -100) {
-        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không hợp lệ (không thể giảm quá 100%).';
+        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không hợp lệ (không thể giảm quá 100%)';
       } else if (percentNum > 500) {
-        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không được vượt quá 500%.';
+        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không được vượt quá 500%';
       }
     }
 
@@ -153,27 +153,32 @@ export const AddPricingRuleModal = ({
           errorMsg || 'Khoảng thời gian này đã bị trùng lặp với quy tắc giá hiện có.';
       }
 
-      // Lỗi tỷ lệ -> hiện chữ đỏ dưới ô %
-      if (
-        data?.errors?.adjustmentPercent ||
-        ((status === 400 || status === 422) &&
-          (errorMsg.toLowerCase().includes('tỷ lệ') ||
-            errorMsg.toLowerCase().includes('phần trăm') ||
-            errorMsg.toLowerCase().includes('khác 0') ||
-            errorMsg.toLowerCase().includes('percent') ||
-            errorMsg.toLowerCase().includes('adjustment')))
-      ) {
-        newServerErrors.adjustmentPercent =
-          data?.errors?.adjustmentPercent ||
-          errorMsg ||
-          'Phần trăm điều chỉnh phải khác 0.';
+      // Map toàn bộ errors từ backend nếu có
+      const backendFieldErrors = data?.errors || err?.errors;
+      if (backendFieldErrors && typeof backendFieldErrors === 'object') {
+        Object.entries(backendFieldErrors).forEach(([field, msg]) => {
+          if (field === 'adjustmentPercent') {
+            newServerErrors.adjustmentPercent = msg;
+          } else if (field === 'startDate' || field === 'endDate') {
+            newServerErrors.dateRange = msg;
+          } else {
+            newServerErrors[field] = msg;
+          }
+        });
       }
 
-      if (data?.errors?.name) {
-        newServerErrors.name = data.errors.name;
-      }
-      if (data?.errors?.startDate || data?.errors?.endDate) {
-        newServerErrors.dateRange = data.errors.startDate || data.errors.endDate;
+      // Lỗi phần trăm điều chỉnh từ message hoặc 400 Bad Request
+      if (
+        !newServerErrors.adjustmentPercent &&
+        (status === 400 || status === 422) &&
+        (errorMsg.includes('Phần trăm điều chỉnh phải khác 0') ||
+          errorMsg.toLowerCase().includes('tỷ lệ') ||
+          errorMsg.toLowerCase().includes('phần trăm') ||
+          errorMsg.toLowerCase().includes('khác 0') ||
+          errorMsg.toLowerCase().includes('percent') ||
+          errorMsg.toLowerCase().includes('adjustment'))
+      ) {
+        newServerErrors.adjustmentPercent = errorMsg || 'Phần trăm điều chỉnh phải khác 0';
       }
 
       if (Object.keys(newServerErrors).length > 0) {

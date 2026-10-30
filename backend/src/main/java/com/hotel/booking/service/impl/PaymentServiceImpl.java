@@ -107,7 +107,7 @@ public class PaymentServiceImpl implements PaymentService {
      * Tự động giải quyết returnUrl cho VNPay:
      * 1. customReturnUrl truyền trực tiếp
      * 2. Query param 'returnUrl' từ client
-     * 3. Domain header 'Origin' (ví dụ: http://localhost:5173 hoặc https://hotelbookingproject-5wqz.onrender.com)
+     * 3. Domain header 'Origin' (ví dụ: http://localhost:5173 hoặc https://hotelbookingproject-fontend-l6ru.onrender.com)
      * 4. Domain header 'Referer'
      * 5. Fallback về cấu hình vnPayConfig.getReturnUrl()
      */

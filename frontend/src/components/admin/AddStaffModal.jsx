@@ -144,7 +144,7 @@ export const AddStaffModal = ({ isOpen, onClose, onAddStaff }) => {
         </div>
 
         {/* Body Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {/* Section 1: Hồ sơ cơ bản */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3 flex items-center gap-2">

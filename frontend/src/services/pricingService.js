@@ -1,8 +1,8 @@
 import axiosInstance from './axiosInstance';
 
 /**
- * Service xử lý : Cài đặt Giá linh hoạt (Quản trị viên)
- * (Giá theo mùa cao điểm, ngày lễ tết, cuối tuần thứ 6 - CN)
+ * Service xử lý: Cài đặt Giá linh hoạt (Quản trị viên)
+ * Kết nối API Backend qua /admin/pricing-rules
  */
 export const pricingService = {
   // Lấy danh sách quy tắc giá linh hoạt
@@ -10,7 +10,12 @@ export const pricingService = {
     return await axiosInstance.get('/admin/pricing-rules', { params });
   },
 
-  // Tạo quy tắc giá mới (áp dụng cho ngày cụ thể hoặc khoảng thời gian)
+  // Lấy chi tiết một quy tắc giá theo ID
+  getPricingRuleById: async (ruleId) => {
+    return await axiosInstance.get(`/admin/pricing-rules/${ruleId}`);
+  },
+
+  // Tạo mới quy tắc giá
   createPricingRule: async (ruleData) => {
     return await axiosInstance.post('/admin/pricing-rules', ruleData);
   },

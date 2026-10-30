@@ -2,6 +2,7 @@ package com.hotel.booking.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hotel.booking.common.entity.BaseEntity;
+import com.hotel.booking.enums.Department;
 import com.hotel.booking.enums.UserRole;
 import com.hotel.booking.enums.UserStatus;
 import jakarta.persistence.*;
@@ -38,4 +39,8 @@ public class User extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "department", length = 30)
+    private Department department;
 }

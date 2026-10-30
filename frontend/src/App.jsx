@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
 import MainLayout from './layouts/MainLayout';
@@ -26,6 +26,7 @@ import HousekeepingManagementPage from './pages/receptionist/HousekeepingManagem
 
 // Admin Pages
 import ReportStatisticsPage from './pages/admin/ReportStatisticsPage';
+import RoomCategoryManagementPage from './pages/admin/RoomCategoryManagementPage';
 import RoomManagementPage from './pages/admin/RoomManagementPage';
 import ServiceManagementPage from './pages/admin/ServiceManagementPage';
 import PriceSettingPage from './pages/admin/PriceSettingPage';
@@ -107,10 +108,16 @@ export function App() {
         {/* =================================================================== */}
         <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
           <Route path="/admin" element={<AdminLayout />}>
-            {/* Xem Báo cáo & Thống kê */}
-            <Route index element={<ReportStatisticsPage />} />
+            {/* Tự động chuyển hướng /admin sang /admin/dashboard */}
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
 
-            {/* Quản lý Loại phòng & Phòng */}
+            {/* Dashboard & Thống kê */}
+            <Route path="dashboard" element={<ReportStatisticsPage />} />
+
+            {/* Quản lý Loại phòng */}
+            <Route path="room-categories" element={<RoomCategoryManagementPage />} />
+
+            {/* Quản lý Buồng phòng */}
             <Route path="rooms" element={<RoomManagementPage />} />
 
             {/* Quản lý Dịch vụ */}
@@ -119,8 +126,9 @@ export function App() {
             {/* Cài đặt Giá linh hoạt */}
             <Route path="pricing" element={<PriceSettingPage />} />
 
-            {/* Quản lý Nhân sự */}
-            <Route path="staff" element={<StaffManagementPage />} />
+            {/* Quản lý Người dùng & Nhân sự */}
+            <Route path="users" element={<StaffManagementPage />} />
+            <Route path="staff" element={<Navigate to="/admin/users" replace />} />
           </Route>
         </Route>
 

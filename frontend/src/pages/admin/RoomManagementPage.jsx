@@ -1,173 +1,226 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Building2,
+  Hotel,
   Key,
   Wrench,
   Search,
-  SlidersHorizontal,
   Plus,
   Edit2,
-  Copy,
-  Lock,
-  Unlock,
-  Users,
+  Trash2,
   CheckCircle2,
-  Hotel,
+  AlertCircle,
+  AlertTriangle,
+  RefreshCw,
+  Building2,
+  Layers,
+  Filter,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
+import roomService from '../../services/roomService';
 import AddRoomModal from '../../components/admin/AddRoomModal';
-import AddRoomTypeModal from '../../components/admin/AddRoomTypeModal';
-
-const INITIAL_ROOM_TYPES = [
-  {
-    id: 1,
-    name: 'Grand Celestial Penthouse',
-    code: 'PNT-GCP-01',
-    category: 'Penthouse',
-    badge: 'VIP SIGNATURE',
-    area: '420 m²',
-    maxGuests: 4,
-    price: 18500000,
-    roomCountLabel: '04 Phòng',
-    physicalRooms: ['P1201', 'P1202', 'P1203', 'P1204'],
-    status: 'ACTIVE',
-    statusLabel: 'Đang mở bán',
-    image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=160&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 2,
-    name: 'Ocean Horizon Executive Suite',
-    code: 'SUT-OHE-02',
-    category: 'Suites Hướng Biển',
-    badge: null,
-    area: '85 m²',
-    maxGuests: 3,
-    price: 12200000,
-    roomCountLabel: '08 Phòng',
-    physicalRoomsRange: 'S801 → S808',
-    status: 'ACTIVE',
-    statusLabel: 'Đang mở bán',
-    image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=160&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 3,
-    name: 'Garden Sanctuary Pool Villa',
-    code: 'VLA-GSP-03',
-    category: 'Biệt thự Villa',
-    badge: 'PRIVATE POOL',
-    area: '210 m²',
-    maxGuests: 6,
-    price: 24800000,
-    roomCountLabel: '06 Căn',
-    physicalRoomsRange: 'V101 → V106',
-    status: 'ACTIVE',
-    statusLabel: 'Đang mở bán',
-    image: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=160&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 4,
-    name: 'Deluxe Pine Forest View',
-    code: 'DLX-PFV-04',
-    category: 'Deluxe',
-    badge: null,
-    area: '55 m²',
-    maxGuests: 2,
-    price: 6500000,
-    roomCountLabel: '30 Phòng',
-    physicalRoomsRange: 'D201 → D510',
-    status: 'ACTIVE',
-    statusLabel: 'Đang mở bán',
-    image: 'https://images.unsplash.com/photo-1591088398332-8a7791972843?w=160&auto=format&fit=crop&q=80',
-  },
-];
+import ConfirmDeleteModal from '../../components/common/ConfirmDeleteModal';
 
 export const RoomManagementPage = () => {
-  const [roomTypes, setRoomTypes] = useState(INITIAL_ROOM_TYPES);
-  const [activeFilter, setActiveFilter] = useState('ALL');
+  const [rooms, setRooms] = useState([]);
+  const [roomCategories, setRoomCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [toast, setToast] = useState(null); // { message, type: 'success' | 'error' | 'warning' }
+
+  // Filter states: tầng, trạng thái, loại phòng, tìm kiếm
+  const [selectedFloor, setSelectedFloor] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
 
   // Modals state
-  const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
-  const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    item: null,
+    isDeleting: false,
+  });
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3500);
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
   };
 
-  const handleToggleStatus = (id) => {
-    setRoomTypes((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          const isNowActive = r.status !== 'ACTIVE';
-          showToast(`Đã ${isNowActive ? 'mở bán' : 'tạm dừng bán'} hạng phòng "${r.name}"`);
-          return {
-            ...r,
-            status: isNowActive ? 'ACTIVE' : 'PAUSED',
-            statusLabel: isNowActive ? 'Đang mở bán' : 'Tạm dừng bán',
-          };
+  // Tải danh sách phòng và loại phòng từ Backend API (Không dùng mock data)
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // 1. Tải danh mục loại phòng để phục vụ bộ lọc và gán loại phòng
+      let catList = [];
+      try {
+        const catRes = await roomService.getRoomCategories();
+        const catData = catRes?.data || catRes;
+        catList = Array.isArray(catData) ? catData : (catData?.content || catData?.items || []);
+        setRoomCategories(catList);
+      } catch (catErr) {
+        console.warn('Chưa thể tải danh mục loại phòng:', catErr);
+      }
+
+      // 2. Tải danh sách phòng vật lý
+      let roomList = [];
+      try {
+        const res = await roomService.getAdminRooms();
+        const data = res?.data || res;
+        roomList = Array.isArray(data) ? data : (data?.content || data?.items || []);
+      } catch (adminRoomErr) {
+        console.warn('Thử gọi fallback getRooms():', adminRoomErr);
+        try {
+          const fallbackRes = await roomService.getRooms({ page: 0, size: 100 });
+          const fbData = fallbackRes?.data || fallbackRes;
+          roomList = Array.isArray(fbData) ? fbData : (fbData?.content || fbData?.items || []);
+        } catch {
+          roomList = [];
         }
-        return r;
-      })
-    );
+      }
+
+      setRooms(Array.isArray(roomList) ? roomList : []);
+    } catch (err) {
+      console.error('Lỗi khi tải dữ liệu phòng:', err);
+      const msg = err.response?.data?.message || err.message || 'Không thể tải danh sách phòng từ máy chủ.';
+      showToast(msg, 'error');
+      setRooms([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Thêm hoặc sửa phòng vật lý
+  const handleSaveRoom = async (payload) => {
+    try {
+      if (editingRoom?.id) {
+        await roomService.updateRoom(editingRoom.id, payload);
+        showToast(`Cập nhật phòng "${payload.roomNumber}" thành công!`, 'success');
+      } else {
+        await roomService.createRoom(payload);
+        showToast(`Tạo mới phòng "${payload.roomNumber}" thành công!`, 'success');
+      }
+      setIsModalOpen(false);
+      setEditingRoom(null);
+      await fetchData();
+    } catch (err) {
+      console.error('Lỗi khi lưu phòng:', err);
+      const status = err.response?.status || err.status;
+      const msg = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi lưu phòng.';
+      showToast(msg, 'error');
+      throw err;
+    }
   };
 
-  const handleAddRoomType = (newTypeData) => {
-    const created = {
-      id: Date.now(),
-      ...newTypeData,
-      roomCountLabel: '01 Phòng mới',
-      physicalRoomsRange: 'Chưa gán số phòng',
-      status: 'ACTIVE',
-      statusLabel: 'Đang mở bán',
-      image: newTypeData.imageUrl || 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=160&auto=format&fit=crop&q=80',
-    };
-    setRoomTypes([...roomTypes, created]);
-    showToast(`Đã cấu hình loại phòng "${created.name}" thành công!`);
-  };
-
-  const handleAddPhysicalRoom = (roomData) => {
-    // Add physical room code to corresponding room type
-    setRoomTypes((prev) =>
-      prev.map((rt) => {
-        if (rt.id === Number(roomData.roomTypeId)) {
-          const updatedRooms = rt.physicalRooms ? [...rt.physicalRooms, roomData.roomNumber] : [roomData.roomNumber];
-          return {
-            ...rt,
-            physicalRooms: updatedRooms,
-            roomCountLabel: `${updatedRooms.length < 10 ? '0' + updatedRooms.length : updatedRooms.length} Phòng`,
-          };
-        }
-        return rt;
-      })
-    );
-    showToast(`Đã khởi tạo phòng vật lý "${roomData.roomNumber}" (${roomData.floor}) thành công!`);
-  };
-
-  const filteredRoomTypes = useMemo(() => {
-    return roomTypes.filter((r) => {
-      const matchFilter =
-        activeFilter === 'ALL' ||
-        (activeFilter === 'Penthouse' && r.category === 'Penthouse') ||
-        (activeFilter === 'Suites' && r.category.includes('Suites')) ||
-        (activeFilter === 'Villa' && r.category.includes('Villa'));
-
-      const matchSearch =
-        r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.code.toLowerCase().includes(searchTerm.toLowerCase());
-
-      return matchFilter && matchSearch;
+  // Mở modal xác nhận xóa
+  const handleOpenDelete = (room) => {
+    setDeleteModal({
+      isOpen: true,
+      item: room,
+      isDeleting: false,
     });
-  }, [roomTypes, activeFilter, searchTerm]);
+  };
+
+  // Xác nhận xóa phòng vật lý
+  const handleConfirmDelete = async () => {
+    const item = deleteModal.item;
+    if (!item?.id) return;
+
+    setDeleteModal((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      await roomService.deleteRoom(item.id);
+      showToast(`Đã xóa phòng "${item.roomNumber || item.name || item.id}" thành công!`, 'success');
+      setDeleteModal({ isOpen: false, item: null, isDeleting: false });
+      await fetchData();
+    } catch (err) {
+      console.error('Lỗi khi xóa phòng:', err);
+      const status = err.response?.status || err.status;
+      const msg = err.response?.data?.message || err.message || 'Không thể xóa phòng này.';
+      showToast(msg, 'error');
+      setDeleteModal((prev) => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  // Trích xuất danh sách các tầng từ dữ liệu phòng thực tế
+  const availableFloors = useMemo(() => {
+    const floorSet = new Set();
+    rooms.forEach((r) => {
+      if (r.floor !== undefined && r.floor !== null) {
+        const fStr = String(r.floor).replace(/\D/g, '');
+        if (fStr) floorSet.add(Number(fStr));
+      }
+    });
+    const sorted = Array.from(floorSet).sort((a, b) => a - b);
+    return sorted.length > 0 ? sorted : [1, 2, 3, 4, 5, 8, 12];
+  }, [rooms]);
+
+  // Bộ lọc theo tầng, trạng thái, loại phòng và tìm kiếm
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((r) => {
+      // 1. Lọc theo tầng
+      if (selectedFloor !== 'ALL') {
+        const rFloorNum = parseInt(String(r.floor).replace(/\D/g, ''), 10);
+        if (rFloorNum !== Number(selectedFloor)) return false;
+      }
+
+      // 2. Lọc theo trạng thái
+      if (selectedStatus !== 'ALL') {
+        const rStatus = r.status?.toUpperCase();
+        if (rStatus !== selectedStatus) return false;
+      }
+
+      // 3. Lọc theo loại phòng
+      if (selectedCategory !== 'ALL') {
+        const catId = r.roomTypeId || r.categoryId || r.category?.id;
+        const catName = r.roomTypeName || r.categoryName || r.category?.name;
+        if (String(catId) !== String(selectedCategory) && String(catName) !== String(selectedCategory)) {
+          return false;
+        }
+      }
+
+      // 4. Lọc theo từ khóa tìm kiếm
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        const matchNumber = String(r.roomNumber || r.roomCode || r.name || '').toLowerCase().includes(term);
+        const matchCategory = String(r.roomTypeName || r.categoryName || r.category?.name || '').toLowerCase().includes(term);
+        const matchFloor = String(r.floor || '').toLowerCase().includes(term);
+        const matchDesc = String(r.description || r.viewType || '').toLowerCase().includes(term);
+        if (!matchNumber && !matchCategory && !matchFloor && !matchDesc) return false;
+      }
+
+      return true;
+    });
+  }, [rooms, selectedFloor, selectedStatus, selectedCategory, searchTerm]);
+
+  // Đếm nhanh trạng thái
+  const availableCount = rooms.filter((r) => r.status === 'AVAILABLE').length;
+  const dirtyCount = rooms.filter((r) => r.status === 'DIRTY').length;
+  const maintenanceCount = rooms.filter((r) => r.status === 'MAINTENANCE').length;
 
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Alert */}
-      {toastMessage && (
-        <div className="fixed top-20 right-8 z-50 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-xl border border-stone-700 flex items-center gap-3 animate-fade-in text-xs font-medium">
-          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+      {toast && (
+        <div
+          className={`fixed top-20 right-8 z-50 px-5 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 animate-fade-in text-xs font-semibold ${
+            toast.type === 'error'
+              ? 'bg-rose-900/95 text-white border-rose-700'
+              : toast.type === 'warning'
+              ? 'bg-amber-900/95 text-white border-amber-700'
+              : 'bg-stone-900/95 text-white border-stone-700'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle size={17} className="text-rose-400 shrink-0" />
+          ) : toast.type === 'warning' ? (
+            <AlertTriangle size={17} className="text-amber-400 shrink-0" />
+          ) : (
+            <CheckCircle2 size={17} className="text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 
@@ -178,326 +231,414 @@ export const RoomManagementPage = () => {
             PHÂN HỆ CẤU HÌNH NGHỈ DƯỠNG • KHO PHÒNG VẬT LÝ
           </span>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-stone-900 leading-tight">
-            Quản lý Loại phòng & Buồng phòng
+            Quản lý Buồng phòng Vật lý
           </h1>
           <p className="text-xs text-stone-500 mt-1 max-w-2xl">
-            Cấu hình phân hạng phòng, số lượng phòng vật lý, tiện ích tiêu chuẩn và quản lý định danh phòng trong khu nghỉ dưỡng.
+            Quản lý danh sách toàn bộ phòng thực tế, số phòng, định mức tầng, trạng thái sẵn sàng đón khách và cấu hình vật tư vận hành.
           </p>
         </div>
 
         {/* Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => setIsAddRoomModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-stone-200/90 text-stone-700 text-xs font-semibold hover:bg-stone-50 shadow-2xs transition-colors cursor-pointer"
+            onClick={fetchData}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-white border border-stone-200/90 text-stone-700 text-xs font-semibold hover:bg-stone-50 shadow-2xs transition-colors cursor-pointer"
+            title="Tải lại danh sách"
           >
-            <Hotel size={14} className="text-stone-500" />
-            <span>+ THÊM PHÒNG VẬT LÝ</span>
+            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+            <span>Làm mới</span>
           </button>
 
           <button
-            onClick={() => setIsAddTypeModalOpen(true)}
+            onClick={() => {
+              setEditingRoom(null);
+              setIsModalOpen(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 rounded-full bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <Plus size={14} />
-            <span>+ THÊM LOẠI PHÒNG MỚI</span>
+            <span>+ THÊM PHÒNG MỚI</span>
           </button>
         </div>
       </div>
 
-      {/* 2. 3 KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1 */}
+      {/* 2. KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Card 1: Tổng số phòng */}
         <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
-              PHÂN PHỔ DANH MỤC
+              TỔNG SỐ PHÒNG
             </span>
             <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-700">
               <Building2 size={16} />
             </div>
           </div>
           <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            {roomTypes.length < 10 ? '0' + roomTypes.length : roomTypes.length} <span className="text-sm font-normal font-sans text-stone-500">Hạng phòng chính</span>
+            {rooms.length < 10 ? '0' + rooms.length : rooms.length}{' '}
+            <span className="text-sm font-normal font-sans text-stone-500">Phòng vật lý</span>
           </div>
           <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-            <span>100% Hoàn tất định mức chuẩn</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-stone-700"></span>
+            <span>Đã khởi tạo trong cơ sở dữ liệu</span>
           </div>
         </div>
 
-        {/* Card 2 */}
+        {/* Card 2: Sẵn sàng (AVAILABLE) */}
         <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
-              QUY MÔ KHẢ DỤNG
+              SẴN SÀNG ĐÓN KHÁCH
             </span>
-            <div className="w-8 h-8 rounded-xl bg-[#FAF5EE] flex items-center justify-center text-amber-800">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <Key size={16} />
             </div>
           </div>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            48 <span className="text-sm font-normal font-sans text-stone-500">Phòng vận hành</span>
+          <div className="font-serif text-2xl font-bold text-emerald-700 tracking-tight leading-tight">
+            {availableCount < 10 ? '0' + availableCount : availableCount}{' '}
+            <span className="text-sm font-normal font-sans text-stone-500">Phòng sạch</span>
           </div>
           <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span>Tỷ lệ sẵn sàng phân buồng 96%</span>
+            <span>Trạng thái: AVAILABLE</span>
           </div>
         </div>
 
-        {/* Card 3 */}
+        {/* Card 3: Cần dọn (DIRTY) */}
         <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
-              QUY TRÌNH KỸ THUẬT
+              CẦN DỌN DẸP
             </span>
-            <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-700">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center">
               <Wrench size={16} />
             </div>
           </div>
-          <div className="font-serif text-2xl font-bold text-stone-900 tracking-tight leading-tight">
-            02 <span className="text-sm font-normal font-sans text-stone-500">Phòng bảo trì</span>
+          <div className="font-serif text-2xl font-bold text-amber-800 tracking-tight leading-tight">
+            {dirtyCount < 10 ? '0' + dirtyCount : dirtyCount}{' '}
+            <span className="text-sm font-normal font-sans text-stone-500">Phòng chờ dọn</span>
           </div>
           <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            <span>Nâng cấp tiện nghi chu kỳ quý</span>
+            <span>Trạng thái: DIRTY</span>
+          </div>
+        </div>
+
+        {/* Card 4: Bảo trì (MAINTENANCE) */}
+        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400">
+              ĐANG BẢO TRÌ
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center">
+              <Wrench size={16} />
+            </div>
+          </div>
+          <div className="font-serif text-2xl font-bold text-rose-700 tracking-tight leading-tight">
+            {maintenanceCount < 10 ? '0' + maintenanceCount : maintenanceCount}{' '}
+            <span className="text-sm font-normal font-sans text-stone-500">Phòng bảo trì</span>
+          </div>
+          <div className="text-[11px] text-stone-500 mt-2 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            <span>Trạng thái: MAINTENANCE</span>
           </div>
         </div>
       </div>
 
-      {/* 3. Filter Tabs & Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Pills */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            onClick={() => setActiveFilter('ALL')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              activeFilter === 'ALL'
-                ? 'bg-black text-white shadow-xs'
-                : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200/80'
-            }`}
-          >
-            Tất cả hạng phòng ({roomTypes.length})
-          </button>
-          <button
-            onClick={() => setActiveFilter('Penthouse')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              activeFilter === 'Penthouse'
-                ? 'bg-black text-white shadow-xs'
-                : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200/80'
-            }`}
-          >
-            Penthouse
-          </button>
-          <button
-            onClick={() => setActiveFilter('Suites')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              activeFilter === 'Suites'
-                ? 'bg-black text-white shadow-xs'
-                : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200/80'
-            }`}
-          >
-            Suites Hướng Biển
-          </button>
-          <button
-            onClick={() => setActiveFilter('Villa')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              activeFilter === 'Villa'
-                ? 'bg-black text-white shadow-xs'
-                : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200/80'
-            }`}
-          >
-            Biệt thự Villa
-          </button>
+      {/* 3. Bộ lọc: Theo tầng, Trạng thái, Loại phòng & Tìm kiếm */}
+      <div className="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 text-xs font-bold uppercase tracking-wider text-stone-400">
+          <div className="flex items-center gap-2 text-stone-700">
+            <Filter size={14} className="text-amber-800" />
+            <span>BỘ LỌC TÌM KIẾM BUỒNG PHÒNG</span>
+          </div>
+          <span className="text-[11px] font-normal text-stone-400">
+            Hiển thị {filteredRooms.length} / {rooms.length} phòng
+          </span>
         </div>
 
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <div className="relative w-full sm:w-64">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Tìm theo mã phòng, tên hạng..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3.5 py-1.5 rounded-full bg-white border border-stone-200/90 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-900 shadow-2xs"
-            />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Lọc theo Tầng */}
+          <div>
+            <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+              Vị trí Tầng
+            </label>
+            <select
+              value={selectedFloor}
+              onChange={(e) => setSelectedFloor(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-800 focus:outline-none focus:border-stone-900"
+            >
+              <option value="ALL">Tất cả các tầng</option>
+              {availableFloors.map((f) => (
+                <option key={f} value={f}>
+                  Tầng {f}
+                </option>
+              ))}
+            </select>
           </div>
-          <button
-            title="Bộ lọc nâng cao"
-            className="w-8 h-8 rounded-full border border-stone-200 bg-white flex items-center justify-center text-stone-600 hover:bg-stone-50 cursor-pointer shadow-2xs"
-          >
-            <SlidersHorizontal size={14} />
-          </button>
+
+          {/* Lọc theo Trạng thái */}
+          <div>
+            <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+              Trạng thái buồng phòng
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-800 focus:outline-none focus:border-stone-900"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="AVAILABLE">AVAILABLE - Sẵn sàng</option>
+              <option value="DIRTY">DIRTY - Cần dọn dẹp</option>
+              <option value="MAINTENANCE">MAINTENANCE - Bảo trì</option>
+              <option value="OCCUPIED">OCCUPIED - Có khách</option>
+              <option value="RESERVED">RESERVED - Đã giữ chỗ</option>
+            </select>
+          </div>
+
+          {/* Lọc theo Loại phòng */}
+          <div>
+            <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+              Phân loại phòng
+            </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-800 focus:outline-none focus:border-stone-900"
+            >
+              <option value="ALL">Tất cả loại phòng</option>
+              {roomCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Ô tìm kiếm */}
+          <div>
+            <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+              Từ khóa tìm kiếm
+            </label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input
+                type="text"
+                placeholder="Số phòng, tầng, ghi chú..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-900"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 4. Room Types Table */}
+      {/* 4. Table: ID, NAME, DESCRIPTION, PRICE/UNIT, STATUS, ACTIONS (✏️, 🗑️) */}
       <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-stone-50/50 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
-                <th className="py-3.5 px-6">HẠNG PHÒNG NGHỈ</th>
-                <th className="py-3.5 px-4 text-center">DIỆN TÍCH & SỨC CHỨA</th>
-                <th className="py-3.5 px-4 text-right">GIÁ TIÊU CHUẨN / ĐÊM</th>
-                <th className="py-3.5 px-6">PHÒNG VẬT LÝ</th>
-                <th className="py-3.5 px-4 text-center">TRẠNG THÁI</th>
-                <th className="py-3.5 px-6 text-right">THAO TÁC QUẢN TRỊ</th>
+              <tr className="bg-stone-50/60 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
+                <th className="py-3.5 px-6">ID</th>
+                <th className="py-3.5 px-4">NAME</th>
+                <th className="py-3.5 px-6">DESCRIPTION</th>
+                <th className="py-3.5 px-4 text-right">PRICE/UNIT</th>
+                <th className="py-3.5 px-4 text-center">STATUS</th>
+                <th className="py-3.5 px-6 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filteredRoomTypes.map((room) => (
-                <tr key={room.id} className="hover:bg-stone-50/60 transition-colors">
-                  {/* Hạng phòng nghỉ */}
-                  <td className="py-4 px-6">
-                    <div className="flex items-center gap-3.5">
-                      <img
-                        src={room.image}
-                        alt={room.name}
-                        className="w-14 h-12 rounded-xl object-cover ring-1 ring-stone-200 shrink-0 shadow-2xs"
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-serif text-sm font-bold text-stone-900">{room.name}</p>
-                          {room.badge && (
-                            <span className="text-[9px] font-bold tracking-wider uppercase text-amber-900 bg-[#FDF4E7] border border-amber-200/70 px-1.5 py-0.5 rounded leading-none">
-                              {room.badge}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-stone-400 mt-0.5">
-                          Mã định danh: <span className="font-mono text-stone-600">{room.code}</span>
-                        </p>
-                      </div>
+              {isLoading ? (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-stone-400">
+                    <div className="inline-flex items-center gap-2 text-xs">
+                      <RefreshCw size={16} className="animate-spin text-stone-600" />
+                      <span>Đang tải dữ liệu buồng phòng từ máy chủ...</span>
                     </div>
                   </td>
-
-                  {/* Diện tích & Sức chứa */}
-                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                    <p className="font-bold text-stone-900">{room.area}</p>
-                    <p className="text-[10px] text-stone-500 mt-0.5 flex items-center justify-center gap-1">
-                      <Users size={11} className="text-stone-400" />
-                      Tối đa {room.maxGuests} khách
-                    </p>
-                  </td>
-
-                  {/* Giá tiêu chuẩn / đêm */}
-                  <td className="py-4 px-4 text-right whitespace-nowrap">
-                    <p className="font-serif text-sm font-bold text-stone-900">
-                      {formatVND(room.price || room.basePrice)}
-                    </p>
-                    <p className="text-[9px] font-semibold text-stone-400 uppercase tracking-wider mt-0.5">
-                      CHƯA VAT & PHÍ
-                    </p>
-                  </td>
-
-                  {/* Phòng vật lý */}
-                  <td className="py-4 px-6">
-                    <p className="font-semibold text-stone-700 text-xs mb-1">
-                      {room.roomCountLabel}
-                    </p>
-                    {room.physicalRooms ? (
-                      <div className="flex flex-wrap gap-1">
-                        {room.physicalRooms.map((p) => (
-                          <span
-                            key={p}
-                            className="font-mono text-[10px] font-bold text-stone-700 bg-stone-100 border border-stone-200/80 px-1.5 py-0.5 rounded"
-                          >
-                            {p}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="font-mono text-[11px] font-medium text-stone-600">
-                        {room.physicalRoomsRange}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* Trạng thái */}
-                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                    <span
-                      className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${
-                        room.status === 'ACTIVE'
-                          ? 'bg-stone-100 text-stone-700 border border-stone-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          room.status === 'ACTIVE' ? 'bg-stone-900' : 'bg-rose-500'
-                        }`}
-                      ></span>
-                      {room.statusLabel}
-                    </span>
-                  </td>
-
-                  {/* Thao tác */}
-                  <td className="py-4 px-6 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1">
+                </tr>
+              ) : filteredRooms.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-stone-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Hotel size={28} className="text-stone-300" />
+                      <p className="text-xs font-medium text-stone-500">
+                        {searchTerm || selectedFloor !== 'ALL' || selectedStatus !== 'ALL' || selectedCategory !== 'ALL'
+                          ? 'Không tìm thấy phòng nào phù hợp với bộ lọc hiện tại.'
+                          : 'Chưa có phòng vật lý nào được tạo trong hệ thống.'}
+                      </p>
                       <button
-                        onClick={() => showToast(`Mở cấu hình hạng phòng: ${room.name}`)}
-                        className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-800 flex items-center justify-center transition-colors cursor-pointer"
+                        onClick={() => {
+                          setEditingRoom(null);
+                          setIsModalOpen(true);
+                        }}
+                        className="mt-2 text-xs font-semibold text-black underline underline-offset-4 cursor-pointer"
                       >
-                        <Edit2 size={13} />
-                      </button>
-                      <button
-                        onClick={() => showToast(`Đã sao chép cấu hình phòng: ${room.name}`)}
-                        className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-800 flex items-center justify-center transition-colors cursor-pointer"
-                      >
-                        <Copy size={13} />
-                      </button>
-                      <button
-                        onClick={() => handleToggleStatus(room.id)}
-                        className={`w-8 h-8 rounded-lg hover:bg-stone-100 flex items-center justify-center transition-colors cursor-pointer ${
-                          room.status === 'ACTIVE'
-                            ? 'text-stone-400 hover:text-rose-600'
-                            : 'text-amber-600 hover:text-amber-800'
-                        }`}
-                      >
-                        {room.status === 'ACTIVE' ? <Lock size={13} /> : <Unlock size={13} />}
+                        + Thêm phòng vật lý mới
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredRooms.map((room) => {
+                  const rId = room.id;
+                  const rName = room.roomNumber || room.roomCode || room.name || `Phòng #${rId}`;
+                  const rCategory = room.roomTypeName || room.categoryName || room.category?.name || 'Tiêu chuẩn';
+                  const rFloor = room.floor ? (String(room.floor).startsWith('Tầng') ? room.floor : `Tầng ${room.floor}`) : 'Tầng 1';
+                  const rDesc = [
+                    rFloor,
+                    rCategory,
+                    room.viewType,
+                    room.bedType,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ');
+
+                  const rPrice = room.pricePerNight || room.price || room.category?.basePrice || room.basePrice || 0;
+                  const rStatus = room.status?.toUpperCase() || 'AVAILABLE';
+
+                  return (
+                    <tr key={rId} className="hover:bg-stone-50/70 transition-colors">
+                      {/* Cột 1: ID */}
+                      <td className="py-4 px-6 whitespace-nowrap">
+                        <span className="font-mono text-xs font-bold text-stone-500 bg-stone-100 px-2 py-1 rounded-md border border-stone-200">
+                          #{rId}
+                        </span>
+                      </td>
+
+                      {/* Cột 2: NAME */}
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-[#FAF5EE] border border-amber-200/80 text-amber-900 font-bold flex items-center justify-center text-xs">
+                            {rName.replace(/\D/g, '') || rName.substring(0, 3)}
+                          </div>
+                          <div>
+                            <p className="font-serif text-sm font-bold text-stone-900">{rName}</p>
+                            <p className="text-[10px] text-stone-400 font-mono">
+                              RFID: {room.rfidCode || 'RFID-STD'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Cột 3: DESCRIPTION */}
+                      <td className="py-4 px-6">
+                        <p className="font-medium text-stone-800 text-xs">{rDesc}</p>
+                        {room.notes && (
+                          <p className="text-[11px] text-stone-400 italic mt-0.5 line-clamp-1">
+                            {room.notes}
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Cột 4: PRICE/UNIT */}
+                      <td className="py-4 px-4 text-right whitespace-nowrap">
+                        <p className="font-serif text-sm font-bold text-stone-900">
+                          {formatVND(rPrice)}
+                        </p>
+                        <p className="text-[9px] text-stone-400 uppercase tracking-wider mt-0.5">
+                          / ĐÊM LƯU TRÚ
+                        </p>
+                      </td>
+
+                      {/* Cột 5: STATUS */}
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        {rStatus === 'AVAILABLE' && (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                            AVAILABLE
+                          </span>
+                        )}
+                        {rStatus === 'DIRTY' && (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                            DIRTY (Cần dọn)
+                          </span>
+                        )}
+                        {rStatus === 'MAINTENANCE' && (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                            MAINTENANCE
+                          </span>
+                        )}
+                        {rStatus === 'OCCUPIED' && (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                            OCCUPIED (Có khách)
+                          </span>
+                        )}
+                        {!['AVAILABLE', 'DIRTY', 'MAINTENANCE', 'OCCUPIED'].includes(rStatus) && (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-stone-600"></span>
+                            {rStatus}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Cột 6: ACTIONS (✏️, 🗑️) */}
+                      <td className="py-4 px-6 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingRoom(room);
+                              setIsModalOpen(true);
+                            }}
+                            className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Chỉnh sửa buồng phòng"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDelete(room)}
+                            className="w-8 h-8 rounded-lg hover:bg-rose-50 text-stone-400 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Xóa phòng vật lý"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination footer */}
-        <div className="p-4 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-stone-500">
-          <div>
-            Hiển thị <strong className="text-stone-800 font-semibold">{filteredRoomTypes.length}</strong> trên <strong className="text-stone-800 font-semibold">{roomTypes.length}</strong> hạng phòng lưu trú • Toàn bộ danh mục khả dụng
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 cursor-pointer text-xs font-medium">
-              Trước
-            </button>
-            <button className="w-8 h-8 rounded-lg bg-black text-white font-bold flex items-center justify-center text-xs">
-              1
-            </button>
-            <button className="px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 cursor-pointer text-xs font-medium">
-              Sau
-            </button>
-          </div>
+        {/* Footer */}
+        <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
+          <span>
+            Đang quản lý <strong>{filteredRooms.length}</strong> phòng vật lý trong hệ thống PMS.
+          </span>
+          <span className="text-[11px] text-stone-400">
+            Dữ liệu kết nối trực tiếp CSDL • Realtime API
+          </span>
         </div>
       </div>
 
-      {/* Add Room Type Modal */}
-      <AddRoomTypeModal
-        isOpen={isAddTypeModalOpen}
-        onClose={() => setIsAddTypeModalOpen(false)}
-        onAddRoomType={handleAddRoomType}
+      {/* Modal Thêm / Sửa Phòng */}
+      <AddRoomModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingRoom(null);
+        }}
+        onSave={handleSaveRoom}
+        roomTypes={roomCategories}
+        initialData={editingRoom}
       />
 
-      {/* Add Physical Room Modal */}
-      <AddRoomModal
-        isOpen={isAddRoomModalOpen}
-        onClose={() => setIsAddRoomModalOpen(false)}
-        onAddRoom={handleAddPhysicalRoom}
-        roomTypes={roomTypes}
+      {/* Modal xác nhận xóa */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, item: null, isDeleting: false })}
+        onConfirm={handleConfirmDelete}
+        title="Xác nhận xóa phòng vật lý"
+        message="Bạn có chắc chắn muốn xóa phòng này không? Nếu phòng đang có đơn đặt phòng hoặc khách lưu trú, hệ thống sẽ từ chối thao tác."
+        itemName={deleteModal.item ? `Phòng ${deleteModal.item.roomNumber || deleteModal.item.name || deleteModal.item.id}` : ''}
+        isLoading={deleteModal.isDeleting}
       />
     </div>
   );

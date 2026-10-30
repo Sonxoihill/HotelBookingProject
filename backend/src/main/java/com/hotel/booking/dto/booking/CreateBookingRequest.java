@@ -33,7 +33,8 @@ public class CreateBookingRequest {
     @Schema(description = "Ngày trả phòng (YYYY-MM-DD)", example = "2026-11-22", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDate checkOut;
 
-    @Schema(description = "Tổng tiền tính toán (VNĐ). Nếu để trống hệ thống sẽ tự tính theo: giá phòng x số đêm x 1.1 VAT", example = "1540000")
+    @Deprecated
+    @Schema(description = "Tổng tiền (VNĐ) - ĐÃ DEPRECATED: Hệ thống luôn tự động tính toán lại giá thông qua PricingCalculator để đảm bảo an toàn, không tin cậy dữ liệu client gửi lên", example = "1540000")
     private BigDecimal totalAmount;
 
     @Schema(description = "Phương thức thanh toán: VNPAY, CREDIT_CARD, RECEPTION", example = "VNPAY")

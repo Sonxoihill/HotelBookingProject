@@ -199,4 +199,21 @@ class AuthServiceTest {
 
         assertThrows(UnauthorizedException.class, () -> authService.login(request));
     }
+
+    @Test
+    @DisplayName("AC Nghiệm thu UC16: Đăng nhập thất bại khi tài khoản bị khóa LOCKED, thông báo liên hệ Quản trị viên")
+    void testLoginLockedAccount() {
+        sampleUser.setStatus(UserStatus.LOCKED);
+
+        LoginRequest request = LoginRequest.builder()
+                .email("guest@gmail.com")
+                .password("123456")
+                .build();
+
+        when(userRepository.findByEmail("guest@gmail.com")).thenReturn(Optional.of(sampleUser));
+        when(passwordEncoder.matches("123456", "encoded_pass")).thenReturn(true);
+
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class, () -> authService.login(request));
+        assertEquals("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Quản trị viên", ex.getMessage());
+    }
 }

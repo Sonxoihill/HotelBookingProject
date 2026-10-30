@@ -1,58 +1,221 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Building2,
-  Tag,
   Maximize2,
   Users,
   Coins,
-  ShieldCheck,
-  CheckCircle2,
-  Sparkles,
+  BedDouble,
   Image as ImageIcon,
+  AlertCircle,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
+import { validateSafeText, detectMaliciousCode } from '../../utils/sanitize';
 
-export const AddRoomTypeModal = ({ isOpen, onClose, onAddRoomType }) => {
+export const AddRoomTypeModal = ({
+  isOpen,
+  onClose,
+  onAddRoomType,
+  onSave,
+  initialData = null,
+}) => {
+  const isEditing = Boolean(initialData?.id);
+
   const [formData, setFormData] = useState({
     name: '',
     code: '',
     category: 'Penthouse',
     badge: 'VIP SIGNATURE',
-    area: '180 m²',
-    maxGuests: 4,
-    maxChildren: 2,
-    basePrice: 15500000,
-    serviceChargePercent: 5,
-    vatPercent: 8,
+    area: 85,
+    capacity: 2,
+    maxGuests: 2,
+    maxChildren: 1,
+    bedCount: 1,
+    bedType: '01 Giường King Bed',
+    basePrice: 5000000,
     imageUrl: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&auto=format&fit=crop&q=80',
-    description: 'Hạng phòng nghỉ dưỡng đẳng cấp với hồ bơi vô cực riêng và tầm nhìn bao quát toàn cảnh vịnh biển.',
-    amenities: [
-      'Hồ bơi riêng',
-      'Phục vụ bữa sáng Floating Breakfast',
-      'Đưa đón Maybach sân bay',
-      'Rượu vang Chateau Margaux đón khách',
-    ],
+    description: 'Hạng phòng nghỉ dưỡng đẳng cấp đầy đủ tiện nghi tiêu chuẩn 5 sao.',
+    status: 'ACTIVE',
   });
+
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      const parsedArea = initialData.area
+        ? parseFloat(String(initialData.area).replace(/[^0-9.]/g, '')) || 50
+        : 85;
+      setFormData({
+        id: initialData.id,
+        name: initialData.name || '',
+        code: initialData.code || '',
+        category: initialData.category || 'Penthouse',
+        badge: initialData.badge || 'VIP SIGNATURE',
+        area: parsedArea,
+        capacity: initialData.capacity || initialData.maxGuests || 2,
+        maxGuests: initialData.maxGuests || initialData.capacity || 2,
+        maxChildren: initialData.maxChildren ?? 1,
+        bedCount: initialData.bedCount || initialData.numberOfBeds || 1,
+        bedType: initialData.bedType || '01 Giường King Bed',
+        basePrice: initialData.basePrice || initialData.price || 5000000,
+        imageUrl: initialData.imageUrl || initialData.image || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&auto=format&fit=crop&q=80',
+        description: initialData.description || '',
+        status: initialData.status || 'ACTIVE',
+      });
+    } else {
+      setFormData({
+        name: '',
+        code: '',
+        category: 'Penthouse',
+        badge: 'VIP SIGNATURE',
+        area: 85,
+        capacity: 2,
+        maxGuests: 2,
+        maxChildren: 1,
+        bedCount: 1,
+        bedType: '01 Giường King Bed',
+        basePrice: 5000000,
+        imageUrl: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&auto=format&fit=crop&q=80',
+        description: 'Hạng phòng nghỉ dưỡng đẳng cấp đầy đủ tiện nghi tiêu chuẩn 5 sao.',
+        status: 'ACTIVE',
+      });
+    }
+    setErrors({});
+  }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.name.trim()) return;
+  const validate = () => {
+    const newErrors = {};
 
-    onAddRoomType({
-      ...formData,
-      code: formData.code || `PNT-${Math.floor(100 + Math.random() * 900)}`,
-      basePrice: Number(formData.basePrice),
-      maxGuests: Number(formData.maxGuests),
-      maxChildren: Number(formData.maxChildren),
+    // 1. Tên loại phòng: Bắt buộc, max 50 ký tự, chống mã độc
+    const nameErr = validateSafeText(formData.name, {
+      fieldName: 'Tên loại phòng',
+      maxLength: 50,
+      required: true,
     });
-    onClose();
+    if (nameErr) newErrors.name = nameErr;
+
+    // 2. Mã định danh: Tùy chọn, max 50 ký tự, chống mã độc
+    const codeErr = validateSafeText(formData.code, {
+      fieldName: 'Mã định danh',
+      maxLength: 50,
+      required: false,
+    });
+    if (codeErr) newErrors.code = codeErr;
+
+    // 3. Phân loại phong cách: max 50 ký tự, chống mã độc
+    const categoryErr = validateSafeText(formData.category, {
+      fieldName: 'Phân loại phong cách',
+      maxLength: 50,
+      required: false,
+    });
+    if (categoryErr) newErrors.category = categoryErr;
+
+    // 4. Huy hiệu nhận diện: max 50 ký tự, chống mã độc
+    const badgeErr = validateSafeText(formData.badge, {
+      fieldName: 'Huy hiệu nhận diện',
+      maxLength: 50,
+      required: false,
+    });
+    if (badgeErr) newErrors.badge = badgeErr;
+
+    // 5. Quy cách giường: max 50 ký tự, chống mã độc
+    const bedTypeErr = validateSafeText(formData.bedType, {
+      fieldName: 'Quy cách giường',
+      maxLength: 50,
+      required: false,
+    });
+    if (bedTypeErr) newErrors.bedType = bedTypeErr;
+
+    // 6. Diện tích: Chỉ điền số, mặc định m², phải > 0
+    const rawArea = String(formData.area ?? '').trim();
+    if (!rawArea) {
+      newErrors.area = 'Diện tích không được để trống';
+    } else {
+      const areaNum = Number(rawArea);
+      if (isNaN(areaNum) || areaNum <= 0) {
+        newErrors.area = 'Diện tích phải lớn hơn 0';
+      }
+    }
+
+    // 7. Giá cơ bản: Số hợp lệ, khác 0, không âm, không quá nhỏ (< 10.000 VND), không quá lớn (> 1.000.000.000 VND)
+    const rawPrice = String(formData.basePrice ?? '').trim();
+    if (!rawPrice) {
+      newErrors.basePrice = 'Giá cơ bản không được để trống';
+    } else {
+      const priceNum = Number(rawPrice);
+      if (isNaN(priceNum)) {
+        newErrors.basePrice = 'Giá cơ bản phải là số hợp lệ';
+      } else if (priceNum < 0) {
+        newErrors.basePrice = 'Giá phòng không được là số âm';
+      } else if (priceNum === 0) {
+        newErrors.basePrice = 'Giá cơ bản phải lớn hơn 0';
+      } else if (priceNum < 10000) {
+        newErrors.basePrice = 'Giá phòng quá nhỏ (tối thiểu 10.000 VND/đêm)';
+      } else if (priceNum > 1000000000) {
+        newErrors.basePrice = 'Giá phòng quá lớn (tối đa 1.000.000.000 VND/đêm)';
+      }
+    }
+
+    // 8. Chống mã độc cho mô tả và URL ảnh
+    if (formData.description) {
+      const descMalware = detectMaliciousCode(formData.description);
+      if (descMalware.hasMalware) {
+        newErrors.description = `Mô tả chứa mã độc hoặc ký tự nguy hiểm (${descMalware.reason}).`;
+      }
+    }
+
+    if (formData.imageUrl) {
+      const imgMalware = detectMaliciousCode(formData.imageUrl);
+      if (imgMalware.hasMalware) {
+        newErrors.imageUrl = `URL hình ảnh chứa mã độc hoặc ký tự nguy hiểm (${imgMalware.reason}).`;
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    const payload = {
+      ...formData,
+      name: formData.name.trim(),
+      code: formData.code?.trim() || `TYP-${Math.floor(100 + Math.random() * 900)}`,
+      basePrice: Number(formData.basePrice),
+      price: Number(formData.basePrice),
+      capacity: Number(formData.capacity || formData.maxGuests),
+      maxGuests: Number(formData.capacity || formData.maxGuests),
+      maxChildren: Number(formData.maxChildren || 0),
+      bedCount: Number(formData.bedCount || 1),
+      numberOfBeds: Number(formData.bedCount || 1),
+      area: parseFloat(String(formData.area)) || 50,
+    };
+
+    setIsSubmitting(true);
+    try {
+      if (onSave) {
+        await onSave(payload);
+      } else if (onAddRoomType) {
+        await onAddRoomType(payload);
+      }
+    } catch (err) {
+      console.error('Lỗi khi gửi dữ liệu loại phòng:', err);
+      const serverErrs = err?.errors || err?.response?.data?.errors;
+      if (serverErrs && typeof serverErrs === 'object') {
+        setErrors((prev) => ({ ...prev, ...serverErrs }));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-stone-200 my-8 animate-scale-up">
         {/* Modal Header */}
         <div className="p-6 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
@@ -65,7 +228,7 @@ export const AddRoomTypeModal = ({ isOpen, onClose, onAddRoomType }) => {
                 CẤU HÌNH PHÂN HẠNG NGHỈ DƯỠNG
               </span>
               <h3 className="font-serif text-xl font-bold text-stone-900">
-                Thêm Loại Phòng / Hạng Phòng Mới
+                {isEditing ? 'Cập Nhật Loại Phòng' : 'Thêm Loại Phòng Mới'}
               </h3>
             </div>
           </div>
@@ -78,182 +241,330 @@ export const AddRoomTypeModal = ({ isOpen, onClose, onAddRoomType }) => {
         </div>
 
         {/* Modal Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
-          {/* 1. Tên hạng & Mã */}
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+          {/* Tên & Mã */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Tên hạng phòng tiêu chuẩn *
+                Tên loại phòng tiêu chuẩn <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
-                required
-                placeholder="Ví dụ: Royal Presidential Sky Suite"
+                maxLength={50}
+                placeholder="Ví dụ: Grand Celestial Penthouse (tối đa 50 ký tự)"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-bold focus:outline-none focus:border-stone-900"
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  if (errors.name) setErrors({ ...errors, name: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none transition-colors ${
+                  errors.name
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.name && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.name}</span>
+                </p>
+              )}
             </div>
+
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Mã định danh (Code)
+                Mã định danh
               </label>
               <input
                 type="text"
-                placeholder="PNT-ROYAL-01"
+                maxLength={50}
+                placeholder="TYP-101"
                 value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono focus:outline-none focus:border-stone-900"
+                onChange={(e) => {
+                  setFormData({ ...formData, code: e.target.value });
+                  if (errors.code) setErrors({ ...errors, code: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono focus:outline-none transition-colors ${
+                  errors.code
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.code && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.code}</span>
+                </p>
+              )}
             </div>
           </div>
 
-          {/* 2. Nhóm & Nhãn danh dự */}
+          {/* Phân nhóm danh mục */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Phân nhóm danh mục
+                Phân loại phong cách
               </label>
-              <select
+              <input
+                type="text"
+                maxLength={50}
+                placeholder="Ví dụ: Penthouse, Suites Hướng Biển..."
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
-              >
-                <option value="Penthouse">Penthouse Đẳng Cấp</option>
-                <option value="Suites Hướng Biển">Suites Hướng Biển (Ocean Suites)</option>
-                <option value="Biệt thự Villa">Biệt thự Biển & Hồ bơi (Villas)</option>
-                <option value="Deluxe">Deluxe Rừng Thông & Đồi</option>
-              </select>
+                onChange={(e) => {
+                  setFormData({ ...formData, category: e.target.value });
+                  if (errors.category) setErrors({ ...errors, category: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.category
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
+              />
+              {errors.category && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.category}</span>
+                </p>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Huy hiệu / Điểm nhấn nhận diện (Badge)
-              </label>
-              <select
-                value={formData.badge}
-                onChange={(e) => setFormData({ ...formData, badge: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900 bg-white"
-              >
-                <option value="VIP SIGNATURE">VIP SIGNATURE</option>
-                <option value="PRIVATE POOL">PRIVATE POOL</option>
-                <option value="BEST SELLER">BEST SELLER</option>
-                <option value="PANORAMIC VIEW">PANORAMIC VIEW</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 3. Diện tích & Sức chứa & Giá */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
-                <Maximize2 size={12} className="text-stone-500" />
-                <span>Diện tích</span>
+                Huy hiệu nhận diện (Badge)
               </label>
               <input
                 type="text"
-                placeholder="150 m²"
-                value={formData.area}
-                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+                maxLength={50}
+                placeholder="Ví dụ: VIP SIGNATURE, PRIVATE POOL..."
+                value={formData.badge}
+                onChange={(e) => {
+                  setFormData({ ...formData, badge: e.target.value });
+                  if (errors.badge) setErrors({ ...errors, badge: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.badge
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {errors.badge && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.badge}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Giá & Sức chứa & Giường & Diện tích */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
+                <Coins size={12} className="text-stone-500" />
+                <span>Giá cơ bản/đêm (VND) <span className="text-rose-500">*</span></span>
+              </label>
+              <input
+                type="number"
+                step="any"
+                placeholder="Ví dụ: 500000"
+                value={formData.basePrice}
+                onChange={(e) => {
+                  setFormData({ ...formData, basePrice: e.target.value });
+                  if (errors.basePrice) setErrors({ ...errors, basePrice: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none transition-colors ${
+                  errors.basePrice
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
+              />
+              {errors.basePrice && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.basePrice}</span>
+                </p>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
                 <Users size={12} className="text-stone-500" />
-                <span>Người lớn</span>
+                <span>Sức chứa (Khách)</span>
               </label>
               <input
                 type="number"
                 min="1"
-                max="12"
-                value={formData.maxGuests}
-                onChange={(e) => setFormData({ ...formData, maxGuests: e.target.value })}
+                max="20"
+                value={formData.capacity}
+                onChange={(e) => setFormData({ ...formData, capacity: e.target.value, maxGuests: e.target.value })}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
-                <Users size={12} className="text-stone-500" />
-                <span>Trẻ em tối đa</span>
+                <BedDouble size={12} className="text-stone-500" />
+                <span>Số giường</span>
               </label>
               <input
                 type="number"
-                min="0"
-                max="6"
-                value={formData.maxChildren}
-                onChange={(e) => setFormData({ ...formData, maxChildren: e.target.value })}
+                min="1"
+                max="10"
+                value={formData.bedCount}
+                onChange={(e) => setFormData({ ...formData, bedCount: e.target.value })}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
               />
             </div>
 
+            {/* Diện tích: Chỉ điền số, mặc định là mét vuông m² */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
-                <Coins size={12} className="text-stone-500" />
-                <span>Giá gốc/đêm (VND) *</span>
+                <Maximize2 size={12} className="text-stone-500" />
+                <span>Diện tích (m²) <span className="text-rose-500">*</span></span>
               </label>
-              <input
-                type="number"
-                step="100000"
-                required
-                value={formData.basePrice}
-                onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-bold focus:outline-none focus:border-stone-900"
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Ví dụ: 85"
+                  value={formData.area}
+                  onChange={(e) => {
+                    setFormData({ ...formData, area: e.target.value });
+                    if (errors.area) setErrors({ ...errors, area: null });
+                  }}
+                  className={`w-full pl-3.5 pr-8 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    errors.area
+                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                      : 'border-stone-300 focus:border-stone-900'
+                  }`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-stone-400 pointer-events-none">
+                  m²
+                </span>
+              </div>
+              {errors.area && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.area}</span>
+                </p>
+              )}
             </div>
           </div>
 
-          {/* 4. Hình ảnh phòng mẫu */}
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
-              <ImageIcon size={13} className="text-stone-500" />
-              <span>URL Hình ảnh phòng đại diện</span>
-            </label>
-            <div className="flex items-center gap-3">
+          {/* Quy cách giường & Hình ảnh */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
+                <BedDouble size={12} className="text-stone-500" />
+                <span>Quy cách chi tiết giường</span>
+              </label>
+              <input
+                type="text"
+                maxLength={50}
+                placeholder="Ví dụ: 01 Giường King Bed hoặc 02 Giường Đôi"
+                value={formData.bedType}
+                onChange={(e) => {
+                  setFormData({ ...formData, bedType: e.target.value });
+                  if (errors.bedType) setErrors({ ...errors, bedType: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.bedType
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
+              />
+              {errors.bedType && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.bedType}</span>
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
+                <ImageIcon size={12} className="text-stone-500" />
+                <span>Đường dẫn hình ảnh đại diện (URL)</span>
+              </label>
               <input
                 type="url"
+                placeholder="https://images.unsplash.com/..."
                 value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                className="flex-1 px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+                onChange={(e) => {
+                  setFormData({ ...formData, imageUrl: e.target.value });
+                  if (errors.imageUrl) setErrors({ ...errors, imageUrl: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.imageUrl
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
-              <img
-                src={formData.imageUrl}
-                alt="Preview"
-                className="w-12 h-10 rounded-xl object-cover ring-1 ring-stone-200 shrink-0"
-              />
+              {errors.imageUrl && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.imageUrl}</span>
+                </p>
+              )}
             </div>
           </div>
 
-          {/* 5. Mô tả & Trải nghiệm phòng */}
+          {/* Mô tả chi tiết & Chống mã độc */}
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              Mô tả chi tiết trải nghiệm lưu trú
+              Mô tả chi tiết phòng & Đặc quyền lưu trú
             </label>
             <textarea
               rows="3"
+              placeholder="Mô tả phong cách kiến trúc, nội thất nhập khẩu, tiện ích đi kèm..."
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-stone-900"
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
+                if (errors.description) setErrors({ ...errors, description: null });
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                errors.description
+                  ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                  : 'border-stone-300 focus:border-stone-900'
+              }`}
             ></textarea>
+            {errors.description && (
+              <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                <span>{errors.description}</span>
+              </p>
+            )}
           </div>
 
           {/* Footer Buttons */}
-          <div className="pt-4 border-t border-stone-100 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs"
-            >
-              Lưu loại phòng mới
-            </button>
+          <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
+            <span className="text-[11px] text-stone-500">
+              Định giá: <strong>{formatVND(formData.basePrice || 0)}</strong> / đêm
+            </span>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <span>{isEditing ? 'Lưu thay đổi' : 'Lưu loại phòng mới'}</span>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>

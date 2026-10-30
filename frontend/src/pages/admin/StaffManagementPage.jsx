@@ -288,11 +288,14 @@ export const StaffManagementPage = () => {
         department: deptMap[formData.department] || formData.department || 'FRONT_DESK',
       };
 
-      await staffService.createStaff(payload);
+      const res = await staffService.createStaff(payload);
 
       // Khi API trả về thành công:
+      const tempPass = res?.data?.temporaryPassword || res?.temporaryPassword;
       showToast(
-        'Tạo tài khoản thành công. Mật khẩu đã được gửi tới email nhân sự',
+        tempPass
+          ? `Tạo tài khoản thành công! Mật khẩu tạm thời: ${tempPass}`
+          : 'Tạo tài khoản thành công. Mật khẩu đã được gửi tới email nhân sự',
         'success'
       );
 
@@ -315,6 +318,10 @@ export const StaffManagementPage = () => {
       if (err?.response?.status === 409 || err?.status === 409) {
         setEmailConflictError('Email đã tồn tại trong hệ thống');
       } else {
+        const fieldErrors = err?.errors || err?.response?.data?.errors;
+        if (fieldErrors && typeof fieldErrors === 'object') {
+          setFormErrors((prev) => ({ ...prev, ...fieldErrors }));
+        }
         const errorMsg =
           err?.response?.data?.message ||
           'Không thể tạo tài khoản nhân sự. Vui lòng thử lại sau.';
@@ -625,7 +632,7 @@ export const StaffManagementPage = () => {
           </div>
         </div>
 
-        <form onSubmit={handleCreateAccount} className="mt-6 space-y-5">
+        <form noValidate onSubmit={handleCreateAccount} className="mt-6 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {/* 1. Full Name */}
             <div>

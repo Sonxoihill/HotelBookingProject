@@ -39,6 +39,7 @@ export const AddRoomTypeModal = ({
   });
 
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -131,18 +132,31 @@ export const AddRoomTypeModal = ({
     // 6. Diện tích: Chỉ điền số, mặc định m², phải > 0
     const rawArea = String(formData.area ?? '').trim();
     if (!rawArea) {
-      newErrors.area = 'Vui lòng nhập diện tích phòng.';
+      newErrors.area = 'Diện tích không được để trống';
     } else {
       const areaNum = Number(rawArea);
       if (isNaN(areaNum) || areaNum <= 0) {
-        newErrors.area = 'Diện tích chỉ điền số và phải lớn hơn 0 m².';
+        newErrors.area = 'Diện tích phải lớn hơn 0';
       }
     }
 
-    // 7. Giá cơ bản
-    const priceNum = Number(formData.basePrice);
-    if (!formData.basePrice || isNaN(priceNum) || priceNum <= 0) {
-      newErrors.basePrice = 'Giá cơ bản phải lớn hơn 0 VND.';
+    // 7. Giá cơ bản: Số hợp lệ, khác 0, không âm, không quá nhỏ (< 10.000 VND), không quá lớn (> 1.000.000.000 VND)
+    const rawPrice = String(formData.basePrice ?? '').trim();
+    if (!rawPrice) {
+      newErrors.basePrice = 'Giá cơ bản không được để trống';
+    } else {
+      const priceNum = Number(rawPrice);
+      if (isNaN(priceNum)) {
+        newErrors.basePrice = 'Giá cơ bản phải là số hợp lệ';
+      } else if (priceNum < 0) {
+        newErrors.basePrice = 'Giá phòng không được là số âm';
+      } else if (priceNum === 0) {
+        newErrors.basePrice = 'Giá cơ bản phải lớn hơn 0';
+      } else if (priceNum < 10000) {
+        newErrors.basePrice = 'Giá phòng quá nhỏ (tối thiểu 10.000 VND/đêm)';
+      } else if (priceNum > 1000000000) {
+        newErrors.basePrice = 'Giá phòng quá lớn (tối đa 1.000.000.000 VND/đêm)';
+      }
     }
 
     // 8. Chống mã độc cho mô tả và URL ảnh
@@ -164,7 +178,7 @@ export const AddRoomTypeModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -182,10 +196,21 @@ export const AddRoomTypeModal = ({
       area: parseFloat(String(formData.area)) || 50,
     };
 
-    if (onSave) {
-      onSave(payload);
-    } else if (onAddRoomType) {
-      onAddRoomType(payload);
+    setIsSubmitting(true);
+    try {
+      if (onSave) {
+        await onSave(payload);
+      } else if (onAddRoomType) {
+        await onAddRoomType(payload);
+      }
+    } catch (err) {
+      console.error('Lỗi khi gửi dữ liệu loại phòng:', err);
+      const serverErrs = err?.errors || err?.response?.data?.errors;
+      if (serverErrs && typeof serverErrs === 'object') {
+        setErrors((prev) => ({ ...prev, ...serverErrs }));
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -216,7 +241,7 @@ export const AddRoomTypeModal = ({
         </div>
 
         {/* Modal Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {/* Tên & Mã */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div className="sm:col-span-2">
@@ -245,14 +270,15 @@ export const AddRoomTypeModal = ({
                 </p>
               )}
             </div>
+
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Mã định danh (Code)
+                Mã định danh
               </label>
               <input
                 type="text"
                 maxLength={50}
-                placeholder="PNT-GCP-01"
+                placeholder="TYP-101"
                 value={formData.code}
                 onChange={(e) => {
                   setFormData({ ...formData, code: e.target.value });
@@ -339,8 +365,8 @@ export const AddRoomTypeModal = ({
               </label>
               <input
                 type="number"
-                step="50000"
-                min="1"
+                step="any"
+                placeholder="Ví dụ: 500000"
                 value={formData.basePrice}
                 onChange={(e) => {
                   setFormData({ ...formData, basePrice: e.target.value });
@@ -399,8 +425,7 @@ export const AddRoomTypeModal = ({
               <div className="relative">
                 <input
                   type="number"
-                  step="0.5"
-                  min="1"
+                  step="any"
                   placeholder="Ví dụ: 85"
                   value={formData.area}
                   onChange={(e) => {
@@ -429,19 +454,20 @@ export const AddRoomTypeModal = ({
           {/* Quy cách giường & Hình ảnh */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Quy cách giường chính
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
+                <BedDouble size={12} className="text-stone-500" />
+                <span>Quy cách chi tiết giường</span>
               </label>
               <input
                 type="text"
                 maxLength={50}
-                placeholder="Ví dụ: 01 Giường King Bed 2.0m x 2.2m"
+                placeholder="Ví dụ: 01 Giường King Bed hoặc 02 Giường Đôi"
                 value={formData.bedType}
                 onChange={(e) => {
                   setFormData({ ...formData, bedType: e.target.value });
                   if (errors.bedType) setErrors({ ...errors, bedType: null });
                 }}
-                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
                   errors.bedType
                     ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
                     : 'border-stone-300 focus:border-stone-900'
@@ -456,36 +482,24 @@ export const AddRoomTypeModal = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
-                <ImageIcon size={13} className="text-stone-500" />
-                <span>URL Hình ảnh phòng đại diện</span>
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
+                <ImageIcon size={12} className="text-stone-500" />
+                <span>Đường dẫn hình ảnh đại diện (URL)</span>
               </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={formData.imageUrl}
-                  onChange={(e) => {
-                    setFormData({ ...formData, imageUrl: e.target.value });
-                    if (errors.imageUrl) setErrors({ ...errors, imageUrl: null });
-                  }}
-                  className={`flex-1 px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
-                    errors.imageUrl
-                      ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
-                      : 'border-stone-300 focus:border-stone-900'
-                  }`}
-                />
-                {formData.imageUrl && (
-                  <img
-                    src={formData.imageUrl}
-                    alt="Preview"
-                    className="w-10 h-9 rounded-lg object-cover ring-1 ring-stone-200 shrink-0"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                )}
-              </div>
+              <input
+                type="url"
+                placeholder="https://images.unsplash.com/..."
+                value={formData.imageUrl}
+                onChange={(e) => {
+                  setFormData({ ...formData, imageUrl: e.target.value });
+                  if (errors.imageUrl) setErrors({ ...errors, imageUrl: null });
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors bg-white ${
+                  errors.imageUrl
+                    ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
+                    : 'border-stone-300 focus:border-stone-900'
+                }`}
+              />
               {errors.imageUrl && (
                 <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
                   <AlertCircle size={12} />
@@ -495,14 +509,14 @@ export const AddRoomTypeModal = ({
             </div>
           </div>
 
-          {/* Mô tả chi tiết */}
+          {/* Mô tả chi tiết & Chống mã độc */}
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              Mô tả chi tiết loại phòng
+              Mô tả chi tiết phòng & Đặc quyền lưu trú
             </label>
             <textarea
               rows="3"
-              placeholder="Mô tả không gian, tầm nhìn, tiện nghi nổi bật..."
+              placeholder="Mô tả phong cách kiến trúc, nội thất nhập khẩu, tiện ích đi kèm..."
               value={formData.description}
               onChange={(e) => {
                 setFormData({ ...formData, description: e.target.value });
@@ -531,15 +545,24 @@ export const AddRoomTypeModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer disabled:opacity-50"
               >
                 Hủy
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs"
+                disabled={isSubmitting}
+                className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
               >
-                {isEditing ? 'Lưu thay đổi' : 'Lưu loại phòng mới'}
+                {isSubmitting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <span>{isEditing ? 'Lưu thay đổi' : 'Lưu loại phòng mới'}</span>
+                )}
               </button>
             </div>
           </div>

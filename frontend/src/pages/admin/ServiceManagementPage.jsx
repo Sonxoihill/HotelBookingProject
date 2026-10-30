@@ -89,6 +89,7 @@ export const ServiceManagementPage = () => {
       const status = err.response?.status || err.status;
       const msg = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi lưu dịch vụ.';
       showToast(msg, 'error');
+      throw err;
     }
   };
 

@@ -72,7 +72,7 @@ export const AddPricingRuleModal = ({
     onClose();
   };
 
-  // Validate phía Client: endDate >= startDate và adjustmentPercent > -100
+  // Validate phía Client: endDate >= startDate, adjustmentPercent != 0, adjustmentPercent > -100, adjustmentPercent <= 500
   const validateClient = () => {
     const errs = {};
 
@@ -84,20 +84,29 @@ export const AddPricingRuleModal = ({
     if (nameErr) errs.name = nameErr;
 
     if (!formData.startDate) {
-      errs.startDate = 'Vui lòng chọn ngày bắt đầu.';
+      errs.startDate = 'Ngày bắt đầu không được để trống';
     }
 
     if (!formData.endDate) {
-      errs.endDate = 'Vui lòng chọn ngày kết thúc.';
+      errs.endDate = 'Ngày kết thúc không được để trống';
     } else if (formData.startDate && formData.endDate < formData.startDate) {
-      errs.dateRange = 'Từ ngày không được đứng sau Đến ngày.';
+      errs.dateRange = 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu';
     }
 
-    const percentNum = Number(formData.adjustmentPercent);
-    if (isNaN(percentNum)) {
-      errs.adjustmentPercent = 'Tỷ lệ điều chỉnh phải là số hợp lệ.';
-    } else if (percentNum <= -100) {
-      errs.adjustmentPercent = 'Tỷ lệ điều chỉnh phải lớn hơn -100% (Ví dụ: -10%, +20%).';
+    const rawPercent = String(formData.adjustmentPercent ?? '').trim();
+    if (rawPercent === '') {
+      errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không được để trống';
+    } else {
+      const percentNum = Number(rawPercent);
+      if (isNaN(percentNum)) {
+        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh phải là số hợp lệ';
+      } else if (percentNum === 0) {
+        errs.adjustmentPercent = 'Phần trăm điều chỉnh phải khác 0';
+      } else if (percentNum <= -100) {
+        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không hợp lệ (không thể giảm quá 100%)';
+      } else if (percentNum > 500) {
+        errs.adjustmentPercent = 'Tỷ lệ điều chỉnh giá không được vượt quá 500%';
+      }
     }
 
     setErrors(errs);
@@ -144,15 +153,32 @@ export const AddPricingRuleModal = ({
           errorMsg || 'Khoảng thời gian này đã bị trùng lặp với quy tắc giá hiện có.';
       }
 
-      // Lỗi tỷ lệ -> hiện chữ đỏ dưới ô %
+      // Map toàn bộ errors từ backend nếu có
+      const backendFieldErrors = data?.errors || err?.errors;
+      if (backendFieldErrors && typeof backendFieldErrors === 'object') {
+        Object.entries(backendFieldErrors).forEach(([field, msg]) => {
+          if (field === 'adjustmentPercent') {
+            newServerErrors.adjustmentPercent = msg;
+          } else if (field === 'startDate' || field === 'endDate') {
+            newServerErrors.dateRange = msg;
+          } else {
+            newServerErrors[field] = msg;
+          }
+        });
+      }
+
+      // Lỗi phần trăm điều chỉnh từ message hoặc 400 Bad Request
       if (
+        !newServerErrors.adjustmentPercent &&
         (status === 400 || status === 422) &&
-        (errorMsg.toLowerCase().includes('tỷ lệ') ||
+        (errorMsg.includes('Phần trăm điều chỉnh phải khác 0') ||
+          errorMsg.toLowerCase().includes('tỷ lệ') ||
+          errorMsg.toLowerCase().includes('phần trăm') ||
+          errorMsg.toLowerCase().includes('khác 0') ||
           errorMsg.toLowerCase().includes('percent') ||
           errorMsg.toLowerCase().includes('adjustment'))
       ) {
-        newServerErrors.adjustmentPercent =
-          errorMsg || 'Tỷ lệ điều chỉnh không hợp lệ (phải lớn hơn -100%).';
+        newServerErrors.adjustmentPercent = errorMsg || 'Phần trăm điều chỉnh phải khác 0';
       }
 
       if (Object.keys(newServerErrors).length > 0) {
@@ -200,7 +226,7 @@ export const AddPricingRuleModal = ({
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {/* 1. Tên quy tắc */}
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1.5">
@@ -214,64 +240,53 @@ export const AddPricingRuleModal = ({
               onChange={(e) => {
                 setFormData({ ...formData, name: e.target.value });
                 if (errors.name) setErrors({ ...errors, name: null });
+                if (serverErrors.name) setServerErrors({ ...serverErrors, name: null });
               }}
               className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none transition-colors ${
-                errors.name
+                errors.name || serverErrors.name
                   ? 'border-rose-400 bg-rose-50/30 focus:border-rose-600'
                   : 'border-stone-300 focus:border-stone-900'
               }`}
             />
-            {errors.name && (
+            {(errors.name || serverErrors.name) && (
               <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
                 <AlertCircle size={12} />
-                <span>{errors.name}</span>
+                <span>{serverErrors.name || errors.name}</span>
               </p>
             )}
           </div>
 
-          {/* 2. Dropdown Loại quy tắc (Cuối tuần, Lễ Tết, Mùa cao điểm) */}
+          {/* 2. Loại quy tắc */}
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              Loại quy tắc áp dụng <span className="text-rose-500">*</span>
+              Loại quy tắc áp dụng
             </label>
             <select
               value={formData.ruleType}
               onChange={(e) => setFormData({ ...formData, ruleType: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-semibold focus:outline-none focus:border-stone-900 bg-white"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-medium focus:outline-none focus:border-stone-900 bg-white"
             >
-              <option value="WEEKEND">Cuối tuần (Weekend)</option>
-              <option value="HOLIDAY">Lễ Tết (Holiday)</option>
-              <option value="PEAK_SEASON">Mùa cao điểm (Peak Season)</option>
+              <option value="WEEKEND">WEEKEND - Cuối tuần (Thứ Sáu, Thứ Bảy, Chủ Nhật)</option>
+              <option value="HOLIDAY">HOLIDAY - Dịp Lễ Tết (30/4, 1/5, Quốc Khánh, Tết Nguyên Đán)</option>
+              <option value="PEAK_SEASON">PEAK_SEASON - Mùa cao điểm du lịch</option>
             </select>
-
-            {/* Khi chọn loại "Cuối tuần": Hiện dòng ghi chú */}
-            {formData.ruleType === 'WEEKEND' && (
-              <div className="mt-2 p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 flex items-start gap-2 text-xs text-amber-900">
-                <Info size={14} className="text-amber-700 shrink-0 mt-0.5" />
-                <span>Chỉ áp dụng cho đêm Thứ 6 và Thứ 7 trong khoảng thời gian đã chọn.</span>
-              </div>
-            )}
           </div>
 
-          {/* 3. Từ ngày (startDate) & Đến ngày (endDate) */}
+          {/* 3. Khoảng ngày áp dụng (Từ ngày -> Đến ngày) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
                 <Calendar size={13} className="text-stone-500" />
-                <span>Từ ngày (startDate) <span className="text-rose-500">*</span></span>
+                <span>Từ ngày <span className="text-rose-500">*</span></span>
               </label>
               <input
                 type="date"
-                max={formData.endDate || undefined}
                 value={formData.startDate}
                 onChange={(e) => {
                   setFormData({ ...formData, startDate: e.target.value });
-                  if (errors.dateRange || errors.startDate) {
-                    setErrors({ ...errors, dateRange: null, startDate: null });
-                  }
-                  if (serverErrors.dateRange) {
-                    setServerErrors({ ...serverErrors, dateRange: null });
-                  }
+                  if (errors.startDate) setErrors({ ...errors, startDate: null });
+                  if (errors.dateRange) setErrors({ ...errors, dateRange: null });
+                  if (serverErrors.dateRange) setServerErrors({ ...serverErrors, dateRange: null });
                 }}
                 className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
                   errors.startDate || errors.dateRange || serverErrors.dateRange
@@ -280,14 +295,17 @@ export const AddPricingRuleModal = ({
                 }`}
               />
               {errors.startDate && (
-                <p className="text-[11px] text-rose-600 mt-1 font-medium">{errors.startDate}</p>
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.startDate}</span>
+                </p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1">
                 <Calendar size={13} className="text-stone-500" />
-                <span>Đến ngày (endDate) <span className="text-rose-500">*</span></span>
+                <span>Đến ngày <span className="text-rose-500">*</span></span>
               </label>
               <input
                 type="date"
@@ -295,12 +313,9 @@ export const AddPricingRuleModal = ({
                 value={formData.endDate}
                 onChange={(e) => {
                   setFormData({ ...formData, endDate: e.target.value });
-                  if (errors.dateRange || errors.endDate) {
-                    setErrors({ ...errors, dateRange: null, endDate: null });
-                  }
-                  if (serverErrors.dateRange) {
-                    setServerErrors({ ...serverErrors, dateRange: null });
-                  }
+                  if (errors.endDate) setErrors({ ...errors, endDate: null });
+                  if (errors.dateRange) setErrors({ ...errors, dateRange: null });
+                  if (serverErrors.dateRange) setServerErrors({ ...serverErrors, dateRange: null });
                 }}
                 className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
                   errors.endDate || errors.dateRange || serverErrors.dateRange
@@ -309,14 +324,17 @@ export const AddPricingRuleModal = ({
                 }`}
               />
               {errors.endDate && (
-                <p className="text-[11px] text-rose-600 mt-1 font-medium">{errors.endDate}</p>
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>{errors.endDate}</span>
+                </p>
               )}
             </div>
           </div>
 
-          {/* Bắt lỗi trùng lặp từ Server (409) hoặc lỗi Validate Client: hiện chữ đỏ dưới ô Từ ngày/Đến ngày */}
+          {/* Lỗi khoảng thời gian hoặc trùng lặp (Server 409 hoặc Client) */}
           {(errors.dateRange || serverErrors.dateRange) && (
-            <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1.5 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+            <p className="text-[11px] text-rose-600 -mt-2 flex items-center gap-1.5 font-medium bg-rose-50 p-2.5 rounded-xl border border-rose-200">
               <AlertCircle size={14} className="shrink-0" />
               <span>{serverErrors.dateRange || errors.dateRange}</span>
             </p>
@@ -330,13 +348,13 @@ export const AddPricingRuleModal = ({
                 <span>Tỷ lệ điều chỉnh (%) <span className="text-rose-500">*</span></span>
               </span>
               <span className="text-[11px] font-normal text-stone-500 italic">
-                Số âm = giảm giá (VD: -15% giảm, 20% tăng)
+                Số âm = giảm giá (VD: -15% giảm, 20% tăng, khác 0)
               </span>
             </label>
             <div className="relative">
               <input
                 type="number"
-                step="1"
+                step="any"
                 placeholder="Ví dụ: 20 hoặc -10"
                 value={formData.adjustmentPercent}
                 onChange={(e) => {
@@ -377,7 +395,9 @@ export const AddPricingRuleModal = ({
                   Giảm {Math.abs(Number(formData.adjustmentPercent))}% so với giá cơ bản
                 </span>
               ) : (
-                <span>Không thay đổi mức giá (0%)</span>
+                <span className="text-rose-600 font-semibold">
+                  Phần trăm điều chỉnh phải khác 0%
+                </span>
               )}
             </div>
           </div>

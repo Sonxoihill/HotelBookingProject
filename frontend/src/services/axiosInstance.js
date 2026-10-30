@@ -33,7 +33,8 @@ axiosInstance.interceptors.request.use(
 
 /**
  * Response Interceptor:
- * Tự động xử lý lỗi tập trung, phát hiện token hết hạn (401)
+ * Tự động xử lý lỗi tập trung, phát hiện token hết hạn (401),
+ * truyền trực tiếp thông báo lỗi và danh sách lỗi validation Tiếng Việt từ Backend.
  */
 axiosInstance.interceptors.response.use(
   (response) => {
@@ -64,7 +65,14 @@ axiosInstance.interceptors.response.use(
         }
       }
 
-      const errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      let errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      if (data?.errors && typeof data.errors === 'object') {
+        const fieldErrorValues = Object.values(data.errors).filter(Boolean);
+        if (fieldErrorValues.length > 0 && (errorMessage === 'Dữ liệu đầu vào không hợp lệ' || !errorMessage)) {
+          errorMessage = fieldErrorValues.join('; ');
+        }
+      }
+
       const customError = new Error(errorMessage);
       customError.status = status;
       customError.errors = data?.errors;

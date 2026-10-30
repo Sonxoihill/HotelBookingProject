@@ -118,7 +118,9 @@ public class AdminPricingRuleServiceImpl implements AdminPricingRuleService {
         }
 
         if (request.getAdjustmentPercent() != null) {
-            if (request.getAdjustmentPercent().compareTo(BigDecimal.valueOf(-100)) <= 0) {
+            if (request.getAdjustmentPercent().compareTo(BigDecimal.ZERO) == 0) {
+                errors.put("adjustmentPercent", "Phần trăm điều chỉnh phải khác 0");
+            } else if (request.getAdjustmentPercent().compareTo(BigDecimal.valueOf(-100)) <= 0) {
                 errors.put("adjustmentPercent", "Tỷ lệ điều chỉnh giá không hợp lệ (không thể giảm quá 100%)");
             } else if (request.getAdjustmentPercent().compareTo(BigDecimal.valueOf(500)) > 0) {
                 errors.put("adjustmentPercent", "Tỷ lệ điều chỉnh giá không được vượt quá 500%");

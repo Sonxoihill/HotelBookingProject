@@ -93,8 +93,10 @@ public class AdminUserServiceImpl implements AdminUserService {
         // Gửi email bất đồng bộ kèm thông tin đăng nhập
         emailService.sendStaffAccountEmail(savedUser, rawPassword);
 
-        // Không trả mật khẩu trong response
-        return AdminUserResponse.fromEntity(savedUser);
+        // Trả response kèm temporaryPassword cho Quản trị viên (chỉ 1 lần khi tạo)
+        AdminUserResponse response = AdminUserResponse.fromEntity(savedUser);
+        response.setTemporaryPassword(rawPassword);
+        return response;
     }
 
     @Override

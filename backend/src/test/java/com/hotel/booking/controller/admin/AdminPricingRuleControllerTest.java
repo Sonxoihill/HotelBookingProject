@@ -138,6 +138,30 @@ class AdminPricingRuleControllerTest {
     }
 
     @Test
+    @DisplayName("UC15: Báo lỗi 400 khi adjustmentPercent == 0 kèm thông báo phần trăm điều chỉnh phải khác 0")
+    void testCreatePricingRule_AdjustmentZero_Returns400() throws Exception {
+        PricingRuleRequest request = PricingRuleRequest.builder()
+                .name("Quy tắc điều chỉnh 0%")
+                .ruleType(PricingRuleType.HOLIDAY)
+                .startDate(LocalDate.of(2027, 9, 1))
+                .endDate(LocalDate.of(2027, 9, 3))
+                .adjustmentPercent(BigDecimal.ZERO)
+                .build();
+
+        when(pricingRuleService.createPricingRule(any(PricingRuleRequest.class)))
+                .thenThrow(new AppException(ErrorCode.BAD_REQUEST, "Phần trăm điều chỉnh phải khác 0",
+                        Map.of("adjustmentPercent", "Phần trăm điều chỉnh phải khác 0")));
+
+        mockMvc.perform(post("/admin/pricing-rules")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Phần trăm điều chỉnh phải khác 0"))
+                .andExpect(jsonPath("$.errors.adjustmentPercent").value("Phần trăm điều chỉnh phải khác 0"));
+    }
+
+    @Test
     @DisplayName("UC15 Luồng 5a: Báo lỗi 400 khi adjustmentPercent <= -100%, kèm tên field")
     void testCreatePricingRule_AdjustmentTooLow_Returns400() throws Exception {
         PricingRuleRequest request = PricingRuleRequest.builder()

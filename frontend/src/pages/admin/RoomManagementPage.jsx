@@ -111,6 +111,7 @@ export const RoomManagementPage = () => {
       const status = err.response?.status || err.status;
       const msg = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi lưu phòng.';
       showToast(msg, 'error');
+      throw err;
     }
   };
 

@@ -1,5 +1,10 @@
 import axios from 'axios';
 import { tokenStorage } from '../utils/tokenStorage';
+import {
+  translateErrorMessage,
+  translateErrorsMap,
+  formatValidationErrorsSummary,
+} from '../utils/errorTranslation';
 
 /**
  * Cấu hình Axios Instance kết nối Backend API
@@ -33,7 +38,8 @@ axiosInstance.interceptors.request.use(
 
 /**
  * Response Interceptor:
- * Tự động xử lý lỗi tập trung, phát hiện token hết hạn (401)
+ * Tự động xử lý lỗi tập trung, phát hiện token hết hạn (401),
+ * và chuẩn hóa 100% lỗi validation từ backend sang Tiếng Việt.
  */
 axiosInstance.interceptors.response.use(
   (response) => {
@@ -64,7 +70,23 @@ axiosInstance.interceptors.response.use(
         }
       }
 
-      const errorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      // Chuẩn hóa & Việt hóa toàn bộ thông báo lỗi validation trả về từ Spring Boot
+      if (data && typeof data === 'object') {
+        if (data.errors && typeof data.errors === 'object') {
+          data.errors = translateErrorsMap(data.errors);
+        }
+
+        const hasFieldErrors = data.errors && Object.keys(data.errors).length > 0;
+        if (hasFieldErrors) {
+          data.message = formatValidationErrorsSummary(data.errors, data.message);
+        } else if (data.message) {
+          data.message = translateErrorMessage(data.message);
+        }
+      }
+
+      const rawErrorMessage = data?.message || error.message || 'Có lỗi xảy ra khi kết nối máy chủ.';
+      const errorMessage = translateErrorMessage(rawErrorMessage);
+
       const customError = new Error(errorMessage);
       customError.status = status;
       customError.errors = data?.errors;
@@ -81,7 +103,9 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(timeoutError);
     }
 
-    return Promise.reject(error);
+    const genericMsg = translateErrorMessage(error.message || 'Lỗi kết nối máy chủ.');
+    const connectionError = new Error(genericMsg);
+    return Promise.reject(connectionError);
   }
 );
 

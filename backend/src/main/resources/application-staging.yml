@@ -31,3 +31,7 @@ logging:
 
 vnpay:
   return-url: ${VNPAY_RETURN_URL:${STAGING_VNPAY_RETURN_URL:https://hotelbookingproject-fontend-l6ru.onrender.com/api/v1/payment/vnpay-return}}
+
+app:
+  frontend:
+    url: ${STAGING_FRONTEND_URL:${FRONTEND_URL:https://hotelbookingproject-fontend-l6ru.onrender.com}}

@@ -70,6 +70,26 @@ class AdminPricingRuleServiceImplTest {
     }
 
     @Test
+    @DisplayName("SCRUM-166: Ném lỗi 400 khi adjustmentPercent == 0")
+    void testValidate_AdjustmentPercentZero() {
+        PricingRuleRequest request = PricingRuleRequest.builder()
+                .name("Điều chỉnh 0%")
+                .ruleType(PricingRuleType.HOLIDAY)
+                .startDate(LocalDate.of(2027, 9, 1))
+                .endDate(LocalDate.of(2027, 9, 3))
+                .adjustmentPercent(BigDecimal.ZERO)
+                .build();
+
+        AppException ex = assertThrows(AppException.class, () ->
+                pricingRuleService.createPricingRule(request));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Phần trăm điều chỉnh phải khác 0"));
+        assertTrue(ex.getErrors() instanceof java.util.Map);
+        assertEquals("Phần trăm điều chỉnh phải khác 0", ((java.util.Map<?, ?>) ex.getErrors()).get("adjustmentPercent"));
+    }
+
+    @Test
     @DisplayName("Validation: Ném lỗi 400 khi adjustmentPercent <= -100")
     void testValidate_AdjustmentPercentTooLow() {
         PricingRuleRequest request = PricingRuleRequest.builder()

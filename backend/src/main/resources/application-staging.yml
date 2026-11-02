@@ -8,7 +8,7 @@ spring:
 
   datasource:
     # URL Database Staging
-    url: ${STAGING_DB_URL:${DB_URL:jdbc:mysql://localhost:3308/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8}}
+    url: ${STAGING_DB_URL:${DB_URL:jdbc:mysql://localhost:3308/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8}}
     username: ${STAGING_DB_USERNAME:${DB_USERNAME:root}}
     password: ${STAGING_DB_PASSWORD:${DB_PASSWORD:123456}}
     driver-class-name: com.mysql.cj.jdbc.Driver

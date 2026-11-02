@@ -7,6 +7,7 @@ import com.hotel.booking.entity.Booking;
 import com.hotel.booking.entity.Review;
 import com.hotel.booking.entity.Room;
 import com.hotel.booking.entity.User;
+import com.hotel.booking.enums.BookingStatus;
 import com.hotel.booking.repository.BookingRepository;
 import com.hotel.booking.repository.ReviewRepository;
 import com.hotel.booking.repository.RoomRepository;
@@ -16,8 +17,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.HtmlUtils;
-
-import com.hotel.booking.enums.BookingStatus;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -73,11 +72,7 @@ public class ReviewServiceImpl implements ReviewService {
             throw new IllegalArgumentException("Cần cung cấp mã đơn đặt phòng hoặc mã phòng để đánh giá.");
         }
 
-        String rawComment = request.getComment();
-        String sanitizedComment = null;
-        if (rawComment != null) {
-            sanitizedComment = HtmlUtils.htmlEscape(rawComment.trim());
-        }
+        String sanitizedComment = sanitizeComment(request.getComment());
 
         Review review = Review.builder()
                 .user(user)
@@ -139,10 +134,7 @@ public class ReviewServiceImpl implements ReviewService {
         Long roomId = review.getRoom() != null ? review.getRoom().getId() : null;
         Long userId = review.getUser() != null ? review.getUser().getId() : null;
 
-        String comment = review.getComment();
-        if (comment != null && (comment.contains("<") || comment.contains(">"))) {
-            comment = HtmlUtils.htmlEscape(comment);
-        }
+        String comment = sanitizeComment(review.getComment());
 
         return ReviewResponse.builder()
                 .id(review.getId())
@@ -155,5 +147,22 @@ public class ReviewServiceImpl implements ReviewService {
                 .bookingId(review.getBooking() != null ? review.getBooking().getId() : null)
                 .createdAt(review.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * Làm sạch bình luận chống XSS nhưng giữ nguyên 100% ký tự tiếng Việt có dấu (UTF-8: ã, ẽ, ũ, ơ, ư, v.v.).
+     * Không sử dụng HtmlUtils.htmlEscape mặc định (ISO-8859-1) vì sẽ biến đổi tiếng Việt thành HTML entities (&atilde;, &#432;...).
+     */
+    private String sanitizeComment(String rawComment) {
+        if (rawComment == null) {
+            return null;
+        }
+        String unescaped = HtmlUtils.htmlUnescape(rawComment.trim());
+        return unescaped
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }

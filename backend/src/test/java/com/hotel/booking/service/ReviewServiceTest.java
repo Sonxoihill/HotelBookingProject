@@ -100,6 +100,36 @@ class ReviewServiceTest {
     }
 
     @Test
+    @DisplayName("createReview (SCRUM-170 Bug 4) - Giữ nguyên chuỗi tiếng Việt có dấu UTF-8 (ã, ẽ, ũ, ơ, ư...)")
+    void testCreateReview_PreservesVietnameseUtf8Characters() {
+        String vietnameseComment = "Phòng sạch sẽ, kỹ lưỡng, đồ ăn mỹ mãn, nhân viên dễ thương, nghỉ dưỡng tuyệt vời!";
+        CreateReviewRequest request = new CreateReviewRequest();
+        request.setRoomId(101L);
+        request.setRating(5);
+        request.setComment(vietnameseComment);
+
+        when(userRepository.findByEmail("customer@hotel.com")).thenReturn(Optional.of(sampleUser));
+        when(roomRepository.findById(101L)).thenReturn(Optional.of(sampleRoom));
+        when(reviewRepository.save(any(Review.class))).thenAnswer(invocation -> {
+            Review review = invocation.getArgument(0);
+            review.setId(15L);
+            review.setCreatedAt(LocalDateTime.now());
+            return review;
+        });
+
+        ReviewResponse response = reviewService.createReview("customer@hotel.com", request);
+
+        ArgumentCaptor<Review> captor = ArgumentCaptor.forClass(Review.class);
+        verify(reviewRepository).save(captor.capture());
+        Review savedEntity = captor.getValue();
+
+        assertEquals(vietnameseComment, savedEntity.getComment());
+        assertEquals(vietnameseComment, response.getComment());
+        assertFalse(response.getComment().contains("&atilde;"));
+        assertFalse(response.getComment().contains("&ograve;"));
+    }
+
+    @Test
     @DisplayName("getReviewsByRoomId (SCRUM-91) - Escape dữ liệu chưa escape trong database để chống XSS")
     void testGetReviewsByRoomId_EscapeLegacyUnescapedReview() {
         Review legacyReview = Review.builder()

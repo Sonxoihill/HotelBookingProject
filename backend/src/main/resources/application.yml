@@ -2,6 +2,10 @@ server:
   port: ${PORT:8080}
   servlet:
     context-path: /api/v1
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 spring:
   application:
@@ -83,4 +87,3 @@ rate-limit:
     capacity: ${RATE_LIMIT_BOOKING_CAPACITY:5}
     refill-tokens: ${RATE_LIMIT_BOOKING_REFILL_TOKENS:5}
     duration-seconds: ${RATE_LIMIT_BOOKING_DURATION_SECONDS:1}
-

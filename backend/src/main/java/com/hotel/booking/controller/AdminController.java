@@ -16,14 +16,15 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin")
 @PreAuthorize("hasRole('ADMIN')")
-@Tag(name = "Admin Management", description = "Các API dành riêng cho Quản trị viên (ADMIN)")
+@Tag(name = "10. Quản trị viên - Kiểm tra Quyền hạn (Admin Security)", description = "Các API xác thực quyền Quản trị viên (ROLE_ADMIN)")
 @SecurityRequirement(name = "bearerAuth")
 public class AdminController {
 
-    @Operation(summary = "Kiểm tra quyền Quản trị viên (ADMIN)", description = "Xác thực JWT token của người dùng có quyền ROLE_ADMIN hay không.")
+    @Operation(summary = "Kiểm tra quyền Quản trị viên (ADMIN)", description = "Xác thực JWT Token của người dùng có quyền ROLE_ADMIN hay không.")
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xác thực thành công"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền Quản trị viên")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xác thực quyền ADMIN thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Chưa đăng nhập hoặc JWT Token hết hạn"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Sai quyền hạn (GUEST/CUSTOMER/RECEPTIONIST cố gọi API Admin)")
     })
     @GetMapping("/ping")
     public ResponseEntity<ApiResponse<Map<String, String>>> ping() {

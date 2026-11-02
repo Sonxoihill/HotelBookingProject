@@ -1,8 +1,8 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { Bell } from 'lucide-react';
+import { Bell, Menu } from 'lucide-react';
 
-export const ReceptionistNavbar = () => {
+export const ReceptionistNavbar = ({ onToggleSidebar }) => {
   const location = useLocation();
 
   const getBreadcrumbTitle = () => {
@@ -13,12 +13,22 @@ export const ReceptionistNavbar = () => {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-stone-200/90 px-6 sm:px-8 flex items-center justify-between shrink-0 select-none">
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest uppercase">
-        <span className="text-stone-400">FRONT DESK</span>
-        <span className="text-stone-300">/</span>
-        <span className="text-stone-800">{getBreadcrumbTitle()}</span>
+    <header className="h-16 bg-white border-b border-stone-200/90 px-4 sm:px-8 flex items-center justify-between shrink-0 select-none">
+      {/* Breadcrumbs & Mobile Hamburger */}
+      <div className="flex items-center gap-2 sm:gap-3 text-[11px] font-bold tracking-widest uppercase">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            title="Mở menu lễ tân"
+            className="lg:hidden p-2 -ml-1 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        <span className="text-stone-400 hidden xs:inline">FRONT DESK</span>
+        <span className="text-stone-300 hidden xs:inline">/</span>
+        <span className="text-stone-800 truncate">{getBreadcrumbTitle()}</span>
       </div>
 
       {/* Right Controls & Status */}

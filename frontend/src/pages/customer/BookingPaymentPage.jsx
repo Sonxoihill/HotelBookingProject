@@ -547,7 +547,7 @@ export const BookingPaymentPage = () => {
                 {roomName}
               </h3>
               {description && (
-                <p className="text-xs text-slate-600 leading-relaxed font-light">
+                <p className="text-xs font-sans text-slate-600 leading-relaxed font-normal">
                   {description}
                 </p>
               )}
@@ -949,9 +949,11 @@ export const BookingPaymentPage = () => {
               size="lg"
               isLoading={isSubmitting}
               disabled={!isFormValid || isSubmitting}
-              className="w-full py-4 text-base font-bold shadow-xl shadow-amber-600/25 cursor-pointer bg-[#C59D5F] hover:bg-[#b08b50] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-4 min-h-[48px] text-base font-bold shadow-xl shadow-amber-600/25 cursor-pointer bg-[#C59D5F] hover:bg-[#b08b50] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              Xác nhận thanh toán{totalAmount > 0 ? ` (${formatVND(totalAmount)})` : ''}
+              {paymentMethod === 'VNPAY'
+                ? `Xác nhận thanh toán VNPay${totalAmount > 0 ? ` (${formatVND(totalAmount)})` : ''}`
+                : `Xác nhận thanh toán${totalAmount > 0 ? ` (${formatVND(totalAmount)})` : ''}`}
             </Button>
 
             <div className="flex items-center justify-center gap-2 text-xs text-slate-400 text-center">

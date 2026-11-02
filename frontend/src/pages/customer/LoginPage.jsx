@@ -9,6 +9,7 @@ import { Hotel, Mail, Lock, LogIn, AlertCircle, CheckCircle2 } from 'lucide-reac
 export const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [toastMsg, setToastMsg] = useState(location.state?.toast || location.state?.message || '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
@@ -92,6 +93,23 @@ export const LoginPage = () => {
             Hệ thống Quản lý và Đặt phòng Khách sạn LuxeStay
           </p>
         </div>
+
+        {/* Toast / Notification */}
+        {toastMsg && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center justify-between gap-2.5 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
+              <span className="font-medium">{toastMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastMsg('')}
+              className="text-emerald-700 hover:text-emerald-900 text-xs font-bold px-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Global Error Banner */}
         {apiError && (

@@ -455,8 +455,8 @@ export const ReportStatisticsPage = () => {
                   </div>
                 </div>
 
-                <div className="h-72 w-full pt-2">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="w-full pt-2">
+                  <ResponsiveContainer width="100%" height={300}>
                     <BarChart
                       data={reportData?.timeline || []}
                       margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
@@ -520,8 +520,8 @@ export const ReportStatisticsPage = () => {
                   </h2>
                 </div>
 
-                <div className="h-60 w-full relative">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="w-full relative">
+                  <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
                         data={reportData?.roomTypes || []}
@@ -610,8 +610,8 @@ export const ReportStatisticsPage = () => {
               </div>
             </div>
 
-            <div className="h-80 w-full pt-2">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full pt-2">
+              <ResponsiveContainer width="100%" height={300}>
                 <LineChart
                   data={reportData?.timeline || []}
                   margin={{ top: 15, right: 20, left: 15, bottom: 5 }}
@@ -706,8 +706,8 @@ export const ReportStatisticsPage = () => {
               </h3>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+              <table className="w-full min-w-[480px] text-left text-xs">
                 <thead>
                   <tr className="bg-stone-50/70 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
                     <th className="py-3 px-6">METRIC</th>

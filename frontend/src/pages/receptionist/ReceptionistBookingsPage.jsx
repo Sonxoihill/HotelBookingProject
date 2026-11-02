@@ -115,8 +115,9 @@ export const ReceptionistBookingsPage = () => {
       const focusRoom = searchParams.get('focusRoom');
       const action = searchParams.get('action');
       if (focusRoom && action === 'checkout') {
-        const target = mapped.find((b) => (b.roomNumber || '').includes(focusRoom));
+        const target = mapped.find((b) => (b.roomNumber || '').includes(focusRoom) && b.status !== 'CHECKED_OUT');
         if (target) {
+          navigate('/receptionist/bookings', { replace: true });
           handleOpenCheckout(target);
           showToast(`Đã mở quyết toán Check-out cho phòng ${focusRoom} kèm toàn bộ dịch vụ phát sinh!`);
         }
@@ -257,8 +258,9 @@ export const ReceptionistBookingsPage = () => {
         checkoutTime: new Date().toLocaleString('vi-VN'),
       };
 
-      setReceiptData(finalReceipt);
       setIsCheckoutModalOpen(false);
+      navigate('/receptionist/bookings', { replace: true });
+      setReceiptData(finalReceipt);
       setIsReceiptModalOpen(true);
 
       showToast(`Đã hoàn tất trả phòng (Check-out) thành công cho phòng ${checkoutBooking.roomNumber}!`);
@@ -516,9 +518,8 @@ export const ReceptionistBookingsPage = () => {
       </div>
 
       {/* 4. Bookings Data Table */}
-      <div className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+      <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+        <table className="w-full min-w-[950px] text-left text-xs">
             <thead>
               <tr className="border-b border-stone-100 text-stone-400 font-semibold uppercase tracking-wider text-[10px] bg-stone-50/50">
                 <th className="py-3.5 px-6">Mã đơn & Nguồn</th>
@@ -723,7 +724,6 @@ export const ReceptionistBookingsPage = () => {
               )}
             </tbody>
           </table>
-        </div>
       </div>
 
       {/* 5. MODAL THANH TOÁN CHECK-OUT (Hoàn thiện theo Ảnh 1) */}

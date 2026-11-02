@@ -94,6 +94,35 @@ class AdminUserControllerTest {
     }
 
     @Test
+    @DisplayName("API 1 (SCRUM-170 Bug 3) - GET /admin/users: Lọc chính xác role=CUSTOMER và role=GUEST")
+    void testGetUsers_FilterByCustomerAndGuest() throws Exception {
+        AdminUserResponse customerResponse = AdminUserResponse.builder()
+                .id(3L)
+                .fullName("Khách Hàng")
+                .email("customer@hotel.com")
+                .role(UserRole.CUSTOMER)
+                .status(UserStatus.ACTIVE)
+                .build();
+
+        PageResponse<AdminUserResponse> customerPage = PageResponse.<AdminUserResponse>builder()
+                .items(List.of(customerResponse))
+                .page(1)
+                .size(10)
+                .totalElements(1)
+                .totalPages(1)
+                .isLast(true)
+                .build();
+
+        when(adminUserService.getUsers(isNull(), eq(UserRole.CUSTOMER), any(Pageable.class))).thenReturn(customerPage);
+
+        mockMvc.perform(get("/admin/users")
+                        .param("role", "CUSTOMER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.items[0].role").value("CUSTOMER"));
+    }
+
+    @Test
     @DisplayName("API 2 - POST /admin/users/staff: Cấp tài khoản nhân sự mới thành công (201 Created)")
     void testCreateStaff_Success() throws Exception {
         CreateStaffRequest request = CreateStaffRequest.builder()

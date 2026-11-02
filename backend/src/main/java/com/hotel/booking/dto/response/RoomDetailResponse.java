@@ -151,10 +151,7 @@ public class RoomDetailResponse {
 
             reviewResponses = reviewEntities.stream().map(rev -> {
                 String userName = rev.getUser() != null ? rev.getUser().getFullName() : "Khách hàng";
-                String comment = rev.getComment();
-                if (comment != null && (comment.contains("<") || comment.contains(">"))) {
-                    comment = HtmlUtils.htmlEscape(comment);
-                }
+                String comment = sanitizeReviewComment(rev.getComment());
                 return ReviewResponse.builder()
                         .id(rev.getId())
                         .rating(rev.getRating())
@@ -201,5 +198,18 @@ public class RoomDetailResponse {
                 .totalReviews(count)
                 .reviews(reviewResponses)
                 .build();
+    }
+
+    private static String sanitizeReviewComment(String rawComment) {
+        if (rawComment == null) {
+            return null;
+        }
+        String unescaped = HtmlUtils.htmlUnescape(rawComment.trim());
+        return unescaped
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }

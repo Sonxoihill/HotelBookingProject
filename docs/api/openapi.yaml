@@ -1,0 +1,5296 @@
+openapi: 3.0.1
+info:
+  title: Hotel Booking Management System API
+  description: |-
+    Tài liệu đặc tả API chuẩn quốc tế OpenAPI 3.0 cho Hệ thống Quản lý và Đặt phòng Khách sạn (Spring Boot 3 + Springdoc OpenAPI) bao phủ toàn bộ 17 Use Case thuộc 3 phân hệ:
+
+    ### 1. Phân hệ Khách hàng (Customer / Guest)
+    - **Authentication (UC01, UC02)**: Đăng ký tài khoản mới, đăng nhập nhận JWT Token, kiểm tra phiên đăng nhập.
+    - **User Profile (UC03)**: Xem hồ sơ cá nhân, cập nhật thông tin liên hệ và đổi mật khẩu.
+    - **Room Search & Detail (UC04, UC05)**: Tìm kiếm & lọc phòng trống theo ngày nhận/trả, số lượng khách, mức giá; xem chi tiết phòng, tiện ích, đánh giá và báo giá linh hoạt.
+    - **Booking & Concurrency (UC06, UC08)**: Tạo đơn đặt phòng với khóa bi quan (Pessimistic Locking) chống trùng phòng, xem lịch sử đặt phòng cá nhân, hủy đơn trước 24 giờ.
+    - **Payment VNPay Sandbox (UC06)**: Tạo URL thanh toán VNPay HMAC-SHA512, xử lý Webhook IPN (whitelist IP) và Return URL.
+    - **Review Management (UC07)**: Gửi đánh giá & nhận xét tiếng Việt UTF-8 sau khi hoàn tất trả phòng (`CHECKED_OUT`).
+
+    ### 2. Phân hệ Lễ tân (Receptionist)
+    - **Room Matrix / Grid & Housekeeping (UC09, UC12)**: Xem sơ đồ ma trận buồng phòng thời gian thực theo tầng/trạng thái; xác nhận dọn phòng sạch (`DIRTY` -> `AVAILABLE`).
+    - **Receptionist Booking Lifecycle (UC10)**: Tra cứu đơn đặt phòng, duyệt đơn (`CONFIRMED`), hủy đơn, làm thủ tục Check-in (`CHECKED_IN`/`OCCUPIED`), xem bảng kê quyết toán và xác nhận Check-out (`CHECKED_OUT`/`DIRTY`).
+    - **Extra Services / Minibar (UC11)**: Ghi nhận dịch vụ phát sinh vào Folio phòng đang lưu trú và tự động cộng dồn hóa đơn.
+
+    ### 3. Phân hệ Quản trị viên (Admin)
+    - **Admin Room Categories & Rooms (UC13a, UC13b)**: Quản lý CRUD danh mục hạng phòng và danh sách phòng vật lý.
+    - **Admin Services (UC14)**: Quản lý CRUD danh mục dịch vụ phụ trợ (xóa mềm nếu đã phát sinh giao dịch).
+    - **Admin Pricing Rules (UC15)**: Quản lý CRUD quy tắc giá linh hoạt (`HOLIDAY`, `PEAK_SEASON`, `WEEKEND`) có kiểm tra chống chồng chéo thời gian.
+    - **Admin User & Staff Management (UC16)**: Tìm kiếm/lọc người dùng theo vai trò (`ADMIN`, `RECEPTIONIST`, `CUSTOMER`, `GUEST`), cấp tài khoản nhân sự mới gửi qua email, phân quyền vai trò, khóa/mở khóa tài khoản kèm Audit Log.
+    - **Admin Revenue Reports (UC17)**: Thống kê KPI doanh thu, công suất lấp đầy phòng và xuất báo cáo định dạng Excel (`.xlsx`) / PDF (`.pdf`).
+  contact:
+    name: Hotel Booking Engineering Team
+    email: support@hotelbooking.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  version: 1.0.0
+servers:
+- url: http://localhost:8080/api/v1
+  description: Local Development Server (http://localhost:8080/api/v1)
+- url: /api/v1
+  description: Relative Context Path Server (/api/v1)
+- url: https://hotelbookingproject-l6ru.onrender.com/api/v1
+  description: Cloud Render Server (https://hotelbookingproject-l6ru.onrender.com/api/v1)
+- url: https://hotelbookingproject-backend-cxau.onrender.com/api/v1
+  description: Production Render Server (main)
+security:
+- bearerAuth: []
+tags:
+- name: 3. Khách hàng - Danh mục Dịch vụ (Hotel Services)
+  description: "Các API truy xuất danh sách dịch vụ phụ trợ đang hoạt động của khá\
+    ch sạn (Bữa sáng Buffet, Đưa đón sân bay, Spa, Giặt là, Minibar...)"
+- name: 13. Quản trị viên - Quản lý Danh mục Dịch vụ (Admin Services)
+  description: Các API CRUD danh mục dịch vụ phụ trợ dành cho Quản trị viên (UC14)
+- name: 10. Quản trị viên - Kiểm tra Quyền hạn (Admin Security)
+  description: Các API xác thực quyền Quản trị viên (ROLE_ADMIN)
+- name: 15. Quản trị viên - Quản lý Người dùng & Nhân sự (Admin Users)
+  description: "Các API quản lý danh sách người dùng, cấp tài khoản nhân sự mới, phâ\
+    n quyền vai trò và khóa/mở khóa tài khoản (UC16)"
+- name: 16. Quản trị viên - Báo cáo Doanh thu & Xuất file (Admin Reports)
+  description: "Các API thống kê doanh thu, tỷ lệ lấp đầy buồng phòng và xuất báo\
+    \ cáo ra file Excel / PDF (UC17)"
+- name: 8. Lễ tân - Sơ đồ Ma trận Phòng & Buồng phòng (Receptionist Room Matrix)
+  description: "Các API dành cho Quầy Lễ tân: Sơ đồ ma trận buồng phòng thời gian\
+    \ thực (UC09) và xác nhận dọn phòng sạch DIRTY -> AVAILABLE (UC12)"
+- name: 2. Khách hàng - Tìm kiếm & Chi tiết Phòng (Rooms)
+  description: "Các API tìm kiếm phòng trống theo ngày/số khách (UC04), xem chi tiế\
+    t phòng & đánh giá (UC05) và tính báo giá linh hoạt"
+- name: 5. Khách hàng - Thanh toán VNPay Sandbox (Payment)
+  description: "Các API tạo URL thanh toán VNPay HMAC-SHA512, xử lý Webhook IPN và\
+    \ Return URL (UC06 - SCRUM-94)"
+- name: 7. Khách hàng - Hồ sơ Cá nhân (User Profile)
+  description: Các API quản lý thông tin hồ sơ cá nhân và đổi mật khẩu tài khoản (UC03)
+- name: 6. Khách hàng - Đánh giá & Nhận xét Phòng (Reviews)
+  description: "Các API gửi đánh giá phòng sau lưu trú (UC07), xem danh sách đánh\
+    \ giá theo phòng và lịch sử đánh giá cá nhân (chuẩn tiếng Việt UTF-8)"
+- name: 1. Khách hàng - Xác thực & Tài khoản (Authentication)
+  description: "Các API đăng ký tài khoản (UC01), đăng nhập nhận JWT Token (UC02)\
+    \ và kiểm tra phiên làm việc cho Khách hàng, Lễ tân và Quản trị viên"
+- name: 4. Khách hàng - Đặt phòng & Lịch sử (Booking Management)
+  description: "Các API tạo đơn đặt phòng có khóa đồng thời Pessimistic Lock (UC06),\
+    \ xem lịch sử đặt phòng cá nhân và hủy đơn đặt phòng trước 24 giờ (UC08)"
+- name: 14. Quản trị viên - Quy tắc Giá linh hoạt (Admin Pricing Rules)
+  description: "Các API CRUD quy tắc giá linh hoạt theo ngày lễ, mùa cao điểm, cuố\
+    i tuần (HOLIDAY, PEAK_SEASON, WEEKEND) dành cho Quản trị viên (UC15)"
+- name: 12. Quản trị viên - Quản lý Phòng vật lý (Admin Rooms)
+  description: Các API CRUD phòng vật lý cho Quản trị viên (UC13a)
+- name: Health Check & Diagnostics
+  description: Các API kiểm tra trạng thái hoạt động hệ thống và chẩn đoán kết nối
+    CSDL
+- name: "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+  description: "Các API quản lý vòng đời đơn đặt phòng dành cho Lễ tân: Danh sách,\
+    \ Duyệt, Hủy, Check-in, Check-out (UC10) & Ghi nhận dịch vụ phát sinh / Minibar\
+    \ (UC11)"
+- name: 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+  description: Các API CRUD danh mục loại phòng / hạng phòng dành cho Quản trị viên
+    (UC13b)
+paths:
+  /users/profile:
+    get:
+      tags:
+      - 7. Khách hàng - Hồ sơ Cá nhân (User Profile)
+      summary: Lấy thông tin hồ sơ cá nhân (UC03)
+      description: Trả về thông tin chi tiết tài khoản của người dùng đang đăng nhập.
+      operationId: getProfile
+      responses:
+        "200":
+          description: Lấy thông tin hồ sơ thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseUserProfileResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseUserProfileResponse"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - 7. Khách hàng - Hồ sơ Cá nhân (User Profile)
+      summary: Cập nhật thông tin hồ sơ cá nhân (UC03)
+      description: Cập nhật họ tên và số điện thoại liên hệ của người dùng đang đăng
+        nhập.
+      operationId: updateProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+        required: true
+      responses:
+        "200":
+          description: Cập nhật hồ sơ thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseUserProfileResponse"
+        "400":
+          description: Họ tên hoặc số điện thoại không đúng định dạng
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseUserProfileResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseUserProfileResponse"
+      security:
+      - bearerAuth: []
+  /users/change-password:
+    put:
+      tags:
+      - 7. Khách hàng - Hồ sơ Cá nhân (User Profile)
+      summary: Đổi mật khẩu đăng nhập (UC03)
+      description: Thay đổi mật khẩu đăng nhập sau khi xác thực mật khẩu hiện tại
+        trùng khớp.
+      operationId: changePassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+        required: true
+      responses:
+        "200":
+          description: Đổi mật khẩu thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "400":
+          description: Mật khẩu hiện tại không chính xác hoặc mật khẩu mới không hợp
+            lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+      security:
+      - bearerAuth: []
+  /admin/services/{id}:
+    get:
+      tags:
+      - 13. Quản trị viên - Quản lý Danh mục Dịch vụ (Admin Services)
+      summary: Lấy chi tiết dịch vụ theo ID (UC14)
+      description: Trả về thông tin chi tiết của một dịch vụ cụ thể theo ID.
+      operationId: getServiceById
+      parameters:
+      - name: id
+        in: path
+        description: ID của dịch vụ
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Lấy thông tin dịch vụ thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "404":
+          description: Không tìm thấy dịch vụ theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - 13. Quản trị viên - Quản lý Danh mục Dịch vụ (Admin Services)
+      summary: Cập nhật dịch vụ phụ trợ (UC14)
+      description: "Quản trị viên cập nhật thông tin, đơn giá, đơn vị tính hoặc trạ\
+        ng thái (ACTIVE/INACTIVE) của dịch vụ."
+      operationId: updateService
+      parameters:
+      - name: id
+        in: path
+        description: ID dịch vụ cần cập nhật
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminServiceRequest"
+        required: true
+      responses:
+        "400":
+          description: Dữ liệu cập nhật không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "404":
+          description: Không tìm thấy dịch vụ theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "200":
+          description: Cập nhật dịch vụ thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "409":
+          description: Tên dịch vụ bị trùng với dịch vụ khác
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 13. Quản trị viên - Quản lý Danh mục Dịch vụ (Admin Services)
+      summary: Xóa dịch vụ phụ trợ (UC14)
+      description: "Xóa cứng nếu dịch vụ chưa phát sinh giao dịch, hoặc tự động chuyể\
+        n sang trạng thái INACTIVE (xóa mềm) nếu dịch vụ đã nằm trong hóa đơn của\
+        \ khách."
+      operationId: deleteService
+      parameters:
+      - name: id
+        in: path
+        description: ID dịch vụ cần xóa
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 10
+      responses:
+        "404":
+          description: Không tìm thấy dịch vụ theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "200":
+          description: Xóa cứng hoặc chuyển trạng thái ngừng hoạt động thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+      security:
+      - bearerAuth: []
+  /admin/rooms/{id}:
+    get:
+      tags:
+      - 12. Quản trị viên - Quản lý Phòng vật lý (Admin Rooms)
+      summary: Lấy chi tiết phòng vật lý theo ID (UC13a)
+      description: Trả về thông tin chi tiết của một phòng vật lý theo ID.
+      operationId: getRoomById_1
+      parameters:
+      - name: id
+        in: path
+        description: ID của phòng vật lý
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Lấy thông tin phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "404":
+          description: Không tìm thấy phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - 12. Quản trị viên - Quản lý Phòng vật lý (Admin Rooms)
+      summary: Cập nhật thông tin phòng vật lý (UC13a)
+      description: "Quản trị viên chỉnh sửa thông tin tầng, loại phòng hoặc trạng\
+        \ thái của phòng vật lý."
+      operationId: updateRoom
+      parameters:
+      - name: id
+        in: path
+        description: ID phòng cần cập nhật
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRoomRequest"
+        required: true
+      responses:
+        "200":
+          description: Cập nhật phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "400":
+          description: Dữ liệu cập nhật không hợp lệ hoặc phòng đang có khách lưu
+            trú
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "409":
+          description: Số hiệu phòng bị trùng với phòng khác
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "404":
+          description: Không tìm thấy phòng hoặc loại phòng
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 12. Quản trị viên - Quản lý Phòng vật lý (Admin Rooms)
+      summary: Xóa phòng vật lý (UC13a)
+      description: Xóa phòng theo các ràng buộc kiểm tra nghiệp vụ và lịch sử đặt
+        phòng.
+      operationId: deleteRoom
+      parameters:
+      - name: id
+        in: path
+        description: ID phòng cần xóa
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 21
+      responses:
+        "200":
+          description: Xóa phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "400":
+          description: Không thể xóa phòng đang có khách hoặc đã có lịch sử đặt phòng
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "404":
+          description: Không tìm thấy phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+      security:
+      - bearerAuth: []
+  /admin/room-categories/{id}:
+    get:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Lấy chi tiết loại phòng theo ID (UC13b)
+      description: Trả về thông tin chi tiết của một loại phòng cụ thể theo ID.
+      operationId: getCategoryById
+      parameters:
+      - name: id
+        in: path
+        description: ID của loại phòng
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Lấy chi tiết loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "404":
+          description: Không tìm thấy loại phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Cập nhật thông tin loại phòng (UC13b)
+      description: Quản trị viên chỉnh sửa thông tin của một loại phòng đã có theo
+        ID.
+      operationId: updateCategory
+      parameters:
+      - name: id
+        in: path
+        description: ID loại phòng cần cập nhật
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomCategoryRequest"
+        required: true
+      responses:
+        "409":
+          description: Tên loại phòng bị trùng với loại phòng khác
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "400":
+          description: Dữ liệu cập nhật không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "200":
+          description: Cập nhật loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "404":
+          description: Không tìm thấy loại phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Xóa loại phòng (UC13b)
+      description: Xóa loại phòng nếu chưa được gắn vào bất kỳ phòng vật lý nào. Trả
+        về lỗi nếu đang có phòng vật lý thuộc loại phòng này.
+      operationId: deleteCategory
+      parameters:
+      - name: id
+        in: path
+        description: ID loại phòng cần xóa
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      responses:
+        "200":
+          description: Xóa loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "400":
+          description: Không thể xóa loại phòng đang có phòng vật lý sử dụng
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "404":
+          description: Không tìm thấy loại phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+      security:
+      - bearerAuth: []
+  /admin/room-types/{id}:
+    get:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Lấy chi tiết loại phòng theo ID (UC13b)
+      description: Trả về thông tin chi tiết của một loại phòng cụ thể theo ID.
+      operationId: getCategoryById_1
+      parameters:
+      - name: id
+        in: path
+        description: ID của loại phòng
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Lấy chi tiết loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "404":
+          description: Không tìm thấy loại phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Cập nhật thông tin loại phòng (UC13b)
+      description: Quản trị viên chỉnh sửa thông tin của một loại phòng đã có theo
+        ID.
+      operationId: updateCategory_1
+      parameters:
+      - name: id
+        in: path
+        description: ID loại phòng cần cập nhật
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomCategoryRequest"
+        required: true
+      responses:
+        "409":
+          description: Tên loại phòng bị trùng với loại phòng khác
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "400":
+          description: Dữ liệu cập nhật không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "200":
+          description: Cập nhật loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "404":
+          description: Không tìm thấy loại phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Xóa loại phòng (UC13b)
+      description: Xóa loại phòng nếu chưa được gắn vào bất kỳ phòng vật lý nào. Trả
+        về lỗi nếu đang có phòng vật lý thuộc loại phòng này.
+      operationId: deleteCategory_1
+      parameters:
+      - name: id
+        in: path
+        description: ID loại phòng cần xóa
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      responses:
+        "200":
+          description: Xóa loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "400":
+          description: Không thể xóa loại phòng đang có phòng vật lý sử dụng
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "404":
+          description: Không tìm thấy loại phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+      security:
+      - bearerAuth: []
+  /admin/pricing-rules/{id}:
+    get:
+      tags:
+      - 14. Quản trị viên - Quy tắc Giá linh hoạt (Admin Pricing Rules)
+      summary: Lấy chi tiết quy tắc giá theo ID (UC15)
+      description: Trả về thông tin chi tiết của một quy tắc giá linh hoạt theo ID.
+      operationId: getPricingRuleById
+      parameters:
+      - name: id
+        in: path
+        description: ID của quy tắc giá
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "404":
+          description: Không tìm thấy quy tắc giá theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "200":
+          description: Lấy thông tin quy tắc giá thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - 14. Quản trị viên - Quy tắc Giá linh hoạt (Admin Pricing Rules)
+      summary: Cập nhật quy tắc giá linh hoạt (UC15)
+      description: Cập nhật thông tin quy tắc giá linh hoạt theo ID.
+      operationId: updatePricingRule
+      parameters:
+      - name: id
+        in: path
+        description: ID quy tắc giá cần cập nhật
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PricingRuleRequest"
+        required: true
+      responses:
+        "404":
+          description: Không tìm thấy quy tắc giá theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "400":
+          description: Dữ liệu cập nhật không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "409":
+          description: Trùng lặp khoảng thời gian với quy tắc giá khác
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "200":
+          description: Cập nhật quy tắc giá thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 14. Quản trị viên - Quy tắc Giá linh hoạt (Admin Pricing Rules)
+      summary: Xóa quy tắc giá linh hoạt (UC15)
+      description: Xóa một quy tắc giá linh hoạt theo ID.
+      operationId: deletePricingRule
+      parameters:
+      - name: id
+        in: path
+        description: ID quy tắc giá cần xóa
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 3
+      responses:
+        "404":
+          description: Không tìm thấy quy tắc giá theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "200":
+          description: Xóa quy tắc giá thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+      security:
+      - bearerAuth: []
+  /reviews:
+    post:
+      tags:
+      - 6. Khách hàng - Đánh giá & Nhận xét Phòng (Reviews)
+      summary: Gửi đánh giá và nhận xét sau lưu trú (UC07)
+      description: "Gửi đánh giá cho đơn đặt phòng đã hoàn tất trả phòng (CHECKED_OUT).\
+        \ Nhận bookingId (hoặc roomId), rating từ 1 đến 5 sao và bình luận tiếng Việ\
+        t UTF-8. Kiểm tra đơn phải thuộc sở hữu người dùng đăng nhập và chưa từng\
+        \ được đánh giá trước đó."
+      operationId: createReview
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewRequest"
+        required: true
+      responses:
+        "200":
+          description: Đánh giá của bạn đã được ghi nhận thành công!
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseReviewResponse"
+        "400":
+          description: "Dữ liệu đánh giá không hợp lệ (sao ngoài khoảng 1-5, đơn chư\
+            a CHECKED_OUT hoặc đã được đánh giá)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseReviewResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseReviewResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/bookings/{id}/check-out:
+    post:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: "API 6: Xác nhận Check-out trả phòng (UC10)"
+      description: "Nhận phương thức thanh toán paymentMethod -> cập nhật paidAmount\
+        \ = totalAmount, actualCheckOut = now(), chuyển đơn sang CHECKED_OUT, và đ\
+        ổi trạng thái phòng sang DIRTY (Cần dọn) trong cùng một transaction."
+      operationId: checkOutBooking
+      parameters:
+      - name: id
+        in: path
+        description: "ID đơn đặt phòng đang CHECKED_IN cần trả phòng (ví dụ: 7)"
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 7
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckOutRequest"
+      responses:
+        "200":
+          description: Trả phòng (Check-out) thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Đơn không ở trạng thái đang lưu trú (CHECKED_IN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "403":
+          description: Không có quyền Lễ tân hoặc Quản trị viên
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/bookings/{bookingId}/services:
+    get:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: Xem danh sách dịch vụ phát sinh đã dùng của đơn đặt phòng (UC11)
+      description: "Lấy danh sách các dịch vụ phát sinh kèm theo phân tích chi tiế\
+        t hóa đơn (tổng tiền dịch vụ, tổng tiền phòng, đã thanh toán, còn lại)."
+      operationId: getBookingServices
+      parameters:
+      - name: bookingId
+        in: path
+        description: ID đơn đặt phòng
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      responses:
+        "200":
+          description: Lấy danh sách dịch vụ của đơn thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "403":
+          description: Không có quyền Lễ tân hoặc Quản trị viên
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBookingServicesSummaryResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBookingServicesSummaryResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBookingServicesSummaryResponse"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: Ghi nhận Dịch vụ / Minibar phát sinh cho Phòng đang thuê (UC11)
+      description: "Cho phép Lễ tân nạp dịch vụ phụ trợ/minibar vào Folio đơn đặt\
+        \ phòng đang lưu trú (CHECKED_IN). Nhận Request Body là danh sách [{\"serviceId\"\
+        : 1, \"quantity\": 2}] hoặc 1 object {\"serviceId\": 1, \"quantity\": 2}."
+      operationId: addServicesToBooking
+      parameters:
+      - name: bookingId
+        in: path
+        description: "ID đơn đặt phòng đang CHECKED_IN (ví dụ: 2)"
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      requestBody:
+        description: "Danh sách dịch vụ cần thêm, ví dụ: [{\"serviceId\": 1, \"quantity\"\
+          : 2}] hoặc {\"serviceId\": 1, \"quantity\": 2}"
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddServiceItemRequest"
+        required: true
+      responses:
+        "200":
+          description: Cập nhật phí dịch vụ phát sinh vào hóa đơn phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng hoặc dịch vụ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBookingServicesSummaryResponse"
+        "400":
+          description: Dịch vụ/số lượng không hợp lệ hoặc đơn không ở trạng thái CHECKED_IN
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBookingServicesSummaryResponse"
+        "403":
+          description: Không có quyền Lễ tân hoặc Quản trị viên
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBookingServicesSummaryResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBookingServicesSummaryResponse"
+      security:
+      - bearerAuth: []
+  /payment/create-vnpay-url:
+    get:
+      tags:
+      - 5. Khách hàng - Thanh toán VNPay Sandbox (Payment)
+      summary: Tạo URL thanh toán VNPay Sandbox qua Query Params (GET)
+      description: "Nhận bookingId và số tiền amount (tùy chọn, mặc định lấy từ booking),\
+        \ tạo chuỗi tham số và ký số HMAC-SHA512 bằng vnp_HashSecret, trả về URL thanh\
+        \ toán VNPay Sandbox để chuyển hướng khách hàng."
+      operationId: createPaymentUrl
+      parameters:
+      - name: bookingId
+        in: query
+        description: Mã đơn đặt phòng
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      - name: amount
+        in: query
+        description: Số tiền thanh toán (VNĐ). Nếu để trống sẽ lấy từ tổng tiền đơn
+          hàng.
+        required: false
+        schema:
+          type: number
+        example: 1500000
+      - name: returnUrl
+        in: query
+        description: URL callback tùy biến sau khi hoàn tất thanh toán VNPay
+        required: false
+        schema:
+          type: string
+        example: http://localhost:5173/api/v1/payment/vnpay-return
+      responses:
+        "400":
+          description: Thông tin đơn hàng hoặc số tiền không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "200":
+          description: Tạo URL thanh toán VNPay thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo bookingId
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+    post:
+      tags:
+      - 5. Khách hàng - Thanh toán VNPay Sandbox (Payment)
+      summary: Tạo URL thanh toán VNPay Sandbox qua JSON Body (POST)
+      description: "Nhận thông tin đơn đặt phòng (bookingId, amount, returnUrl) từ\
+        \ JSON Request Body hoặc Query Params, ký số HMAC-SHA512 và trả về URL thanh\
+        \ toán VNPay Sandbox."
+      operationId: createPaymentUrlPost
+      parameters:
+      - name: bookingId
+        in: query
+        description: Mã đơn đặt phòng (tùy chọn nếu đã truyền trong JSON Body)
+        required: false
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      - name: amount
+        in: query
+        description: Số tiền thanh toán (VNĐ)
+        required: false
+        schema:
+          type: number
+        example: 1500000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVNPayUrlRequest"
+      responses:
+        "400":
+          description: Thiếu bookingId hoặc dữ liệu không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "200":
+          description: Tạo URL thanh toán VNPay thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo bookingId
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+  /payment/create-url:
+    get:
+      tags:
+      - 5. Khách hàng - Thanh toán VNPay Sandbox (Payment)
+      summary: Tạo URL thanh toán VNPay Sandbox qua Query Params (GET)
+      description: "Nhận bookingId và số tiền amount (tùy chọn, mặc định lấy từ booking),\
+        \ tạo chuỗi tham số và ký số HMAC-SHA512 bằng vnp_HashSecret, trả về URL thanh\
+        \ toán VNPay Sandbox để chuyển hướng khách hàng."
+      operationId: createPaymentUrl_1
+      parameters:
+      - name: bookingId
+        in: query
+        description: Mã đơn đặt phòng
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      - name: amount
+        in: query
+        description: Số tiền thanh toán (VNĐ). Nếu để trống sẽ lấy từ tổng tiền đơn
+          hàng.
+        required: false
+        schema:
+          type: number
+        example: 1500000
+      - name: returnUrl
+        in: query
+        description: URL callback tùy biến sau khi hoàn tất thanh toán VNPay
+        required: false
+        schema:
+          type: string
+        example: http://localhost:5173/api/v1/payment/vnpay-return
+      responses:
+        "400":
+          description: Thông tin đơn hàng hoặc số tiền không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "200":
+          description: Tạo URL thanh toán VNPay thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo bookingId
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+    post:
+      tags:
+      - 5. Khách hàng - Thanh toán VNPay Sandbox (Payment)
+      summary: Tạo URL thanh toán VNPay Sandbox qua JSON Body (POST)
+      description: "Nhận thông tin đơn đặt phòng (bookingId, amount, returnUrl) từ\
+        \ JSON Request Body hoặc Query Params, ký số HMAC-SHA512 và trả về URL thanh\
+        \ toán VNPay Sandbox."
+      operationId: createPaymentUrlPost_1
+      parameters:
+      - name: bookingId
+        in: query
+        description: Mã đơn đặt phòng (tùy chọn nếu đã truyền trong JSON Body)
+        required: false
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      - name: amount
+        in: query
+        description: Số tiền thanh toán (VNĐ)
+        required: false
+        schema:
+          type: number
+        example: 1500000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVNPayUrlRequest"
+      responses:
+        "400":
+          description: Thiếu bookingId hoặc dữ liệu không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "200":
+          description: Tạo URL thanh toán VNPay thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo bookingId
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentUrlResponse"
+  /health/test-validation:
+    post:
+      tags:
+      - Health Check & Diagnostics
+      summary: Kiểm tra validate dữ liệu đầu vào
+      description: Kiểm tra cơ chế Bean Validation (@Valid).
+      operationId: testValidation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestValidationDto"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTestValidationDto"
+  /bookings:
+    post:
+      tags:
+      - 4. Khách hàng - Đặt phòng & Lịch sử (Booking Management)
+      summary: Tạo đơn đặt phòng mới & Giữ phòng chống xung đột (UC06)
+      description: Tạo đơn đặt phòng mới với cơ chế Pessimistic Write Lock chống đặt
+        trùng phòng đồng thời. Hệ thống tự động tính lại tổng tiền theo quy tắc giá
+        linh hoạt (PricingCalculator) và gửi email xác nhận bất đồng bộ.
+      operationId: createBooking
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+        required: true
+      responses:
+        "200":
+          description: Đặt phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+        "404":
+          description: Không tìm thấy phòng theo roomId
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+        "409":
+          description: Xung đột phòng - Phòng đang được giữ chỗ (ON_HOLD) hoặc đã
+            có người đặt trong khoảng ngày này
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+        "400":
+          description: "Dữ liệu đặt phòng không hợp lệ (trống họ tên, SĐT, email hoặ\
+            c ngày lưu trú sai)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+      security:
+      - bearerAuth: []
+  /auth/register:
+    post:
+      tags:
+      - 1. Khách hàng - Xác thực & Tài khoản (Authentication)
+      summary: Đăng ký tài khoản khách hàng mới (UC01)
+      description: "Tạo tài khoản người dùng mới với vai trò mặc định là CUSTOMER,\
+        \ mã hóa mật khẩu bằng BCrypt và trả về JWT Token."
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+        required: true
+      responses:
+        "409":
+          description: Email hoặc số điện thoại đã tồn tại trong hệ thống
+          content:
+            application/json: {}
+        "201":
+          description: Đăng ký tài khoản thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "Dữ liệu đầu vào không hợp lệ (sai định dạng email, mật khẩ\
+            u ngắn hoặc xác nhận mật khẩu không khớp)"
+          content:
+            application/json: {}
+  /auth/login:
+    post:
+      tags:
+      - 1. Khách hàng - Xác thực & Tài khoản (Authentication)
+      summary: Đăng nhập hệ thống (UC02)
+      description: "Xác thực bằng email và mật khẩu cho tất cả các vai trò (ADMIN,\
+        \ RECEPTIONIST, CUSTOMER, GUEST). Kiểm tra trạng thái khóa tài khoản (LOCKED)\
+        \ và trả về chuỗi JWT Token."
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: "Đăng nhập thành công, trả về JWT Token"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Dữ liệu đăng nhập không đúng định dạng
+          content:
+            application/json: {}
+        "401":
+          description: "Email hoặc mật khẩu không chính xác, hoặc tài khoản đã bị\
+            \ khóa"
+          content:
+            application/json: {}
+  /auth/login-receptionist:
+    post:
+      tags:
+      - 1. Khách hàng - Xác thực & Tài khoản (Authentication)
+      summary: Đăng nhập hệ thống (UC02)
+      description: "Xác thực bằng email và mật khẩu cho tất cả các vai trò (ADMIN,\
+        \ RECEPTIONIST, CUSTOMER, GUEST). Kiểm tra trạng thái khóa tài khoản (LOCKED)\
+        \ và trả về chuỗi JWT Token."
+      operationId: login_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: "Đăng nhập thành công, trả về JWT Token"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Dữ liệu đăng nhập không đúng định dạng
+          content:
+            application/json: {}
+        "401":
+          description: "Email hoặc mật khẩu không chính xác, hoặc tài khoản đã bị\
+            \ khóa"
+          content:
+            application/json: {}
+  /auth/login-admin:
+    post:
+      tags:
+      - 1. Khách hàng - Xác thực & Tài khoản (Authentication)
+      summary: Đăng nhập hệ thống (UC02)
+      description: "Xác thực bằng email và mật khẩu cho tất cả các vai trò (ADMIN,\
+        \ RECEPTIONIST, CUSTOMER, GUEST). Kiểm tra trạng thái khóa tài khoản (LOCKED)\
+        \ và trả về chuỗi JWT Token."
+      operationId: login_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: "Đăng nhập thành công, trả về JWT Token"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Dữ liệu đăng nhập không đúng định dạng
+          content:
+            application/json: {}
+        "401":
+          description: "Email hoặc mật khẩu không chính xác, hoặc tài khoản đã bị\
+            \ khóa"
+          content:
+            application/json: {}
+  /admin/users/staff:
+    post:
+      tags:
+      - 15. Quản trị viên - Quản lý Người dùng & Nhân sự (Admin Users)
+      summary: Cấp tài khoản nhân sự mới (UC16 - API 2)
+      description: "Sinh mật khẩu ngẫu nhiên 8 ký tự, mã hóa BCrypt, gửi email thô\
+        ng tin đăng nhập bất đồng bộ và ghi nhận Audit Log STAFF_CREATED."
+      operationId: createStaff
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffRequest"
+        required: true
+      responses:
+        "201":
+          description: Cấp tài khoản nhân sự mới thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "409":
+          description: Email đã tồn tại trong hệ thống
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "400":
+          description: Dữ liệu không hợp lệ hoặc vai trò nhân sự không phải RECEPTIONIST/ADMIN
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+      security:
+      - bearerAuth: []
+  /admin/services:
+    get:
+      tags:
+      - 13. Quản trị viên - Quản lý Danh mục Dịch vụ (Admin Services)
+      summary: Lấy toàn bộ danh sách dịch vụ (UC14)
+      description: Trả về toàn bộ các dịch vụ trong hệ thống bao gồm cả trạng thái
+        ACTIVE và INACTIVE.
+      operationId: getAllServices
+      responses:
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListService"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListService"
+        "200":
+          description: Lấy danh sách dịch vụ thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListService"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - 13. Quản trị viên - Quản lý Danh mục Dịch vụ (Admin Services)
+      summary: Tạo mới dịch vụ phụ trợ (UC14)
+      description: "Quản trị viên thêm dịch vụ mới vào danh mục dịch vụ khách sạn\
+        \ (tên, đơn giá, đơn vị tính, mô tả)."
+      operationId: createService
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminServiceRequest"
+        required: true
+      responses:
+        "400":
+          description: Dữ liệu không hợp lệ (tên trống hoặc giá <= 0)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "201":
+          description: Tạo dịch vụ mới thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "409":
+          description: Tên dịch vụ đã tồn tại trong hệ thống
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseService"
+      security:
+      - bearerAuth: []
+  /admin/rooms:
+    get:
+      tags:
+      - 12. Quản trị viên - Quản lý Phòng vật lý (Admin Rooms)
+      summary: Lấy danh sách tất cả phòng vật lý (UC13a)
+      description: "Trả về danh sách tất cả các phòng vật lý kèm thông tin loại phò\
+        ng, tầng và trạng thái hiện tại."
+      operationId: getAllRooms
+      responses:
+        "200":
+          description: Lấy danh sách phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAdminRoomResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAdminRoomResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAdminRoomResponse"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - 12. Quản trị viên - Quản lý Phòng vật lý (Admin Rooms)
+      summary: Tạo phòng vật lý mới (UC13a)
+      description: Quản trị viên thêm mới một phòng vật lý vào hệ thống (kiểm tra
+        trùng số hiệu phòng roomNumber).
+      operationId: createRoom
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRoomRequest"
+        required: true
+      responses:
+        "409":
+          description: Số hiệu phòng (roomNumber) đã tồn tại
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "404":
+          description: Không tìm thấy loại phòng (categoryId)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "201":
+          description: Tạo phòng mới thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "400":
+          description: "Dữ liệu không hợp lệ (thiếu số phòng, tầng < 1)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminRoomResponse"
+      security:
+      - bearerAuth: []
+  /admin/room-categories:
+    get:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Lấy danh sách tất cả loại phòng (UC13b)
+      description: "Trả về danh sách toàn bộ các loại phòng hiện có trong hệ thống\
+        \ kèm giá cơ bản, sức chứa, số giường và diện tích."
+      operationId: getAllCategories
+      responses:
+        "200":
+          description: Lấy danh sách loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomCategory"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Thêm mới loại phòng (UC13b)
+      description: "Quản trị viên tạo mới một loại phòng với đầy đủ thông số quy chuẩ\
+        n (tên, giá cơ bản, sức chứa, số giường, diện tích). Kiểm tra trùng tên loạ\
+        i phòng."
+      operationId: createCategory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomCategoryRequest"
+        required: true
+      responses:
+        "201":
+          description: Tạo loại phòng mới thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "409":
+          description: Tên loại phòng đã tồn tại trong hệ thống
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "400":
+          description: Dữ liệu đầu vào không hợp lệ (giá hoặc diện tích <= 0)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+      security:
+      - bearerAuth: []
+  /admin/room-types:
+    get:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Lấy danh sách tất cả loại phòng (UC13b)
+      description: "Trả về danh sách toàn bộ các loại phòng hiện có trong hệ thống\
+        \ kèm giá cơ bản, sức chứa, số giường và diện tích."
+      operationId: getAllCategories_1
+      responses:
+        "200":
+          description: Lấy danh sách loại phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomCategory"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - 11. Quản trị viên - Quản lý Loại phòng (Admin Room Categories)
+      summary: Thêm mới loại phòng (UC13b)
+      description: "Quản trị viên tạo mới một loại phòng với đầy đủ thông số quy chuẩ\
+        n (tên, giá cơ bản, sức chứa, số giường, diện tích). Kiểm tra trùng tên loạ\
+        i phòng."
+      operationId: createCategory_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomCategoryRequest"
+        required: true
+      responses:
+        "201":
+          description: Tạo loại phòng mới thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "409":
+          description: Tên loại phòng đã tồn tại trong hệ thống
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "400":
+          description: Dữ liệu đầu vào không hợp lệ (giá hoặc diện tích <= 0)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomCategory"
+      security:
+      - bearerAuth: []
+  /admin/pricing-rules:
+    get:
+      tags:
+      - 14. Quản trị viên - Quy tắc Giá linh hoạt (Admin Pricing Rules)
+      summary: Lấy danh sách quy tắc giá linh hoạt (UC15)
+      description: "Hỗ trợ lọc theo loại quy tắc (HOLIDAY, PEAK_SEASON, WEEKEND),\
+        \ hạng phòng (categoryId) và trạng thái kích hoạt (active)."
+      operationId: getPricingRules
+      parameters:
+      - name: ruleType
+        in: query
+        description: "Loại quy tắc giá (HOLIDAY, PEAK_SEASON, WEEKEND)"
+        required: false
+        schema:
+          type: string
+          enum:
+          - WEEKEND
+          - HOLIDAY
+          - PEAK_SEASON
+        example: HOLIDAY
+      - name: categoryId
+        in: query
+        description: ID loại phòng (để trống để lọc tất cả)
+        required: false
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      - name: active
+        in: query
+        description: Trạng thái kích hoạt (true / false)
+        required: false
+        schema:
+          type: boolean
+        example: true
+      responses:
+        "200":
+          description: Lấy danh sách quy tắc giá thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListPricingRuleResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListPricingRuleResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListPricingRuleResponse"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - 14. Quản trị viên - Quy tắc Giá linh hoạt (Admin Pricing Rules)
+      summary: Tạo mới quy tắc giá linh hoạt (UC15)
+      description: "Tạo mới một quy tắc giá linh hoạt (HOLIDAY, PEAK_SEASON, WEEKEND)\
+        \ có kiểm tra điều kiện phần trăm điều chỉnh khác 0 và chống trùng lặp khoả\
+        ng thời gian."
+      operationId: createPricingRule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PricingRuleRequest"
+        required: true
+      responses:
+        "409":
+          description: Trùng lặp khoảng thời gian với quy tắc giá đang hoạt động khác
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "201":
+          description: Tạo quy tắc giá mới thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "404":
+          description: Không tìm thấy loại phòng (categoryId)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "400":
+          description: Dữ liệu không hợp lệ (endDate < startDate hoặc adjustmentPercent
+            == 0)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePricingRuleResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/rooms/{roomId}/clean:
+    patch:
+      tags:
+      - 8. Lễ tân - Sơ đồ Ma trận Phòng & Buồng phòng (Receptionist Room Matrix)
+      summary: Xác nhận phòng đã dọn sạch DIRTY -> AVAILABLE (UC12)
+      description: Xác nhận phòng đã được bộ phận buồng phòng dọn dẹp sạch sẽ. Phòng
+        bắt buộc phải đang ở trạng thái DIRTY mới cho phép chuyển sang AVAILABLE.
+      operationId: cleanRoom
+      parameters:
+      - name: roomId
+        in: path
+        description: ID của phòng cần xác nhận đã dọn xong (ví dụ phòng 202 đang DIRTY
+          có ID = 4)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      responses:
+        "400":
+          description: Phòng không ở trạng thái Cần dọn (DIRTY)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoom"
+        "403":
+          description: Không có quyền RECEPTIONIST hoặc ADMIN
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoom"
+        "200":
+          description: Cập nhật trạng thái phòng sang AVAILABLE thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "404":
+          description: Không tìm thấy phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoom"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoom"
+      security:
+      - bearerAuth: []
+  /receptionist/bookings/{id}/check-in:
+    patch:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: "API 4: Thực hiện Check-in nhận phòng cho khách đến (UC10 - Luồng 3c)"
+      description: "Chỉ cho phép khi đơn đang ở trạng thái CONFIRMED. Đổi trạng thá\
+        i đơn sang CHECKED_IN, ghi nhận thời điểm thực tế actualCheckIn = now(), và\
+        \ đổi trạng thái phòng sang OCCUPIED."
+      operationId: checkInBooking
+      parameters:
+      - name: id
+        in: path
+        description: "ID đơn đặt phòng cần Check-in (đang CONFIRMED, ví dụ: 6)"
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 6
+      responses:
+        "200":
+          description: Nhận phòng (Check-in) thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Đơn đặt phòng chưa ở trạng thái CONFIRMED
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "403":
+          description: Không có quyền Lễ tân hoặc Quản trị viên
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/bookings/{id}/cancel:
+    patch:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: "API 3: Lễ tân Hủy đơn đặt phòng (UC10 - Luồng 3b)"
+      description: "Nhận lý do hủy (bắt buộc) -> lưu vào cancel_reason, đổi trạng\
+        \ thái đơn sang CANCELLED và giải phóng phòng về AVAILABLE."
+      operationId: cancelBooking
+      parameters:
+      - name: id
+        in: path
+        description: ID đơn đặt phòng cần hủy
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 5
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceptionistCancelBookingRequest"
+        required: true
+      responses:
+        "400":
+          description: Lý do hủy trống hoặc đơn không đủ điều kiện hủy
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "200":
+          description: Hủy đơn đặt phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "403":
+          description: Không có quyền Lễ tân hoặc Quản trị viên
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/bookings/{id}/approve:
+    patch:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: "API 2: Duyệt đơn đặt phòng PENDING -> CONFIRMED (UC10 - Luồng 3a)"
+      description: "Kiểm tra đơn đang ở trạng thái PENDING -> chuyển trạng thái đơ\
+        n sang CONFIRMED, đồng thời chuyển trạng thái phòng vật lý sang RESERVED."
+      operationId: approveBooking
+      parameters:
+      - name: id
+        in: path
+        description: "ID đơn đặt phòng cần duyệt (đang PENDING, ví dụ: 4)"
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      responses:
+        "400":
+          description: Đơn đặt phòng không ở trạng thái PENDING
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "200":
+          description: Duyệt đơn đặt phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "403":
+          description: Không có quyền Lễ tân hoặc Quản trị viên
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReceptionistBookingResponse"
+      security:
+      - bearerAuth: []
+  /bookings/{id}/cancel:
+    patch:
+      tags:
+      - 4. Khách hàng - Đặt phòng & Lịch sử (Booking Management)
+      summary: Khách hàng hủy đơn đặt phòng (UC08)
+      description: "Hủy đơn đặt phòng theo ID. Yêu cầu: Email trong JWT Token phả\
+        i trùng với chủ đơn, đơn đang ở trạng thái PENDING hoặc CONFIRMED, và thờ\
+        i điểm hủy phải trước giờ check-in ít nhất 24 giờ. Tự động giải phóng phò\
+        ng về trạng thái AVAILABLE."
+      operationId: cancelBooking_1
+      parameters:
+      - name: id
+        in: path
+        description: ID đơn đặt phòng cần hủy
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 4
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelBookingRequest"
+        required: true
+      responses:
+        "403":
+          description: Không có quyền hủy đơn đặt phòng của người khác
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+        "200":
+          description: Hủy đơn đặt phòng thành công!
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+        "400":
+          description: Đơn đặt phòng không đủ điều kiện hủy (sát giờ check-in < 24h
+            hoặc trạng thái không hợp lệ)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBooking"
+      security:
+      - bearerAuth: []
+  /admin/users/{id}/role:
+    patch:
+      tags:
+      - 15. Quản trị viên - Quản lý Người dùng & Nhân sự (Admin Users)
+      summary: Phân quyền / Đổi vai trò người dùng (UC16 - API 3)
+      description: "Cập nhật vai trò người dùng (ADMIN, RECEPTIONIST, CUSTOMER, GUEST).\
+        \ Không cho phép Admin tự đổi quyền của chính mình. Ghi nhận Audit Log ROLE_CHANGED\
+        \ và trả về DTO có role mới chuẩn xác."
+      operationId: updateUserRole
+      parameters:
+      - name: id
+        in: path
+        description: ID người dùng cần đổi vai trò
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRoleRequest"
+        required: true
+      responses:
+        "200":
+          description: Cập nhật quyền hạn người dùng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "400":
+          description: Tự đổi quyền chính mình hoặc chọn vai trò trùng với vai trò
+            hiện tại
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "404":
+          description: Không tìm thấy người dùng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+      security:
+      - bearerAuth: []
+  /admin/users/{id}/lock:
+    patch:
+      tags:
+      - 15. Quản trị viên - Quản lý Người dùng & Nhân sự (Admin Users)
+      summary: Khóa / Mở khóa tài khoản người dùng (UC16 - API 4)
+      description: Đảo trạng thái tài khoản ACTIVE <-> LOCKED. Không cho phép Admin
+        tự khóa chính mình. Có hiệu lực chặn tức thì đối với cả các JWT Token cũ.
+        Ghi nhận Audit Log ACCOUNT_LOCKED / ACCOUNT_UNLOCKED.
+      operationId: toggleUserLock
+      parameters:
+      - name: id
+        in: path
+        description: ID người dùng cần khóa hoặc mở khóa
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 5
+      responses:
+        "200":
+          description: Cập nhật trạng thái khóa tài khoản thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "404":
+          description: Không tìm thấy người dùng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+        "400":
+          description: Không thể tự khóa tài khoản của chính mình
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminUserResponse"
+      security:
+      - bearerAuth: []
+  /services:
+    get:
+      tags:
+      - 3. Khách hàng - Danh mục Dịch vụ (Hotel Services)
+      summary: Lấy danh sách dịch vụ khách sạn đang hoạt động
+      description: "Lấy toàn bộ các dịch vụ đang khả dụng (status = ACTIVE) kèm theo\
+        \ đơn giá, đơn vị tính và mô tả chi tiết."
+      operationId: getServices
+      responses:
+        "200":
+          description: Lấy danh sách dịch vụ thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListService"
+  /rooms:
+    get:
+      tags:
+      - 2. Khách hàng - Tìm kiếm & Chi tiết Phòng (Rooms)
+      summary: Lấy toàn bộ danh sách phòng khách sạn
+      description: Lấy danh sách phòng có phân trang (mặc định 12 phòng/trang).
+      operationId: getRooms
+      responses:
+        "200":
+          description: Lấy danh sách phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageRoom"
+  /rooms/{id}:
+    get:
+      tags:
+      - 2. Khách hàng - Tìm kiếm & Chi tiết Phòng (Rooms)
+      summary: Xem chi tiết phòng & Bảng giá (UC05)
+      description: "Lấy đầy đủ thông tin chi tiết của một phòng cụ thể bao gồm: hạ\
+        ng phòng, diện tích, loại giường, tiện ích, hình ảnh, giá cơ bản mỗi đêm,\
+        \ điểm đánh giá trung bình và danh sách nhận xét tiếng Việt UTF-8 của khá\
+        ch hàng."
+      operationId: getRoomById
+      parameters:
+      - name: id
+        in: path
+        description: ID của phòng cần xem chi tiết
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Lấy thông tin chi tiết phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: ID phòng không đúng định dạng số
+          content:
+            application/json: {}
+        "404":
+          description: Không tìm thấy phòng với ID tương ứng
+          content:
+            application/json: {}
+  /rooms/{id}/price-quote:
+    get:
+      tags:
+      - 2. Khách hàng - Tìm kiếm & Chi tiết Phòng (Rooms)
+      summary: Xem trước báo giá phòng theo ngày lưu trú (Dynamic Pricing Quote)
+      description: "Hệ thống tự động áp dụng các quy tắc giá linh hoạt (HOLIDAY, PEAK_SEASON,\
+        \ WEEKEND) cho từng đêm lưu trú và tính thuế GTGT 10% VAT."
+      operationId: getPriceQuote
+      parameters:
+      - name: id
+        in: path
+        description: ID phòng cần tính giá
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: checkIn
+        in: query
+        description: Ngày nhận phòng (YYYY-MM-DD)
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2027-09-01
+      - name: checkOut
+        in: query
+        description: Ngày trả phòng (YYYY-MM-DD)
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2027-09-03
+      responses:
+        "200":
+          description: Tính báo giá phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePriceQuote"
+        "404":
+          description: Không tìm thấy phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePriceQuote"
+        "400":
+          description: Khoảng ngày nhận/trả phòng không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePriceQuote"
+  /rooms/search:
+    get:
+      tags:
+      - 2. Khách hàng - Tìm kiếm & Chi tiết Phòng (Rooms)
+      summary: Tìm kiếm & Lọc phòng trống theo ngày và số khách (UC04)
+      description: "Tìm kiếm danh sách các phòng còn trống theo khoảng thời gian nhậ\
+        n/trả phòng (checkIn, checkOut), sức chứa (capacity / guests), khoảng giá\
+        \ (minPrice, maxPrice) và hạng phòng (categoryId). Hệ thống tự động loại trừ\
+        \ các phòng đã được đặt trong khoảng thời gian yêu cầu."
+      operationId: searchRooms
+      parameters:
+      - name: checkIn
+        in: query
+        description: Ngày nhận phòng (Định dạng YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+          format: date
+        example: 2026-12-10
+      - name: checkOut
+        in: query
+        description: Ngày trả phòng (Định dạng YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+          format: date
+        example: 2026-12-12
+      - name: minPrice
+        in: query
+        description: Khoảng giá tối thiểu mỗi đêm (VNĐ)
+        required: false
+        schema:
+          type: number
+        example: 500000
+      - name: maxPrice
+        in: query
+        description: Khoảng giá tối đa mỗi đêm (VNĐ)
+        required: false
+        schema:
+          type: number
+        example: 3000000
+      - name: categoryId
+        in: query
+        description: ID danh mục / hạng phòng
+        required: false
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: capacity
+        in: query
+        description: Sức chứa tối thiểu (số lượng khách)
+        required: false
+        schema:
+          type: integer
+          format: int32
+        example: 2
+      - name: guests
+        in: query
+        description: Số lượng khách lưu trú (alias của capacity)
+        required: false
+        schema:
+          type: integer
+          format: int32
+        example: 2
+      responses:
+        "200":
+          description: Tìm kiếm phòng trống thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Tham số tìm kiếm không hợp lệ (ngày trả phòng trước ngày nhận
+            phòng hoặc định dạng sai)
+          content:
+            application/json: {}
+  /rooms/public:
+    get:
+      tags:
+      - 2. Khách hàng - Tìm kiếm & Chi tiết Phòng (Rooms)
+      summary: Lấy danh sách phòng nổi bật công khai (Public)
+      description: Lấy danh sách các phòng khả dụng có phân trang (mặc định 6 phòng/trang)
+        để hiển thị trên trang chủ.
+      operationId: getPublicRooms
+      responses:
+        "200":
+          description: Lấy danh sách phòng công khai thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageRoom"
+  /reviews/room/{roomId}:
+    get:
+      tags:
+      - 6. Khách hàng - Đánh giá & Nhận xét Phòng (Reviews)
+      summary: Lấy danh sách đánh giá và điểm trung bình của phòng
+      description: "Trả về điểm trung bình (làm tròn 1 chữ số thập phân), tổng số\
+        \ lượt đánh giá và toàn bộ danh sách nhận xét tiếng Việt UTF-8 của khách hà\
+        ng cho phòng chỉ định."
+      operationId: getRoomReviews
+      parameters:
+      - name: roomId
+        in: path
+        description: ID của phòng cần xem đánh giá
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Lấy danh sách đánh giá phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomReviewsSummaryResponse"
+        "404":
+          description: Không tìm thấy phòng theo ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseRoomReviewsSummaryResponse"
+  /reviews/my-reviews:
+    get:
+      tags:
+      - 6. Khách hàng - Đánh giá & Nhận xét Phòng (Reviews)
+      summary: Lấy danh sách đánh giá của bản thân
+      description: Trả về tất cả các đánh giá mà tài khoản đang đăng nhập đã gửi.
+      operationId: getMyReviews
+      responses:
+        "200":
+          description: Lấy danh sách đánh giá cá nhân thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseListReviewResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseListReviewResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/room-matrix:
+    get:
+      tags:
+      - 8. Lễ tân - Sơ đồ Ma trận Phòng & Buồng phòng (Receptionist Room Matrix)
+      summary: Lấy Sơ đồ ma trận buồng phòng thời gian thực (Room Matrix / Grid -
+        UC09)
+      description: "Lấy danh sách các phòng trên sơ đồ ma trận dạng lưới, kèm thô\
+        ng tin tóm tắt đơn đặt phòng đang CHECKED_IN hoặc CONFIRMED trong 1 câu truy\
+        \ vấn (tối ưu N+1). Hỗ trợ lọc theo Tầng (floor) và Trạng thái phòng (status)."
+      operationId: getRoomGrid
+      parameters:
+      - name: floor
+        in: query
+        description: "Số tầng để lọc (Tùy chọn, ví dụ: 1, 2, 3)"
+        required: false
+        schema:
+          type: integer
+          format: int32
+        example: 1
+      - name: status
+        in: query
+        description: "Trạng thái phòng để lọc (Tùy chọn: AVAILABLE, RESERVED, OCCUPIED,\
+          \ DIRTY, MAINTENANCE)"
+        required: false
+        schema:
+          type: string
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+        example: DIRTY
+      responses:
+        "200":
+          description: Lấy sơ đồ ma trận phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "403":
+          description: Không có quyền RECEPTIONIST hoặc ADMIN
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomGridResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomGridResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/rooms/matrix:
+    get:
+      tags:
+      - 8. Lễ tân - Sơ đồ Ma trận Phòng & Buồng phòng (Receptionist Room Matrix)
+      summary: Lấy Sơ đồ ma trận buồng phòng thời gian thực (Room Matrix / Grid -
+        UC09)
+      description: "Lấy danh sách các phòng trên sơ đồ ma trận dạng lưới, kèm thô\
+        ng tin tóm tắt đơn đặt phòng đang CHECKED_IN hoặc CONFIRMED trong 1 câu truy\
+        \ vấn (tối ưu N+1). Hỗ trợ lọc theo Tầng (floor) và Trạng thái phòng (status)."
+      operationId: getRoomGrid_1
+      parameters:
+      - name: floor
+        in: query
+        description: "Số tầng để lọc (Tùy chọn, ví dụ: 1, 2, 3)"
+        required: false
+        schema:
+          type: integer
+          format: int32
+        example: 1
+      - name: status
+        in: query
+        description: "Trạng thái phòng để lọc (Tùy chọn: AVAILABLE, RESERVED, OCCUPIED,\
+          \ DIRTY, MAINTENANCE)"
+        required: false
+        schema:
+          type: string
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+        example: DIRTY
+      responses:
+        "200":
+          description: Lấy sơ đồ ma trận phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "403":
+          description: Không có quyền RECEPTIONIST hoặc ADMIN
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomGridResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomGridResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/rooms/grid:
+    get:
+      tags:
+      - 8. Lễ tân - Sơ đồ Ma trận Phòng & Buồng phòng (Receptionist Room Matrix)
+      summary: Lấy Sơ đồ ma trận buồng phòng thời gian thực (Room Matrix / Grid -
+        UC09)
+      description: "Lấy danh sách các phòng trên sơ đồ ma trận dạng lưới, kèm thô\
+        ng tin tóm tắt đơn đặt phòng đang CHECKED_IN hoặc CONFIRMED trong 1 câu truy\
+        \ vấn (tối ưu N+1). Hỗ trợ lọc theo Tầng (floor) và Trạng thái phòng (status)."
+      operationId: getRoomGrid_2
+      parameters:
+      - name: floor
+        in: query
+        description: "Số tầng để lọc (Tùy chọn, ví dụ: 1, 2, 3)"
+        required: false
+        schema:
+          type: integer
+          format: int32
+        example: 1
+      - name: status
+        in: query
+        description: "Trạng thái phòng để lọc (Tùy chọn: AVAILABLE, RESERVED, OCCUPIED,\
+          \ DIRTY, MAINTENANCE)"
+        required: false
+        schema:
+          type: string
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+        example: DIRTY
+      responses:
+        "200":
+          description: Lấy sơ đồ ma trận phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "403":
+          description: Không có quyền RECEPTIONIST hoặc ADMIN
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomGridResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRoomGridResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/ping:
+    get:
+      tags:
+      - 8. Lễ tân - Sơ đồ Ma trận Phòng & Buồng phòng (Receptionist Room Matrix)
+      summary: Kiểm tra quyền truy cập Quầy Lễ tân (RECEPTIONIST)
+      description: Xác thực JWT Token của người dùng có quyền ROLE_RECEPTIONIST hoặc
+        ROLE_ADMIN hay không.
+      operationId: ping
+      responses:
+        "403":
+          description: Sai quyền hạn (GUEST/CUSTOMER cố gọi API Lễ tân)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringString"
+        "200":
+          description: Xác thực quyền Lễ tân thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringString"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringString"
+      security:
+      - bearerAuth: []
+  /receptionist/bookings:
+    get:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: "API 1: Danh sách & Lọc đơn đặt phòng tại quầy Lễ tân (UC10)"
+      description: "Lấy danh sách các đơn đặt phòng có phân trang và lọc theo từ khó\
+        a (mã đơn, tên khách, số điện thoại) và trạng thái đơn."
+      operationId: getBookings
+      parameters:
+      - name: keyword
+        in: query
+        description: "Từ khóa tìm kiếm (mã đơn, tên khách, SĐT)"
+        required: false
+        schema:
+          type: string
+        example: "0903456789"
+      - name: status
+        in: query
+        description: "Trạng thái đơn (PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT,\
+          \ CANCELLED)"
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - CHECKED_IN
+          - CHECKED_OUT
+          - CANCELLED
+          - FAILED
+        example: CONFIRMED
+      - name: page
+        in: query
+        description: Số trang (bắt đầu từ 0)
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+        example: 0
+      - name: size
+        in: query
+        description: Kích thước trang
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+        example: 10
+      - name: sortBy
+        in: query
+        description: Trường sắp xếp (mặc định createdAt)
+        required: false
+        schema:
+          type: string
+          default: createdAt
+        example: createdAt
+      - name: direction
+        in: query
+        description: "Chiều sắp xếp (ASC hoặc DESC, mặc định DESC)"
+        required: false
+        schema:
+          type: string
+          default: DESC
+        example: DESC
+      responses:
+        "403":
+          description: Sai quyền hạn (GUEST/CUSTOMER cố gọi API Lễ tân)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageResponseReceptionistBookingResponse"
+        "200":
+          description: Lấy danh sách đơn đặt phòng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageResponseReceptionistBookingResponse"
+      security:
+      - bearerAuth: []
+  /receptionist/bookings/{id}/checkout-summary:
+    get:
+      tags:
+      - "9. Lễ tân - Nghiệp vụ Check-in, Check-out & Dịch vụ (Receptionist Bookings)"
+      summary: "API 5: Lấy hóa đơn quyết toán trước Check-out (UC10)"
+      description: "Tính toán chi tiết hóa đơn lưu trú: Tiền phòng + Tổng tiền dị\
+        ch vụ phát sinh (UC11) - Tiền đã trả trước (paidAmount) = Số tiền cần thu\
+        \ thêm tại quầy."
+      operationId: getCheckoutSummary
+      parameters:
+      - name: id
+        in: path
+        description: "ID đơn đặt phòng cần xem hóa đơn quyết toán (ví dụ: 2 hoặc 7)"
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      responses:
+        "403":
+          description: Không có quyền Lễ tân hoặc Quản trị viên
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCheckoutSummaryResponse"
+        "200":
+          description: Lấy thông tin tóm tắt hóa đơn quyết toán thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCheckoutSummaryResponse"
+        "404":
+          description: Không tìm thấy đơn đặt phòng theo ID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCheckoutSummaryResponse"
+      security:
+      - bearerAuth: []
+  /payment/vnpay-return:
+    get:
+      tags:
+      - 5. Khách hàng - Thanh toán VNPay Sandbox (Payment)
+      summary: Xử lý kết quả trả về (Return URL) khi khách hoàn tất thanh toán trên
+        VNPay
+      description: "API tiếp nhận URL callback từ trình duyệt người dùng sau khi hoà\
+        n tất thanh toán trên cổng VNPay, xác thực chữ ký bảo mật và trả về kết quả\
+        \ giao dịch."
+      operationId: processVNPayReturn
+      parameters:
+      - name: params
+        in: query
+        description: Tham số VNPay trả về qua trình duyệt
+        required: true
+        schema:
+          type: object
+          additionalProperties:
+            type: string
+      responses:
+        "400":
+          description: Tham số trả về không hợp lệ hoặc sai chữ ký
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringObject"
+        "200":
+          description: Xác thực kết quả thanh toán thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringObject"
+  /payment/vnpay-ipn:
+    get:
+      tags:
+      - 5. Khách hàng - Thanh toán VNPay Sandbox (Payment)
+      summary: Webhook IPN nhận kết quả thanh toán từ VNPay (SCRUM-94 & SCRUM-121)
+      description: "Máy chủ VNPay gọi ngầm sang API này để thông báo kết quả giao\
+        \ dịch. Hệ thống kiểm tra IP nguồn hợp lệ trong whitelist (SCRUM-121), xá\
+        c thực chữ ký HMAC-SHA512 chống giả mạo, cập nhật trạng thái đơn hàng sang\
+        \ CONFIRMED và trả về định dạng chuẩn {\"RspCode\":\"00\",\"Message\":\"Confirm\
+        \ Success\"}."
+      operationId: processVNPayIpn
+      parameters:
+      - name: params
+        in: query
+        description: "Toàn bộ tham số VNPay gửi kèm qua query string (vnp_TxnRef,\
+          \ vnp_Amount, vnp_ResponseCode, vnp_SecureHash...)"
+        required: true
+        schema:
+          type: object
+          additionalProperties:
+            type: string
+      responses:
+        "403":
+          description: Truy cập bị từ chối do IP nguồn không thuộc danh sách máy chủ
+            VNPay hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VNPayIpnResponse"
+        "200":
+          description: Xử lý IPN thành công và trả về mã phản hồi chuẩn VNPay
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VNPayIpnResponse"
+  /health:
+    get:
+      tags:
+      - Health Check & Diagnostics
+      summary: Kiểm tra trạng thái Backend và Database
+      description: "Trả về trạng thái hoạt động (UP), tên dịch vụ và số lượng bản\
+        \ ghi hiện có trong từng bảng CSDL."
+      operationId: checkHealth
+      responses:
+        "200":
+          description: Dịch vụ Backend & Kết nối CSDL hoạt động bình thường
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringObject"
+  /health/test-error:
+    get:
+      tags:
+      - Health Check & Diagnostics
+      summary: Kiểm tra xử lý lỗi hệ thống (Global Exception)
+      description: "Mô phỏng kích hoạt các ngoại lệ: badrequest, conflict, unauthorized,\
+        \ notfound."
+      operationId: testError
+      parameters:
+      - name: type
+        in: query
+        description: Loại lỗi cần kích hoạt
+        required: false
+        schema:
+          type: string
+          default: notFound
+        example: notFound
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+  /bookings/my-history:
+    get:
+      tags:
+      - 4. Khách hàng - Đặt phòng & Lịch sử (Booking Management)
+      summary: Lấy lịch sử đặt phòng của cá nhân
+      description: Trả về danh sách tất cả các đơn đặt phòng của người dùng đang đăng
+        nhập (sắp xếp mới nhất lên đầu).
+      operationId: getMyBookings
+      responses:
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListBooking"
+        "200":
+          description: Lấy lịch sử đặt phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListBooking"
+      security:
+      - bearerAuth: []
+  /bookings/my-bookings:
+    get:
+      tags:
+      - 4. Khách hàng - Đặt phòng & Lịch sử (Booking Management)
+      summary: Lấy lịch sử đặt phòng của cá nhân
+      description: Trả về danh sách tất cả các đơn đặt phòng của người dùng đang đăng
+        nhập (sắp xếp mới nhất lên đầu).
+      operationId: getMyBookings_1
+      responses:
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token không hợp lệ
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListBooking"
+        "200":
+          description: Lấy lịch sử đặt phòng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListBooking"
+      security:
+      - bearerAuth: []
+  /auth/me:
+    get:
+      tags:
+      - 1. Khách hàng - Xác thực & Tài khoản (Authentication)
+      summary: Lấy thông tin tài khoản đang đăng nhập
+      description: Trả về thông tin chi tiết của người dùng hiện tại dựa trên JWT
+        Bearer Token.
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: Lấy thông tin người dùng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token đã hết hạn
+          content:
+            application/json: {}
+      security:
+      - bearerAuth: []
+  /admin/users:
+    get:
+      tags:
+      - 15. Quản trị viên - Quản lý Người dùng & Nhân sự (Admin Users)
+      summary: Danh sách người dùng và nhân sự có phân trang (UC16 - API 1)
+      description: "Tìm kiếm theo từ khóa (họ tên hoặc email), lọc chính xác theo\
+        \ vai trò trong enum UserRole (ADMIN, RECEPTIONIST, CUSTOMER, GUEST) hoặc\
+        \ để trống để lấy toàn bộ người dùng."
+      operationId: getUsers
+      parameters:
+      - name: keyword
+        in: query
+        description: Từ khóa tìm kiếm (họ tên hoặc email)
+        required: false
+        schema:
+          type: string
+        example: receptionist
+      - name: role
+        in: query
+        description: "Lọc theo vai trò (ADMIN, RECEPTIONIST, CUSTOMER, GUEST)"
+        required: false
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - RECEPTIONIST
+          - GUEST
+          - CUSTOMER
+        example: RECEPTIONIST
+      responses:
+        "200":
+          description: Lấy danh sách người dùng thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageResponseAdminUserResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageResponseAdminUserResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageResponseAdminUserResponse"
+      security:
+      - bearerAuth: []
+  /admin/reports/revenue:
+    get:
+      tags:
+      - 16. Quản trị viên - Báo cáo Doanh thu & Xuất file (Admin Reports)
+      summary: Báo cáo thống kê doanh thu và công suất lấp đầy phòng (UC17)
+      description: "Cung cấp số liệu tổng quan KPI (tổng doanh thu, doanh thu phò\
+        ng, doanh thu dịch vụ, số đơn hoàn tất, tỷ lệ lấp đầy buồng phòng), biểu đ\
+        ồ doanh thu theo thời gian và tỷ trọng doanh thu theo từng hạng phòng."
+      operationId: getRevenueReport
+      parameters:
+      - name: startDate
+        in: query
+        description: "Ngày bắt đầu (bắt buộc, định dạng YYYY-MM-DD)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-05-01
+      - name: endDate
+        in: query
+        description: "Ngày kết thúc (bắt buộc, định dạng YYYY-MM-DD, endDate >= startDate,\
+          \ tối đa 366 ngày)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-10-31
+      - name: reportType
+        in: query
+        description: "Loại báo cáo theo mốc thời gian: DAILY, MONTHLY, BY_CATEGORY\
+          \ (mặc định MONTHLY)"
+        required: false
+        schema:
+          type: string
+          description: Loại thống kê báo cáo doanh thu
+          default: MONTHLY
+          enum:
+          - DAILY
+          - MONTHLY
+          - BY_CATEGORY
+        example: MONTHLY
+      responses:
+        "200":
+          description: Lấy báo cáo doanh thu thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRevenueReportResponse"
+        "400":
+          description: Tham số ngày không hợp lệ (endDate < startDate hoặc khoảng
+            thời gian vượt quá 366 ngày)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRevenueReportResponse"
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRevenueReportResponse"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRevenueReportResponse"
+      security:
+      - bearerAuth: []
+  /admin/reports/export:
+    get:
+      tags:
+      - 16. Quản trị viên - Báo cáo Doanh thu & Xuất file (Admin Reports)
+      summary: Xuất file báo cáo doanh thu qua Query Param (EXCEL / PDF)
+      description: Xuất báo cáo doanh thu ra định dạng file EXCEL (.xlsx) hoặc PDF
+        (.pdf) hỗ trợ tiếng Việt UTF-8 theo tham số format.
+      operationId: exportReport
+      parameters:
+      - name: format
+        in: query
+        description: "Định dạng file xuất: EXCEL hoặc PDF"
+        required: true
+        schema:
+          type: string
+        example: EXCEL
+      - name: startDate
+        in: query
+        description: "Ngày bắt đầu (bắt buộc, định dạng YYYY-MM-DD)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-05-01
+      - name: endDate
+        in: query
+        description: "Ngày kết thúc (bắt buộc, định dạng YYYY-MM-DD)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-10-31
+      responses:
+        "200":
+          description: Xuất file báo cáo thành công
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+        "400":
+          description: Không có dữ liệu trong khoảng thời gian hoặc tham số không
+            hợp lệ
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+      security:
+      - bearerAuth: []
+  /admin/reports/export/{format}:
+    get:
+      tags:
+      - 16. Quản trị viên - Báo cáo Doanh thu & Xuất file (Admin Reports)
+      summary: Xuất file báo cáo doanh thu qua Path Variable (/export/excel hoặc /export/pdf)
+      description: "Xuất báo cáo doanh thu ra định dạng EXCEL (.xlsx) hoặc PDF (.pdf)\
+        \ qua đường dẫn /admin/reports/export/{format}."
+      operationId: exportReportByPath
+      parameters:
+      - name: format
+        in: path
+        description: "Định dạng file xuất: excel hoặc pdf"
+        required: true
+        schema:
+          type: string
+        example: excel
+      - name: startDate
+        in: query
+        description: "Ngày bắt đầu (bắt buộc, định dạng YYYY-MM-DD)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-05-01
+      - name: endDate
+        in: query
+        description: "Ngày kết thúc (bắt buộc, định dạng YYYY-MM-DD)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-10-31
+      responses:
+        "400":
+          description: Không có dữ liệu trong khoảng thời gian hoặc định dạng không
+            hợp lệ
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+        "200":
+          description: Xuất file báo cáo thành công
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+        "403":
+          description: Sai quyền hạn (yêu cầu quyền ADMIN)
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+      security:
+      - bearerAuth: []
+  /admin/ping:
+    get:
+      tags:
+      - 10. Quản trị viên - Kiểm tra Quyền hạn (Admin Security)
+      summary: Kiểm tra quyền Quản trị viên (ADMIN)
+      description: Xác thực JWT Token của người dùng có quyền ROLE_ADMIN hay không.
+      operationId: ping_1
+      responses:
+        "200":
+          description: Xác thực quyền ADMIN thành công
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringString"
+        "401":
+          description: Chưa đăng nhập hoặc JWT Token hết hạn
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringString"
+        "403":
+          description: Sai quyền hạn (GUEST/CUSTOMER/RECEPTIONIST cố gọi API Admin)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringString"
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    UpdateProfileRequest:
+      required:
+      - fullName
+      - phone
+      type: object
+      properties:
+        fullName:
+          pattern: "^[\\p{L}\\s]+$"
+          type: string
+          description: Họ và tên đầy đủ của người dùng
+          example: Nguyễn Văn Khách
+        phone:
+          pattern: "^(0|\\+84)[35789]\\d{8}$"
+          type: string
+          description: Số điện thoại liên hệ (10 chữ số)
+          example: "0903456789"
+      description: Yêu cầu cập nhật thông tin hồ sơ cá nhân (UC03)
+    ApiResponseUserProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/UserProfileResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+        fullName:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - RECEPTIONIST
+          - GUEST
+          - CUSTOMER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - LOCKED
+        createdAt:
+          type: string
+          format: date-time
+    ChangePasswordRequest:
+      required:
+      - confirmPassword
+      - currentPassword
+      - newPassword
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          description: Mật khẩu hiện tại đang sử dụng
+          example: "123456"
+        newPassword:
+          maxLength: 2147483647
+          minLength: 6
+          type: string
+          description: Mật khẩu mới (tối thiểu 6 ký tự)
+          example: "654321"
+        confirmPassword:
+          type: string
+          description: Xác nhận lại mật khẩu mới
+          example: "654321"
+      description: Yêu cầu đổi mật khẩu tài khoản cá nhân (UC03)
+    ApiResponseVoid:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    AdminServiceRequest:
+      required:
+      - name
+      - price
+      - unit
+      type: object
+      properties:
+        name:
+          type: string
+          description: Tên dịch vụ phụ trợ
+          example: Bữa tối lãng mạn trên tầng thượng
+        price:
+          minimum: 0.01
+          exclusiveMinimum: false
+          type: number
+          description: Đơn giá dịch vụ (VNĐ)
+          example: 450000
+        unit:
+          type: string
+          description: "Đơn vị tính (Suất, Lần, Chuyến, Kg, Lon, Bộ...)"
+          example: Suất
+        description:
+          type: string
+          description: Mô tả chi tiết dịch vụ
+          example: Thực đơn Âu 4 món kèm rượu vang và nến
+        status:
+          type: string
+          description: "Trạng thái dịch vụ (ACTIVE, INACTIVE)"
+          example: ACTIVE
+          enum:
+          - ACTIVE
+          - INACTIVE
+      description: Dữ liệu yêu cầu tạo mới hoặc cập nhật dịch vụ khách sạn (UC14)
+    ApiResponseService:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/Service"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+        price:
+          type: number
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        unit:
+          type: string
+    AdminRoomRequest:
+      required:
+      - categoryId
+      - floor
+      - roomNumber
+      type: object
+      properties:
+        roomNumber:
+          type: string
+          description: Số hiệu phòng (duy nhất)
+          example: "401"
+        floor:
+          minimum: 1
+          type: integer
+          description: Số tầng của phòng (từ 1 trở lên)
+          format: int32
+          example: 4
+        categoryId:
+          type: integer
+          description: ID loại phòng (Room Category)
+          format: int64
+          example: 2
+        status:
+          type: string
+          description: "Trạng thái phòng vật lý (AVAILABLE, RESERVED, OCCUPIED, DIRTY,\
+            \ MAINTENANCE)"
+          example: AVAILABLE
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+      description: Dữ liệu yêu cầu tạo mới hoặc cập nhật phòng vật lý (UC13a)
+    AdminRoomResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomNumber:
+          type: string
+        floor:
+          type: integer
+          format: int32
+        status:
+          type: string
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+        categoryId:
+          type: integer
+          format: int64
+        categoryName:
+          type: string
+        basePrice:
+          type: number
+        capacity:
+          type: integer
+          format: int32
+        bedCount:
+          type: integer
+          format: int32
+        area:
+          type: number
+        bedType:
+          type: string
+        imageUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ApiResponseAdminRoomResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/AdminRoomResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    RoomCategoryRequest:
+      required:
+      - area
+      - basePrice
+      - bedCount
+      - capacity
+      - name
+      type: object
+      properties:
+        name:
+          type: string
+          description: Tên loại phòng / hạng phòng
+          example: Presidential Ocean Suite
+        basePrice:
+          minimum: 0.01
+          exclusiveMinimum: false
+          type: number
+          description: Giá cơ bản mỗi đêm (VNĐ)
+          example: 2500000
+        capacity:
+          minimum: 1
+          type: integer
+          description: Sức chứa tối đa (số khách)
+          format: int32
+          example: 4
+        bedCount:
+          minimum: 1
+          type: integer
+          description: Số lượng giường trong phòng
+          format: int32
+          example: 2
+        area:
+          minimum: 0.01
+          exclusiveMinimum: false
+          type: number
+          description: Diện tích phòng (m²)
+          example: 85.0
+        bedType:
+          type: string
+          description: Mô tả loại giường
+          example: 2 Giường King size cao cấp
+        description:
+          type: string
+          description: Mô tả chi tiết tiện nghi và không gian hạng phòng
+          example: Phòng Tổng thống hướng biển toàn cảnh kèm phòng khách riêng và
+            bồn tắm Jacuzzi.
+        imageUrl:
+          type: string
+          description: Đường dẫn hình ảnh đại diện hạng phòng
+          example: https://images.unsplash.com/photo-1582719478250-c89cae4dc85b
+      description: Dữ liệu yêu cầu tạo mới hoặc cập nhật danh mục loại phòng (UC13b)
+    ApiResponseRoomCategory:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/RoomCategory"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    RoomCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+        description:
+          type: string
+        basePrice:
+          type: number
+        capacity:
+          type: integer
+          format: int32
+        bedType:
+          type: string
+        bedCount:
+          type: integer
+          format: int32
+        area:
+          type: number
+        imageUrl:
+          type: string
+    PricingRuleRequest:
+      required:
+      - adjustmentPercent
+      - endDate
+      - name
+      - ruleType
+      - startDate
+      type: object
+      properties:
+        name:
+          type: string
+          description: Tên quy tắc giá
+          example: Quốc Khánh 2/9/2027 +20%
+        ruleType:
+          type: string
+          description: "Loại quy tắc giá: HOLIDAY, PEAK_SEASON, WEEKEND"
+          example: HOLIDAY
+          enum:
+          - WEEKEND
+          - HOLIDAY
+          - PEAK_SEASON
+        startDate:
+          type: string
+          description: Ngày bắt đầu áp dụng (YYYY-MM-DD)
+          format: date
+          example: 2027-09-01
+        endDate:
+          type: string
+          description: Ngày kết thúc áp dụng (YYYY-MM-DD)
+          format: date
+          example: 2027-09-03
+        adjustmentPercent:
+          type: number
+          description: "Tỷ lệ % điều chỉnh giá (dương là tăng, âm là giảm)"
+          example: 20.0
+        categoryId:
+          type: integer
+          description: ID loại phòng áp dụng. Để null nghĩa là áp dụng cho toàn bộ
+            khách sạn
+          format: int64
+          example: 2
+        isActive:
+          type: boolean
+          description: Trạng thái kích hoạt của quy tắc
+          example: true
+      description: Dữ liệu yêu cầu tạo mới hoặc cập nhật quy tắc giá linh hoạt
+    ApiResponsePricingRuleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/PricingRuleResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    PricingRuleResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        ruleType:
+          type: string
+          enum:
+          - WEEKEND
+          - HOLIDAY
+          - PEAK_SEASON
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        adjustmentPercent:
+          type: number
+        isActive:
+          type: boolean
+        categoryId:
+          type: integer
+          format: int64
+        categoryName:
+          type: string
+          description: Tên loại phòng. Trả về null nghĩa là áp dụng cho Tất cả loại
+            phòng
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      description: Thông tin chi tiết quy tắc giá linh hoạt
+    CreateReviewRequest:
+      required:
+      - rating
+      type: object
+      properties:
+        bookingId:
+          type: integer
+          description: Mã đơn đặt phòng đã hoàn tất trả phòng (CHECKED_OUT)
+          format: int64
+          example: 100
+        roomId:
+          type: integer
+          description: Mã phòng được đánh giá (tự động lấy từ đơn đặt phòng nếu có
+            bookingId)
+          format: int64
+          example: 1
+        rating:
+          maximum: 5
+          minimum: 1
+          type: integer
+          description: Số sao đánh giá từ 1 đến 5
+          format: int32
+          example: 5
+        comment:
+          type: string
+          description: "Bình luận, cảm nhận của khách hàng"
+          example: "Phòng rất đẹp, view biển tuyệt vời, nhân viên chu đáo!"
+      description: Dữ liệu yêu cầu gửi đánh giá phòng sau khi lưu trú
+    ApiResponseReviewResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ReviewResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ReviewResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        rating:
+          type: integer
+          format: int32
+        comment:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
+        roomId:
+          type: integer
+          format: int64
+        roomNumber:
+          type: string
+        bookingId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    CheckOutRequest:
+      type: object
+      properties:
+        paymentMethod:
+          type: string
+          description: "Phương thức thanh toán khoản còn lại (CASH, CREDIT_CARD, TRANSFER,\
+            \ VNPAY)"
+          example: CASH
+        notes:
+          type: string
+          description: Ghi chú khi trả phòng
+          example: "Khách hài lòng, thanh toán đủ tiền mặt tại quầy"
+      description: Yêu cầu xác nhận Check-out từ Lễ tân
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseReceptionistBookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ReceptionistBookingResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ReceptionistBookingResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        guestEmail:
+          type: string
+        guestTier:
+          type: string
+        roomId:
+          type: integer
+          format: int64
+        roomNumber:
+          type: string
+        roomCode:
+          type: string
+        roomCategory:
+          type: string
+        floor:
+          type: integer
+          format: int32
+        roomStatus:
+          type: string
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        numberOfNights:
+          type: integer
+          format: int64
+        actualCheckIn:
+          type: string
+          format: date-time
+        actualCheckOut:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - CHECKED_IN
+          - CHECKED_OUT
+          - CANCELLED
+          - FAILED
+        statusLabel:
+          type: string
+        totalAmount:
+          type: number
+        paidAmount:
+          type: number
+        remainingAmount:
+          type: number
+        cancelReason:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    AddServiceItemRequest:
+      required:
+      - quantity
+      - serviceId
+      type: object
+      properties:
+        serviceId:
+          type: integer
+          description: "ID của dịch vụ cần thêm (ví dụ: 1 = Bữa sáng Buffet, 5 = Nư\
+            ớc ngọt Cocacola)"
+          format: int64
+          example: 1
+        quantity:
+          minimum: 1
+          type: integer
+          description: Số lượng sử dụng (tối thiểu 1)
+          format: int32
+          example: 2
+      description: Thông tin dịch vụ phụ trợ thêm vào hóa đơn lưu trú (UC11)
+    ApiResponseBookingServicesSummaryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/BookingServicesSummaryResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    BookingServiceDetailResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        serviceName:
+          type: string
+        unit:
+          type: string
+        unitPrice:
+          type: number
+        quantity:
+          type: integer
+          format: int32
+        totalPrice:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        totalAmount:
+          type: number
+    BookingServicesSummaryResponse:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        roomNumber:
+          type: string
+        roomCode:
+          type: string
+        roomType:
+          type: string
+        categoryName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        bookingStatus:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - CHECKED_IN
+          - CHECKED_OUT
+          - CANCELLED
+          - FAILED
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        actualCheckIn:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        roomAmount:
+          type: number
+        totalServiceAmount:
+          type: number
+        totalAmount:
+          type: number
+        paidAmount:
+          type: number
+        remainingAmount:
+          type: number
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingServiceDetailResponse"
+    CreateVNPayUrlRequest:
+      required:
+      - bookingId
+      type: object
+      properties:
+        bookingId:
+          type: integer
+          description: Mã đơn đặt phòng cần thanh toán
+          format: int64
+          example: 4
+        amount:
+          type: number
+          description: Số tiền thanh toán (VNĐ). Nếu để trống sẽ tự động lấy theo
+            tổng tiền đơn đặt phòng
+          example: 1500000
+        returnUrl:
+          type: string
+          description: URL callback tùy biến sau khi hoàn tất thanh toán trên cổng
+            VNPay
+          example: http://localhost:5173/api/v1/payment/vnpay-return
+      description: Dữ liệu yêu cầu khởi tạo đường dẫn thanh toán VNPay Sandbox
+    ApiResponsePaymentUrlResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/PaymentUrlResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    PaymentUrlResponse:
+      type: object
+      properties:
+        paymentUrl:
+          type: string
+          description: Đường dẫn URL chuyển hướng đến cổng thanh toán VNPay Sandbox
+          example: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=150000000&vnp_Command=pay&vnp_CreateDate=20261007223000&vnp_CurrCode=VND&vnp_IpAddr=127.0.0.1&vnp_Locale=vn&vnp_OrderInfo=Thanh+toan+dat+phong+%231&vnp_OrderType=other&vnp_ReturnUrl=http%3A%2F%2Flocalhost%3A8080%2Fapi%2Fv1%2Fpayment%2Fvnpay-return&vnp_TmnCode=CGXZLS0Z&vnp_TxnRef=1_1728315000000&vnp_Version=2.1.0&vnp_SecureHash=...
+        url:
+          type: string
+          description: Bí danh tương đương với paymentUrl (hỗ trợ tương thích frontend)
+      description: Dữ liệu phản hồi đường dẫn thanh toán VNPay
+    TestValidationDto:
+      required:
+      - email
+      - name
+      type: object
+      properties:
+        name:
+          type: string
+          description: Họ và tên
+          example: Nguyễn Văn A
+        email:
+          type: string
+          description: Địa chỉ email
+          example: test@example.com
+      description: DTO kiểm tra tính hợp lệ dữ liệu
+    ApiResponseTestValidationDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/TestValidationDto"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    CreateBookingRequest:
+      required:
+      - checkIn
+      - checkOut
+      - email
+      - fullName
+      - phone
+      - roomId
+      type: object
+      properties:
+        roomId:
+          type: integer
+          description: ID của phòng muốn đặt
+          format: int64
+          example: 2
+        checkIn:
+          type: string
+          description: Ngày nhận phòng (YYYY-MM-DD)
+          format: date
+          example: 2026-11-20
+        checkOut:
+          type: string
+          description: Ngày trả phòng (YYYY-MM-DD)
+          format: date
+          example: 2026-11-22
+        totalAmount:
+          type: number
+          description: "Tổng tiền (VNĐ) - ĐÃ DEPRECATED: Hệ thống luôn tự động tí\
+            nh toán lại giá thông qua PricingCalculator để đảm bảo an toàn, không\
+            \ tin cậy dữ liệu client gửi lên"
+          example: 1540000
+          deprecated: true
+        paymentMethod:
+          type: string
+          description: "Phương thức thanh toán: VNPAY, CREDIT_CARD, RECEPTION"
+          example: VNPAY
+        specialRequests:
+          maxLength: 100
+          minLength: 0
+          type: string
+          description: Yêu cầu đặc biệt của khách hàng
+          example: "Phòng tầng cao, view ngắm biển, không hút thuốc"
+        fullName:
+          pattern: "^[\\p{L}][\\p{L}\\s]{0,98}[\\p{L}]$"
+          type: string
+          description: Họ và tên khách lưu trú
+          example: Nguyễn Văn Trọng
+        phone:
+          pattern: "^(0|\\+84)[35789]\\d{8}$"
+          type: string
+          description: Số điện thoại liên hệ
+          example: "0987654321"
+        email:
+          pattern: "^[a-zA-Z0-9.]+@gmail\\.com$"
+          type: string
+          description: Email nhận thư xác nhận đặt phòng và hóa đơn điện tử
+          example: nvt29062005@gmail.com
+      description: Dữ liệu yêu cầu tạo mới đơn đặt phòng
+    ApiResponseBooking:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/Booking"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - CHECKED_IN
+          - CHECKED_OUT
+          - CANCELLED
+          - FAILED
+        cancelReason:
+          type: string
+        actualCheckIn:
+          type: string
+          format: date-time
+        actualCheckOut:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        paidAmount:
+          type: number
+        user:
+          $ref: "#/components/schemas/User"
+        room:
+          $ref: "#/components/schemas/Room"
+    Room:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        roomNumber:
+          type: string
+        floor:
+          type: integer
+          format: int32
+        status:
+          type: string
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+        category:
+          $ref: "#/components/schemas/RoomCategory"
+        description:
+          type: string
+        capacity:
+          type: integer
+          format: int32
+        imageUrl:
+          type: string
+        basePrice:
+          type: number
+        categoryName:
+          type: string
+        bedType:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        email:
+          type: string
+        fullName:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - RECEPTIONIST
+          - GUEST
+          - CUSTOMER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - LOCKED
+        department:
+          type: string
+          enum:
+          - FRONT_DESK
+          - HOUSEKEEPING
+          - MANAGEMENT
+    RegisterRequest:
+      required:
+      - confirmPassword
+      - email
+      - fullName
+      - password
+      - phone
+      type: object
+      properties:
+        fullName:
+          pattern: "^[\\p{L}\\s]+$"
+          type: string
+          description: Họ và tên đầy đủ của khách hàng
+          example: Nguyễn Văn Khách
+        email:
+          pattern: "^[a-zA-Z0-9.]+@gmail\\.com$"
+          type: string
+          description: Địa chỉ email Gmail hợp lệ
+          example: khachhang01@gmail.com
+        password:
+          maxLength: 2147483647
+          minLength: 6
+          type: string
+          description: Mật khẩu đăng nhập (tối thiểu 6 ký tự)
+          example: "123456"
+        confirmPassword:
+          type: string
+          description: Xác nhận lại mật khẩu
+          example: "123456"
+        phone:
+          pattern: "^(0|\\+84)[35789]\\d{8}$"
+          type: string
+          description: Số điện thoại di động Việt Nam (10 số)
+          example: "0903456789"
+      description: Dữ liệu yêu cầu đăng ký tài khoản khách hàng mới (UC01)
+    LoginRequest:
+      required:
+      - email
+      - password
+      type: object
+      properties:
+        email:
+          pattern: "^[a-zA-Z0-9.]+@gmail\\.com$"
+          type: string
+          description: Địa chỉ email đăng nhập
+          example: guest@gmail.com
+        password:
+          type: string
+          description: Mật khẩu tài khoản
+          example: "123456"
+      description: Dữ liệu yêu cầu đăng nhập hệ thống (UC02)
+    CreateStaffRequest:
+      required:
+      - email
+      - fullName
+      - role
+      type: object
+      properties:
+        fullName:
+          type: string
+          description: Họ và tên nhân sự
+          example: Trần Thị Lễ Tân
+        email:
+          type: string
+          description: Email đăng nhập
+          example: letan01@gmail.com
+        phone:
+          type: string
+          description: Số điện thoại liên hệ
+          example: "0912345678"
+        role:
+          type: string
+          description: Vai trò nhân sự (chỉ RECEPTIONIST hoặc ADMIN)
+          example: RECEPTIONIST
+          enum:
+          - ADMIN
+          - RECEPTIONIST
+          - GUEST
+          - CUSTOMER
+        department:
+          type: string
+          description: Phòng ban làm việc
+          example: FRONT_DESK
+          enum:
+          - FRONT_DESK
+          - HOUSEKEEPING
+          - MANAGEMENT
+      description: Yêu cầu cấp tài khoản nhân sự mới (UC16)
+    AdminUserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID người dùng
+          format: int64
+          example: 1
+        fullName:
+          type: string
+          description: Họ và tên
+          example: Nguyễn Văn Lễ Tân
+        email:
+          type: string
+          description: Email tài khoản
+          example: receptionist@hotel.com
+        phone:
+          type: string
+          description: Số điện thoại
+          example: "0987654321"
+        role:
+          type: string
+          description: "Vai trò / quyền hạn: ADMIN, RECEPTIONIST, CUSTOMER, GUEST"
+          example: RECEPTIONIST
+          enum:
+          - ADMIN
+          - RECEPTIONIST
+          - GUEST
+          - CUSTOMER
+        department:
+          type: string
+          description: Phòng ban làm việc
+          example: FRONT_DESK
+          enum:
+          - FRONT_DESK
+          - HOUSEKEEPING
+          - MANAGEMENT
+        status:
+          type: string
+          description: "Trạng thái tài khoản: ACTIVE, LOCKED"
+          example: ACTIVE
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - LOCKED
+        createdAt:
+          type: string
+          description: Thời điểm khởi tạo
+          format: date-time
+        temporaryPassword:
+          type: string
+          description: Mật khẩu tạm thời (chỉ trả về một lần khi Quản trị viên khởi
+            tạo tài khoản mới)
+      description: Thông tin tài khoản người dùng dành cho Quản trị viên
+    ApiResponseAdminUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/AdminUserResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseRoom:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/Room"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ReceptionistCancelBookingRequest:
+      required:
+      - cancelReason
+      type: object
+      properties:
+        cancelReason:
+          type: string
+          description: Lý do hủy đơn đặt phòng
+          example: Khách yêu cầu hủy chuyến đi
+      description: Yêu cầu hủy đơn đặt phòng từ Lễ tân
+    CancelBookingRequest:
+      required:
+      - reason
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Lý do hủy phòng
+          example: Thay đổi lịch trình công tác đột xuất
+      description: Dữ liệu yêu cầu hủy đơn đặt phòng
+    UpdateUserRoleRequest:
+      required:
+      - role
+      type: object
+      properties:
+        role:
+          type: string
+          description: "Vai trò quyền hạn mới: ADMIN, RECEPTIONIST, CUSTOMER, GUEST"
+          example: ADMIN
+          enum:
+          - ADMIN
+          - RECEPTIONIST
+          - GUEST
+          - CUSTOMER
+      description: Yêu cầu thay đổi phân quyền nhân sự
+    ApiResponseListService:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponsePageRoom:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/PageRoom"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    PageRoom:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Room"
+        number:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/Sort"
+        first:
+          type: boolean
+        pageable:
+          $ref: "#/components/schemas/Pageable"
+        numberOfElements:
+          type: integer
+          format: int32
+        empty:
+          type: boolean
+    Pageable:
+      type: object
+      properties:
+        offset:
+          type: integer
+          format: int64
+        sort:
+          $ref: "#/components/schemas/Sort"
+        unpaged:
+          type: boolean
+        paged:
+          type: boolean
+        pageSize:
+          type: integer
+          format: int32
+        pageNumber:
+          type: integer
+          format: int32
+    Sort:
+      type: object
+      properties:
+        empty:
+          type: boolean
+        sorted:
+          type: boolean
+        unsorted:
+          type: boolean
+    ApiResponsePriceQuote:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/PriceQuote"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    NightQuote:
+      type: object
+      properties:
+        date:
+          type: string
+          description: Ngày lưu trú (đêm)
+          format: date
+          example: 2027-09-01
+        basePrice:
+          type: number
+          description: Giá gốc mỗi đêm niêm yết của loại phòng
+          example: 950000
+        appliedRuleName:
+          type: string
+          description: Tên quy tắc giá áp dụng
+          example: Quốc Khánh 2/9/2027 +20%
+        adjustmentPercent:
+          type: number
+          description: Tỷ lệ phần trăm điều chỉnh giá áp dụng
+          example: 20.0
+        finalPrice:
+          type: number
+          description: Giá sau khi điều chỉnh cho đêm này
+          example: 1140000
+      description: Báo giá chi tiết cho từng đêm lưu trú
+    PriceQuote:
+      type: object
+      properties:
+        nights:
+          type: array
+          description: Báo giá chi tiết cho từng đêm
+          items:
+            $ref: "#/components/schemas/NightQuote"
+        subtotal:
+          type: number
+          description: Tổng tiền phòng các đêm trước thuế (VNĐ)
+          example: 2280000
+        vat:
+          type: number
+          description: Thuế GTGT / VAT (10%)
+          example: 228000
+        total:
+          type: number
+          description: Tổng số tiền thanh toán cuối cùng đã gồm VAT (VNĐ)
+          example: 2508000
+      description: Báo giá tổng hợp toàn bộ kỳ lưu trú bao gồm danh sách từng đêm
+        và thuế VAT
+    ApiResponseRoomReviewsSummaryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/RoomReviewsSummaryResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    RoomReviewsSummaryResponse:
+      type: object
+      properties:
+        averageRating:
+          type: number
+          format: double
+        totalReviews:
+          type: integer
+          format: int32
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewResponse"
+    ApiResponseListReviewResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListRoomGridResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoomGridResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    RoomGridResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomNumber:
+          type: string
+        roomCode:
+          type: string
+        floor:
+          type: integer
+          format: int32
+        status:
+          type: string
+          enum:
+          - AVAILABLE
+          - OCCUPIED
+          - MAINTENANCE
+          - DIRTY
+          - RESERVED
+          - ON_HOLD
+        statusLabel:
+          type: string
+        categoryName:
+          type: string
+        type:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        basePrice:
+          type: number
+        pricePerNight:
+          type: number
+        capacity:
+          type: integer
+          format: int32
+        bedType:
+          type: string
+        imageUrl:
+          type: string
+        bookingId:
+          type: integer
+          format: int64
+        bookingStatus:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - CHECKED_IN
+          - CHECKED_OUT
+          - CANCELLED
+          - FAILED
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        actualCheckIn:
+          type: string
+          format: date-time
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        notes:
+          type: string
+        specialNotes:
+          type: string
+        totalAmount:
+          type: number
+        paidAmount:
+          type: number
+    ApiResponseMapStringString:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties:
+            type: string
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponsePageResponseReceptionistBookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/PageResponseReceptionistBookingResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    PageResponseReceptionistBookingResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceptionistBookingResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+    ApiResponseCheckoutSummaryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/CheckoutSummaryResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    CheckoutSummaryResponse:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+          format: int64
+        bookingCode:
+          type: string
+        roomId:
+          type: integer
+          format: int64
+        roomNumber:
+          type: string
+        roomCategory:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        guestEmail:
+          type: string
+        bookingStatus:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - CHECKED_IN
+          - CHECKED_OUT
+          - CANCELLED
+          - FAILED
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        actualCheckIn:
+          type: string
+          format: date-time
+        checkoutTime:
+          type: string
+          format: date-time
+        numberOfNights:
+          type: integer
+          format: int64
+        roomPricePerNight:
+          type: number
+        roomAmount:
+          type: number
+        totalServiceAmount:
+          type: number
+        totalAmount:
+          type: number
+        paidAmount:
+          type: number
+        remainingAmount:
+          type: number
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingServiceDetailResponse"
+    ApiResponseMapStringObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties:
+            type: object
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    VNPayIpnResponse:
+      type: object
+      properties:
+        RspCode:
+          type: string
+          description: "Mã phản hồi chuẩn VNPay (00: Thành công, 01: Không tìm thấ\
+            y đơn, 02: Đơn đã xác nhận, 04: Số tiền không hợp lệ, 97: Chữ ký không\
+            \ hợp lệ, 99: Lỗi khác)"
+          example: "00"
+        Message:
+          type: string
+          description: Thông báo kết quả xử lý
+          example: Confirm Success
+      description: Dữ liệu phản hồi cho Webhook IPN của VNPay
+    ApiResponseListBooking:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponsePageResponseAdminUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/PageResponseAdminUserResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    PageResponseAdminUserResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+    ApiResponseListAdminRoomResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRoomResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListRoomCategory:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoomCategory"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseRevenueReportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/RevenueReportResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    RevenueByTime:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Nhãn mốc thời gian (YYYY-MM hoặc YYYY-MM-DD)
+          example: 2026-09
+        roomRevenue:
+          type: number
+          description: Doanh thu tiền phòng (VNĐ)
+          example: 7800000
+        serviceRevenue:
+          type: number
+          description: Doanh thu dịch vụ (VNĐ)
+          example: 600000
+        totalRevenue:
+          type: number
+          description: Tổng doanh thu mốc thời gian (VNĐ)
+          example: 8400000
+        occupancyRate:
+          type: number
+          description: Công suất sử dụng phòng (%)
+          format: double
+          example: 82.4
+      description: Doanh thu phân bổ theo mốc thời gian (ngày hoặc tháng)
+    RevenueReportResponse:
+      type: object
+      properties:
+        hasData:
+          type: boolean
+          description: Có dữ liệu hoàn thành trong khoảng thời gian không
+          example: true
+        message:
+          type: string
+          description: Thông báo trạng thái dữ liệu
+          example: Thành công
+        summaryMetrics:
+          $ref: "#/components/schemas/SummaryMetrics"
+        revenueByTime:
+          type: array
+          description: Dữ liệu biểu đồ doanh thu theo mốc thời gian
+          items:
+            $ref: "#/components/schemas/RevenueByTime"
+        roomCategoryShare:
+          type: array
+          description: Dữ liệu biểu đồ tỷ trọng doanh thu theo loại phòng
+          items:
+            $ref: "#/components/schemas/RoomCategoryShare"
+      description: Dữ liệu báo cáo thống kê doanh thu toàn diện (UC17)
+    RoomCategoryShare:
+      type: object
+      properties:
+        categoryName:
+          type: string
+          description: Tên loại phòng
+          example: Deluxe Double
+        bookingCount:
+          type: integer
+          description: Số lượng đơn đặt phòng hoàn thành
+          format: int64
+          example: 4
+        revenue:
+          type: number
+          description: Doanh thu mang lại từ loại phòng (VNĐ)
+          example: 16330000
+        percentage:
+          type: number
+          description: Tỷ trọng phần trăm trên tổng doanh thu (%)
+          format: double
+          example: 36.6
+      description: Tỷ trọng doanh thu và số lượng đơn theo từng loại phòng
+    SummaryMetrics:
+      type: object
+      properties:
+        totalRevenue:
+          type: number
+          description: Tổng doanh thu bao gồm tiền phòng và dịch vụ (VNĐ)
+          example: 44670000
+        roomRevenue:
+          type: number
+          description: Doanh thu thuần từ tiền phòng (VNĐ)
+          example: 38500000
+        serviceRevenue:
+          type: number
+          description: Doanh thu phát sinh từ dịch vụ (VNĐ)
+          example: 6170000
+        completedBookings:
+          type: integer
+          description: Số lượng đơn đặt phòng đã hoàn thành (CHECKED_OUT)
+          format: int64
+          example: 10
+        occupancyRate:
+          type: number
+          description: Công suất sử dụng phòng trung bình (%)
+          format: double
+          example: 78.5
+        topCategory:
+          type: string
+          description: Hạng phòng mang lại doanh thu cao nhất
+          example: Executive Suite
+      description: Các chỉ số KPI doanh thu tổng quan
+    ApiResponseListPricingRuleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricingRuleResponse"
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: "Nhập mã JWT Token vào đây (không cần gõ tiền tố 'Bearer '). Ví\
+        \ dụ: eyJhbGciOiJIUzI1NiIsInR5cCI..."
+      name: bearerAuth
+      scheme: bearer
+      bearerFormat: JWT

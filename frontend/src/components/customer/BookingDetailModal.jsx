@@ -216,7 +216,7 @@ export const BookingDetailModal = ({
                 <span className="text-xs font-bold text-amber-900 ml-1 font-sans">{booking.review.rating}/5</span>
               </div>
             </div>
-            <p className="italic text-stone-700 bg-white/70 p-2.5 rounded-xl border border-amber-100 font-sans leading-relaxed">
+            <p className="font-sans text-stone-700 font-normal bg-white/70 p-2.5 rounded-xl border border-amber-100 text-xs leading-relaxed">
               "{booking.review.comment}"
             </p>
           </div>

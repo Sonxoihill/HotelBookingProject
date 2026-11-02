@@ -278,9 +278,8 @@ export const RoomCategoryManagementPage = () => {
       </div>
 
       {/* 4. Table */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+      <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+        <table className="w-full min-w-[850px] text-left text-xs">
             <thead>
               <tr className="bg-stone-50/60 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
                 <th className="py-3.5 px-6">TÊN</th>
@@ -423,7 +422,6 @@ export const RoomCategoryManagementPage = () => {
               )}
             </tbody>
           </table>
-        </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">

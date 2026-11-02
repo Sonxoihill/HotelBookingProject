@@ -414,9 +414,8 @@ export const HousekeepingManagementPage = () => {
         </div>
 
         {/* 5. Housekeeping Tasks Data Table */}
-        <div className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+        <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+          <table className="w-full min-w-[850px] text-left text-xs">
               <thead>
                 <tr className="border-b border-stone-200 bg-stone-50/50 text-stone-400 font-semibold uppercase tracking-wider text-[10px]">
                   <th className="py-4 px-6">Mã Task & Phòng</th>
@@ -595,7 +594,6 @@ export const HousekeepingManagementPage = () => {
                 )}
               </tbody>
             </table>
-          </div>
 
           {/* Table pagination & count */}
           <div className="p-4 sm:px-6 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">

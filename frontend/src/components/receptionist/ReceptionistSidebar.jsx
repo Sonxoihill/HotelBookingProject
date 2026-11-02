@@ -7,15 +7,17 @@ import {
   Sparkles,
   ExternalLink,
   LogOut,
+  X,
 } from 'lucide-react';
 import { tokenStorage } from '../../utils/tokenStorage';
 
-export const ReceptionistSidebar = () => {
+export const ReceptionistSidebar = ({ onClose }) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
     tokenStorage.clearAuth();
-    navigate('/login');
+    if (onClose) onClose();
+    navigate('/login', { state: { toast: 'Đã đăng xuất' }, replace: true });
   };
 
   const navItems = [
@@ -44,22 +46,34 @@ export const ReceptionistSidebar = () => {
   return (
     <aside className="w-64 bg-white text-stone-700 flex flex-col shrink-0 min-h-screen border-r border-stone-200/90 shadow-2xs select-none">
       {/* 1. Brand Header */}
-      <div className="p-5 border-b border-stone-100 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs">
-          É
+      <div className="p-5 border-b border-stone-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs">
+            É
+          </div>
+          <div className="flex flex-col">
+            <span className="font-serif text-lg font-bold tracking-tight text-stone-900 leading-tight">
+              L'Étoile
+            </span>
+            <span className="text-[9px] tracking-[0.25em] text-stone-400 uppercase font-semibold">
+              HOSPITALITY PMS
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col">
-          <span className="font-serif text-lg font-bold tracking-tight text-stone-900 leading-tight">
-            L'Étoile
-          </span>
-          <span className="text-[9px] tracking-[0.25em] text-stone-400 uppercase font-semibold">
-            HOSPITALITY PMS
-          </span>
-        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+            title="Đóng menu"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* 2. Navigation Menu */}
-      <div className="flex-1 p-3.5 space-y-1.5">
+      <div className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -67,6 +81,9 @@ export const ReceptionistSidebar = () => {
               key={item.name}
               to={item.path}
               end={item.path === '/receptionist'}
+              onClick={() => {
+                if (onClose) onClose();
+              }}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-all ${
                   isActive

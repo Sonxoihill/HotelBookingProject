@@ -624,7 +624,7 @@ export const RoomDetailPage = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-28 lg:pb-8 space-y-6">
       {/* Nút quay lại */}
       <button
         onClick={() => navigate(-1)}
@@ -645,7 +645,7 @@ export const RoomDetailPage = () => {
             {room.images && room.images.length > 0 ? (
               <div
                 onClick={() => handleOpenLightbox(activeImageIndex)}
-                className="relative aspect-[16/11] rounded-3xl overflow-hidden bg-slate-100 border border-slate-200 shadow-md cursor-pointer group"
+                className="relative aspect-[16/10] rounded-3xl overflow-hidden bg-slate-100 border border-slate-200 shadow-md cursor-pointer group"
               >
                 <img
                   src={room.images[activeImageIndex]}
@@ -653,21 +653,49 @@ export const RoomDetailPage = () => {
                   className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
                 />
 
+                {/* Nút điều hướng ảnh trái/phải trên mobile & desktop */}
+                {room.images.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : room.images.length - 1));
+                      }}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-colors z-10 cursor-pointer"
+                      title="Ảnh trước"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveImageIndex((prev) => (prev < room.images.length - 1 ? prev + 1 : 0));
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-colors z-10 cursor-pointer"
+                      title="Ảnh kế tiếp"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </>
+                )}
+
                 {/* Lớp phủ & Nút báo nhấp phóng to */}
-                <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                   <div className="px-4 py-2 rounded-full bg-white/95 text-slate-900 text-xs font-bold flex items-center gap-2 shadow-xl backdrop-blur-xs transform translate-y-2 group-hover:translate-y-0 transition-transform">
                     <ZoomIn size={16} className="text-amber-600" />
                     <span>Nhấp để phóng to ảnh</span>
                   </div>
                 </div>
 
-                {/* Huy hiệu số lượng ảnh */}
-                <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-slate-900/70 text-white text-[11px] font-semibold backdrop-blur-xs">
+                {/* Huy hiệu số lượng ảnh (1/5) */}
+                <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-slate-900/80 text-white text-[11px] font-bold backdrop-blur-xs shadow-xs z-10">
                   {activeImageIndex + 1} / {room.images.length}
                 </div>
               </div>
             ) : (
-              <div className="aspect-[16/11] rounded-3xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-xs font-medium">
+              <div className="aspect-[16/10] rounded-3xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-xs font-medium">
                 Chưa có hình ảnh trong cơ sở dữ liệu
               </div>
             )}
@@ -813,7 +841,7 @@ export const RoomDetailPage = () => {
         {/* =================================================================== */}
         {/* CỘT PHẢI (50%): THÔNG TIN PHÒNG + THÔNG TIN ĐẶT PHÒNG               */}
         {/* =================================================================== */}
-        <div className="space-y-6">
+        <div id="booking-sidebar" className="space-y-6 lg:sticky lg:top-24">
           {/* KHỐI 1: THÔNG TIN PHÒNG (DIỆN TÍCH, SỨC CHỨA, GIƯỜNG) */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-5">
             {/* Header thông tin phòng & Nút Xem đánh giá góc trên bên phải theo ảnh yêu cầu */}
@@ -1265,7 +1293,7 @@ export const RoomDetailPage = () => {
                     </div>
                   </div>
 
-                  <p className="text-sm text-slate-600 leading-relaxed font-light">
+                  <p className="text-sm font-sans text-stone-700 font-normal leading-relaxed">
                     "{rev.comment}"
                   </p>
                 </div>
@@ -1321,7 +1349,7 @@ export const RoomDetailPage = () => {
                     </div>
                   </div>
 
-                  <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed font-light mt-1">
+                  <p className="text-xs sm:text-[13px] font-sans text-stone-700 font-normal leading-relaxed mt-1">
                     "{rev.comment}"
                   </p>
                 </div>
@@ -1340,6 +1368,32 @@ export const RoomDetailPage = () => {
             </p>
           </div>
         )}
+      </div>
+
+      {/* Thanh đặt phòng rút gọn gắn cố định ở đáy màn hình trên Mobile (Bottom Sticky Bar) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-stone-200 p-3.5 px-5 z-40 flex items-center justify-between shadow-2xl">
+        <div>
+          <span className="text-[10px] text-stone-400 block uppercase font-medium">Giá mỗi đêm</span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-base sm:text-lg font-bold text-stone-900 font-serif">
+              {formatVND(room.price)}
+            </span>
+            <span className="text-[10px] text-stone-500">/đêm</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.getElementById('booking-sidebar');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }}
+          className="px-6 py-2.5 rounded-full bg-[#C59D5F] hover:bg-[#b08b50] text-white text-xs font-bold shadow-md cursor-pointer min-h-[44px] flex items-center gap-1.5"
+        >
+          <span>Đặt ngay</span>
+          <ChevronRight size={14} />
+        </button>
       </div>
 
       {/* ===================================================================== */}

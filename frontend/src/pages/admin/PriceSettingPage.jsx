@@ -373,9 +373,8 @@ export const PriceSettingPage = () => {
       </div>
 
       {/* 4. Bảng danh sách quy tắc: Tên, Loại (badge màu), Thời gian (dd/MM/yyyy – dd/MM/yyyy), Mức điều chỉnh (+20% màu đỏ, -10% màu xanh), Loại phòng, Trạng thái, Thao tác */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+      <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+        <table className="w-full min-w-[850px] text-left text-xs">
             <thead>
               <tr className="bg-stone-50/60 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
                 <th className="py-3.5 px-6">TÊN QUY TẮC</th>
@@ -537,7 +536,6 @@ export const PriceSettingPage = () => {
               )}
             </tbody>
           </table>
-        </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">

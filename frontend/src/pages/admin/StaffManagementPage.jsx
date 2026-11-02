@@ -65,6 +65,47 @@ export const StaffManagementPage = () => {
     [loggedInAdmin]
   );
 
+  // Hiển thị Badge riêng biệt cho từng vai trò theo yêu cầu
+  const getRoleBadge = (role) => {
+    const r = (role || '').toUpperCase();
+    switch (r) {
+      case 'ADMIN':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200/80">
+            <Shield size={10} className="text-purple-600" />
+            ADMIN
+          </span>
+        );
+      case 'RECEPTIONIST':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/80">
+            <Building2 size={10} className="text-blue-600" />
+            RECEPTIONIST
+          </span>
+        );
+      case 'CUSTOMER':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+            <User size={10} className="text-emerald-600" />
+            CUSTOMER
+          </span>
+        );
+      case 'GUEST':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200/80">
+            <Users size={10} className="text-amber-600" />
+            GUEST
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-200/80">
+            {r || 'CHƯA GÁN'}
+          </span>
+        );
+    }
+  };
+
   // =========================================================================
   // 2. STATE FORM CẤP TÀI KHOẢN MỚI (KHU VỰC TRÊN)
   // =========================================================================
@@ -187,7 +228,7 @@ export const StaffManagementPage = () => {
       // Khởi tạo state chọn role cho các dòng tương ứng với vai trò hiện tại
       const initialRoles = {};
       list.forEach((u) => {
-        initialRoles[u.id] = u.role || 'RECEPTIONIST';
+        initialRoles[u.id] = u.role || '';
       });
       setSelectedRoles(initialRoles);
     } catch (err) {
@@ -742,8 +783,10 @@ export const StaffManagementPage = () => {
                   }
                   className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-stone-200/90 bg-stone-50/40 text-xs font-medium text-stone-800 focus:outline-none focus:border-stone-900 focus:bg-white transition-all shadow-2xs appearance-none cursor-pointer"
                 >
-                  <option value="RECEPTIONIST">RECEPTIONIST (Lễ tân ca trực)</option>
                   <option value="ADMIN">ADMIN (Quản trị viên toàn hệ thống)</option>
+                  <option value="RECEPTIONIST">RECEPTIONIST (Lễ tân ca trực)</option>
+                  <option value="CUSTOMER">CUSTOMER (Khách hàng)</option>
+                  <option value="GUEST">GUEST (Khách vãng lai)</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-stone-400">
                   ▼
@@ -825,8 +868,10 @@ export const StaffManagementPage = () => {
               className="px-3.5 py-2 rounded-full border border-stone-200 bg-white text-xs font-semibold text-stone-700 shadow-2xs focus:outline-none focus:border-stone-900 cursor-pointer"
             >
               <option value="ALL">Tất cả vai trò</option>
-              <option value="RECEPTIONIST">RECEPTIONIST (Lễ tân)</option>
               <option value="ADMIN">ADMIN (Quản trị viên)</option>
+              <option value="RECEPTIONIST">RECEPTIONIST (Lễ tân)</option>
+              <option value="CUSTOMER">CUSTOMER (Khách hàng)</option>
+              <option value="GUEST">GUEST (Khách vãng lai)</option>
             </select>
 
             {/* Ô Search tìm theo tên/email có Debounce 400ms */}
@@ -855,8 +900,8 @@ export const StaffManagementPage = () => {
         </div>
 
         {/* Bảng Danh sách Nhân sự & Phân quyền */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+          <table className="w-full min-w-[950px] text-left text-xs">
             <thead>
               <tr className="bg-stone-50/80 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
                 <th className="py-3.5 px-6">STAFF NAME</th>
@@ -910,7 +955,7 @@ export const StaffManagementPage = () => {
                 usersList.map((user) => {
                   const isSelf = isSelfAccount(user);
                   const active = isUserActive(user);
-                  const currentSelectedRole = selectedRoles[user.id] ?? (user.role || 'RECEPTIONIST');
+                  const currentSelectedRole = selectedRoles[user.id] ?? (user.role || '');
                   const isSavingRole = savingRowId === user.id;
 
                   return (
@@ -965,8 +1010,11 @@ export const StaffManagementPage = () => {
 
                       {/* 4. ROLE (DROPDOWN) */}
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="flex flex-col">
-                          <div className="relative inline-block w-40">
+                        <div className="flex flex-col gap-1.5">
+                          <div>
+                            {getRoleBadge(user.role)}
+                          </div>
+                          <div className="relative inline-block w-44">
                             <select
                               value={currentSelectedRole}
                               onChange={(e) =>
@@ -979,8 +1027,10 @@ export const StaffManagementPage = () => {
                                   : 'bg-white border-stone-200 text-stone-800 hover:border-stone-400 focus:outline-none focus:border-stone-900 cursor-pointer shadow-2xs'
                               }`}
                             >
-                              <option value="RECEPTIONIST">RECEPTIONIST</option>
                               <option value="ADMIN">ADMIN</option>
+                              <option value="RECEPTIONIST">RECEPTIONIST</option>
+                              <option value="CUSTOMER">CUSTOMER</option>
+                              <option value="GUEST">GUEST</option>
                             </select>
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-stone-400">
                               ▼
@@ -1195,7 +1245,7 @@ export const StaffManagementPage = () => {
                   {lockModal.user.email}
                 </p>
                 <p className="text-[10px] font-semibold text-amber-800">
-                  Vai trò: {lockModal.user.role || 'RECEPTIONIST'} • {lockModal.user.department || 'Quầy Lễ tân'}
+                  Vai trò: {lockModal.user.role || 'Chưa gán'} • {lockModal.user.department || 'Quầy Lễ tân'}
                 </p>
               </div>
 

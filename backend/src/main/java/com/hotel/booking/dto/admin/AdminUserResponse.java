@@ -53,7 +53,7 @@ public class AdminUserResponse {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .role(user.getRole())
+                .role(user.getRole() != null ? user.getRole() : UserRole.GUEST)
                 .department(user.getDepartment())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())

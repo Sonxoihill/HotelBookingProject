@@ -24,16 +24,17 @@ import java.util.Map;
 @RequestMapping("/receptionist")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('RECEPTIONIST', 'ADMIN')")
-@Tag(name = "Receptionist Management", description = "Các API dành riêng cho Quầy lễ tân (RECEPTIONIST, ADMIN)")
+@Tag(name = "8. Lễ tân - Sơ đồ Ma trận Phòng & Buồng phòng (Receptionist Room Matrix)", description = "Các API dành cho Quầy Lễ tân: Sơ đồ ma trận buồng phòng thời gian thực (UC09) và xác nhận dọn phòng sạch DIRTY -> AVAILABLE (UC12)")
 @SecurityRequirement(name = "bearerAuth")
 public class ReceptionistController {
 
     private final ReceptionistService receptionistService;
 
-    @Operation(summary = "Kiểm tra quyền Lễ tân (RECEPTIONIST)", description = "Xác thực JWT token của người dùng có quyền ROLE_RECEPTIONIST hoặc ROLE_ADMIN hay không.")
+    @Operation(summary = "Kiểm tra quyền truy cập Quầy Lễ tân (RECEPTIONIST)", description = "Xác thực JWT Token của người dùng có quyền ROLE_RECEPTIONIST hoặc ROLE_ADMIN hay không.")
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xác thực thành công"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền Quầy Lễ tân")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xác thực quyền Lễ tân thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Chưa đăng nhập hoặc JWT Token hết hạn"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Sai quyền hạn (GUEST/CUSTOMER cố gọi API Lễ tân)")
     })
     @GetMapping("/ping")
     public ResponseEntity<ApiResponse<Map<String, String>>> ping() {
@@ -44,21 +45,25 @@ public class ReceptionistController {
     }
 
     @Operation(
-            summary = "Lấy Sơ đồ phòng thời gian thực (Room Grid - UC09)",
-            description = "Lấy danh sách các phòng trên sơ đồ dạng lưới, kèm thông tin tóm tắt đơn đặt phòng đang CHECKED_IN hoặc CONFIRMED trong 1 câu truy vấn (tối ưu N+1). Hỗ trợ lọc theo Tầng (floor) và Trạng thái phòng (status)."
+            summary = "Lấy Sơ đồ ma trận buồng phòng thời gian thực (Room Matrix / Grid - UC09)",
+            description = "Lấy danh sách các phòng trên sơ đồ ma trận dạng lưới, kèm thông tin tóm tắt đơn đặt phòng đang CHECKED_IN hoặc CONFIRMED trong 1 câu truy vấn (tối ưu N+1). Hỗ trợ lọc theo Tầng (floor) và Trạng thái phòng (status)."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "Lấy sơ đồ phòng thành công",
+                    description = "Lấy sơ đồ ma trận phòng thành công",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Chưa đăng nhập hoặc JWT Token hết hạn"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "Chưa đăng nhập hoặc không có quyền RECEPTIONIST/ADMIN"
+                    description = "Không có quyền RECEPTIONIST hoặc ADMIN"
             )
     })
-    @GetMapping({"/rooms/grid", "/room-matrix"})
+    @GetMapping({"/rooms/grid", "/room-matrix", "/rooms/matrix"})
     public ResponseEntity<ApiResponse<List<RoomGridResponse>>> getRoomGrid(
             @Parameter(description = "Số tầng để lọc (Tùy chọn, ví dụ: 1, 2, 3)", example = "1")
             @RequestParam(required = false) Integer floor,
@@ -71,18 +76,26 @@ public class ReceptionistController {
     }
 
     @Operation(
-            summary = "Xác nhận đã dọn phòng (UC12)",
-            description = "Xác nhận phòng đã dọn dẹp sạch sẽ. Phòng bắt buộc phải ở trạng thái DIRTY mới cho phép chuyển sang AVAILABLE. Nếu phòng ở trạng thái khác sẽ ném lỗi 400 Bad Request kèm thông báo 'Phòng không ở trạng thái Cần dọn'."
+            summary = "Xác nhận phòng đã dọn sạch DIRTY -> AVAILABLE (UC12)",
+            description = "Xác nhận phòng đã được bộ phận buồng phòng dọn dẹp sạch sẽ. Phòng bắt buộc phải đang ở trạng thái DIRTY mới cho phép chuyển sang AVAILABLE."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "Cập nhật trạng thái phòng thành công",
+                    description = "Cập nhật trạng thái phòng sang AVAILABLE thành công",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "Phòng không ở trạng thái Cần dọn"
+                    description = "Phòng không ở trạng thái Cần dọn (DIRTY)"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Chưa đăng nhập hoặc JWT Token hết hạn"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Không có quyền RECEPTIONIST hoặc ADMIN"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
@@ -91,7 +104,7 @@ public class ReceptionistController {
     })
     @PatchMapping("/rooms/{roomId}/clean")
     public ResponseEntity<ApiResponse<Room>> cleanRoom(
-            @Parameter(description = "ID của phòng cần cập nhật sau khi dọn xong", example = "4", required = true)
+            @Parameter(description = "ID của phòng cần xác nhận đã dọn xong (ví dụ phòng 202 đang DIRTY có ID = 4)", example = "4", required = true)
             @PathVariable Long roomId
     ) {
         Room updatedRoom = receptionistService.cleanRoom(roomId);

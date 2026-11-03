@@ -55,6 +55,8 @@ class AdminUserServiceImplTest {
 
     private User adminUser;
     private User staffUser;
+    private User customerUser;
+    private User guestUser;
 
     @BeforeEach
     void setUp() {
@@ -74,6 +76,22 @@ class AdminUserServiceImplTest {
                 .status(UserStatus.ACTIVE)
                 .build();
         staffUser.setId(2L);
+
+        customerUser = User.builder()
+                .email("customer@hotel.com")
+                .fullName("Khách Hàng Đăng Ký")
+                .role(UserRole.CUSTOMER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        customerUser.setId(3L);
+
+        guestUser = User.builder()
+                .email("guest@gmail.com")
+                .fullName("Nguyễn Văn Khách")
+                .role(UserRole.GUEST)
+                .status(UserStatus.ACTIVE)
+                .build();
+        guestUser.setId(4L);
     }
 
     @Test
@@ -88,6 +106,34 @@ class AdminUserServiceImplTest {
         assertNotNull(response);
         assertEquals(1, response.getItems().size());
         assertEquals("letan@hotel.com", response.getItems().get(0).getEmail());
+        assertEquals(UserRole.RECEPTIONIST, response.getItems().get(0).getRole());
+    }
+
+    @Test
+    @DisplayName("API 1 (SCRUM-170 Bug 3): Trả về đầy đủ ADMIN, RECEPTIONIST, CUSTOMER, GUEST khi role là null và hỗ trợ lọc CUSTOMER/GUEST")
+    void testGetUsers_AllRolesAndCustomerGuestFiltering() {
+        PageRequest pageRequest = PageRequest.of(0, 10);
+        when(userRepository.searchUsers(eq(null), eq(null), eq(pageRequest)))
+                .thenReturn(new PageImpl<>(List.of(adminUser, staffUser, customerUser, guestUser), pageRequest, 4));
+
+        PageResponse<AdminUserResponse> allResponse = adminUserService.getUsers(null, null, pageRequest);
+        assertEquals(4, allResponse.getItems().size());
+        assertEquals(UserRole.ADMIN, allResponse.getItems().get(0).getRole());
+        assertEquals(UserRole.RECEPTIONIST, allResponse.getItems().get(1).getRole());
+        assertEquals(UserRole.CUSTOMER, allResponse.getItems().get(2).getRole());
+        assertEquals(UserRole.GUEST, allResponse.getItems().get(3).getRole());
+
+        when(userRepository.searchUsers(eq(null), eq(UserRole.CUSTOMER), eq(pageRequest)))
+                .thenReturn(new PageImpl<>(List.of(customerUser), pageRequest, 1));
+        PageResponse<AdminUserResponse> customerResponse = adminUserService.getUsers(null, UserRole.CUSTOMER, pageRequest);
+        assertEquals(1, customerResponse.getItems().size());
+        assertEquals(UserRole.CUSTOMER, customerResponse.getItems().get(0).getRole());
+
+        when(userRepository.searchUsers(eq(null), eq(UserRole.GUEST), eq(pageRequest)))
+                .thenReturn(new PageImpl<>(List.of(guestUser), pageRequest, 1));
+        PageResponse<AdminUserResponse> guestResponse = adminUserService.getUsers(null, UserRole.GUEST, pageRequest);
+        assertEquals(1, guestResponse.getItems().size());
+        assertEquals(UserRole.GUEST, guestResponse.getItems().get(0).getRole());
     }
 
     @Test

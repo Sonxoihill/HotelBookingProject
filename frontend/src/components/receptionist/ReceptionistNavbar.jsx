@@ -1,9 +1,10 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Menu } from 'lucide-react';
 
 export const ReceptionistNavbar = ({ onToggleSidebar }) => {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const getBreadcrumbTitle = () => {
     if (location.pathname.includes('/bookings')) return 'QUẢN LÝ NHẬN PHÒNG';
@@ -26,9 +27,22 @@ export const ReceptionistNavbar = ({ onToggleSidebar }) => {
             <Menu size={20} />
           </button>
         )}
-        <span className="text-stone-400 hidden xs:inline">FRONT DESK</span>
-        <span className="text-stone-300 hidden xs:inline">/</span>
-        <span className="text-stone-800 truncate">{getBreadcrumbTitle()}</span>
+        <button
+          type="button"
+          onClick={() => {
+            if (location.pathname === '/receptionist') {
+              window.dispatchEvent(new CustomEvent('hotel_dashboard_refresh'));
+            } else {
+              navigate('/receptionist');
+            }
+          }}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer text-left focus:outline-none"
+          title="Quay về Dashboard & Tải lại dữ liệu"
+        >
+          <span className="text-stone-400 hidden xs:inline">FRONT DESK</span>
+          <span className="text-stone-300 hidden xs:inline">/</span>
+          <span className="text-stone-800 truncate">{getBreadcrumbTitle()}</span>
+        </button>
       </div>
 
       {/* Right Controls & Status */}

@@ -89,7 +89,7 @@ export const ReceptionistServicesPage = () => {
         roomNumber: b.roomNumber || b.roomCode,
         roomName: b.roomCategory || `Phòng ${b.roomNumber || b.roomId}`,
         guestName: b.guestName || 'Khách lưu trú',
-        guestTier: b.guestTier || 'VIP Member',
+        guestTier: b.guestTier === 'GUEST' ? 'CUSTOMER' : (b.guestTier || 'CUSTOMER'),
         guestPhone: b.guestPhone,
         checkInDate: b.checkIn || '---',
         checkOutDate: b.checkOut || '---',

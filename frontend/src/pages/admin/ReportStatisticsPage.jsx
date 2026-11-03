@@ -16,6 +16,9 @@ import {
   BedDouble,
   Layers,
   ArrowUpRight,
+  Filter,
+  X,
+  Check,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -33,6 +36,7 @@ import {
   Legend,
 } from 'recharts';
 import { reportService } from '../../services/reportService';
+import roomService from '../../services/roomService';
 import { formatVND } from '../../utils/formatters';
 
 // Bảng màu sang trọng L'Étoile cho Biểu đồ tròn
@@ -66,6 +70,26 @@ export const ReportStatisticsPage = () => {
   const [startDate, setStartDate] = useState(defaultRange.start);
   const [endDate, setEndDate] = useState(defaultRange.end);
   const [reportType, setReportType] = useState('MONTHLY');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [categoryOptions, setCategoryOptions] = useState([]);
+
+  // Tải danh mục loại phòng ban đầu để làm option trong bộ lọc
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await roomService.getRoomCategories();
+        const data = res?.data || res;
+        const list = Array.isArray(data) ? data : (data?.content || data?.items || []);
+        if (Array.isArray(list)) {
+          const names = list.map((c) => c.name || c.categoryName).filter(Boolean);
+          setCategoryOptions(names);
+        }
+      } catch (e) {
+        console.warn('Không thể tải trước danh mục loại phòng:', e);
+      }
+    };
+    loadCategories();
+  }, []);
 
   // Ràng buộc kiểm tra ngày: Từ ngày không được đứng sau Đến ngày
   const dateError = useMemo(() => {
@@ -183,12 +207,33 @@ export const ReportStatisticsPage = () => {
     }
   }, [fetchReportData, dateError]);
 
+  // Tổng hợp danh sách tên loại phòng duy nhất từ API phòng & từ báo cáo
+  const allCategoryNames = useMemo(() => {
+    const fromReport = (reportData?.roomTypes || []).map((c) => c.categoryName).filter(Boolean);
+    const combined = Array.from(new Set([...categoryOptions, ...fromReport]));
+    return combined.sort();
+  }, [categoryOptions, reportData]);
+
+  // Danh sách loại phòng sau khi áp dụng lọc (nếu chọn loại phòng cụ thể)
+  const filteredRoomTypes = useMemo(() => {
+    const list = reportData?.roomTypes || [];
+    if (selectedCategory === 'ALL') return list;
+    return list.filter((c) => c.categoryName === selectedCategory);
+  }, [reportData, selectedCategory]);
+
+  // Thông tin loại phòng cụ thể đang được chọn (nếu có)
+  const selectedCategoryItem = useMemo(() => {
+    if (selectedCategory === 'ALL' || !reportData?.roomTypes) return null;
+    return reportData.roomTypes.find((c) => c.categoryName === selectedCategory) || null;
+  }, [reportData, selectedCategory]);
+
   // Đặt lại bộ lọc mặc định
   const handleResetFilters = () => {
     const range = getDefaultDateRange();
     setStartDate(range.start);
     setEndDate(range.end);
     setReportType('MONTHLY');
+    setSelectedCategory('ALL');
   };
 
   // =========================================================================
@@ -340,28 +385,30 @@ export const ReportStatisticsPage = () => {
             </div>
           </div>
 
-          {/* Nút Xem báo cáo */}
-          <button
-            onClick={fetchReportData}
-            disabled={isLoading || Boolean(dateError)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-black hover:bg-stone-800 text-white text-xs font-semibold shadow-xs hover:shadow-md transition-all ${
-              dateError ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer disabled:opacity-60'
-            }`}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 size={13} className="animate-spin text-amber-400" />
-                <span>Đang tải...</span>
-              </>
-            ) : (
-              <>
-                <RefreshCw size={13} />
-                <span>Xem báo cáo</span>
-              </>
-            )}
-          </button>
+          {/* Dropdown Lọc theo Loại phòng */}
+          <div className="relative">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className={`pl-3.5 pr-8 py-2.5 rounded-2xl border text-xs font-semibold shadow-2xs focus:outline-none appearance-none cursor-pointer transition-colors ${
+                selectedCategory !== 'ALL'
+                  ? 'border-amber-700 bg-amber-50/80 text-amber-900 focus:border-amber-800'
+                  : 'border-stone-200/90 bg-stone-50 text-stone-800 focus:border-stone-900'
+              }`}
+            >
+              <option value="ALL">Tất cả loại phòng</option>
+              {allCategoryNames.map((catName) => (
+                <option key={catName} value={catName}>
+                  {catName}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-stone-400">
+              ▼
+            </div>
+          </div>
 
-          {/* Nút Export (Có menu chọn Excel hoặc PDF, disabled khi hasData = false) */}
+          {/* Nút Export thẳng hàng với bộ lọc (Có menu chọn Excel hoặc PDF, disabled khi hasData = false) */}
           <div className="relative">
             <button
               onClick={() => setIsExportMenuOpen((prev) => !prev)}
@@ -408,6 +455,33 @@ export const ReportStatisticsPage = () => {
             <span>{dateError}</span>
           </div>
         )}
+        {selectedCategory !== 'ALL' && (
+          <div className="w-full flex flex-wrap items-center gap-2 pt-3 border-t border-stone-100 text-xs animate-fade-in">
+            <span className="text-stone-500 font-medium flex items-center gap-1">
+              <Filter size={12} className="text-amber-700" />
+              <span>Đang lọc theo loại phòng:</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 font-semibold text-xs border border-amber-300/80">
+              <BedDouble size={12} className="text-amber-800" />
+              <span>{selectedCategory}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('ALL')}
+                className="hover:text-rose-600 ml-1 cursor-pointer"
+                title="Bỏ lọc loại phòng này"
+              >
+                <X size={12} />
+              </button>
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('ALL')}
+              className="text-stone-400 hover:text-stone-700 text-[11px] underline cursor-pointer ml-1"
+            >
+              Xem tất cả
+            </button>
+          </div>
+        )}
       </div>
 
       {/* =================================================================== */}
@@ -444,66 +518,141 @@ export const ReportStatisticsPage = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                   <div>
                     <span className="text-[10px] font-bold tracking-wider uppercase text-amber-800 block">
-                      CƠ CẤU DOANH SỐ
+                      {reportType === 'BY_CATEGORY' ? 'PHÂN BỔ THEO HẠNG PHÒNG' : 'CƠ CẤU DOANH SỐ'}
                     </span>
                     <h2 className="font-serif text-lg font-bold text-stone-900">
-                      Doanh thu Phòng & Dịch vụ theo Thời gian
+                      {reportType === 'BY_CATEGORY'
+                        ? 'Doanh thu & Số lượng theo từng Loại phòng'
+                        : selectedCategory !== 'ALL'
+                        ? `Doanh thu Phòng & Dịch vụ (${selectedCategory})`
+                        : 'Doanh thu Phòng & Dịch vụ theo Thời gian'}
                     </h2>
                   </div>
                   <div className="text-[11px] text-stone-400 font-medium">
-                    Đơn vị: VNĐ (₫)
+                    {reportType === 'BY_CATEGORY'
+                      ? 'Đơn vị: VNĐ (Trục trái) & Lượt đặt (Trục phải)'
+                      : 'Đơn vị: VNĐ (₫)'}
                   </div>
                 </div>
 
                 <div className="w-full pt-2">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart
-                      data={reportData?.timeline || []}
-                      margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F4" />
-                      <XAxis
-                        dataKey="label"
-                        stroke="#78716C"
-                        fontSize={11}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        stroke="#78716C"
-                        fontSize={11}
-                        tickLine={false}
-                        tickFormatter={(v) => {
-                          if (v >= 1000000000) return `${(v / 1000000000).toFixed(1)}T`;
-                          if (v >= 1000000) return `${(v / 1000000).toFixed(0)}M`;
-                          return v;
-                        }}
-                      />
-                      <Tooltip
-                        formatter={(val, name) => [formatVND(val), name]}
-                        contentStyle={{
-                          backgroundColor: '#1C1917',
-                          borderColor: '#44403C',
-                          borderRadius: '14px',
-                          color: '#FFFFFF',
-                          fontSize: '12px',
-                        }}
-                        itemStyle={{ color: '#F5F5F4' }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                      <Bar
-                        dataKey="roomRevenue"
-                        name="Doanh thu phòng"
-                        fill="#0E1524"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="serviceRevenue"
-                        name="Doanh thu dịch vụ"
-                        fill="#8E6941"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {reportType === 'BY_CATEGORY' ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={filteredRoomTypes}
+                        margin={{ top: 10, right: 10, left: 10, bottom: 25 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F4" />
+                        <XAxis
+                          dataKey="categoryName"
+                          stroke="#78716C"
+                          fontSize={11}
+                          tickLine={false}
+                          interval={0}
+                          angle={-15}
+                          textAnchor="end"
+                        />
+                        <YAxis
+                          yAxisId="left"
+                          stroke="#0E1524"
+                          fontSize={11}
+                          tickLine={false}
+                          tickFormatter={(v) => {
+                            if (v >= 1000000000) return `${(v / 1000000000).toFixed(1)}T`;
+                            if (v >= 1000000) return `${(v / 1000000).toFixed(0)}M`;
+                            return v;
+                          }}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          stroke="#D97706"
+                          fontSize={11}
+                          tickLine={false}
+                          tickFormatter={(v) => `${v} đơn`}
+                        />
+                        <Tooltip
+                          formatter={(val, name) => {
+                            if (name === 'Doanh thu phòng') return [formatVND(val), name];
+                            if (name === 'Lượt đặt hoàn tất') return [`${val} đơn`, name];
+                            return [val, name];
+                          }}
+                          contentStyle={{
+                            backgroundColor: '#1C1917',
+                            borderColor: '#44403C',
+                            borderRadius: '14px',
+                            color: '#FFFFFF',
+                            fontSize: '12px',
+                          }}
+                          itemStyle={{ color: '#F5F5F4' }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                        <Bar
+                          yAxisId="left"
+                          dataKey="revenue"
+                          name="Doanh thu phòng"
+                          fill="#0E1524"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar
+                          yAxisId="right"
+                          dataKey="bookingCount"
+                          name="Lượt đặt hoàn tất"
+                          fill="#D97706"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={reportData?.timeline || []}
+                        margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F4" />
+                        <XAxis
+                          dataKey="label"
+                          stroke="#78716C"
+                          fontSize={11}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          stroke="#78716C"
+                          fontSize={11}
+                          tickLine={false}
+                          tickFormatter={(v) => {
+                            if (v >= 1000000000) return `${(v / 1000000000).toFixed(1)}T`;
+                            if (v >= 1000000) return `${(v / 1000000).toFixed(0)}M`;
+                            return v;
+                          }}
+                        />
+                        <Tooltip
+                          formatter={(val, name) => [formatVND(val), name]}
+                          contentStyle={{
+                            backgroundColor: '#1C1917',
+                            borderColor: '#44403C',
+                            borderRadius: '14px',
+                            color: '#FFFFFF',
+                            fontSize: '12px',
+                          }}
+                          itemStyle={{ color: '#F5F5F4' }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                        <Bar
+                          dataKey="roomRevenue"
+                          name="Doanh thu phòng"
+                          fill="#0E1524"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="serviceRevenue"
+                          name="Doanh thu dịch vụ"
+                          fill="#8E6941"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>
@@ -533,12 +682,19 @@ export const ReportStatisticsPage = () => {
                         outerRadius={85}
                         paddingAngle={3}
                       >
-                        {(reportData?.roomTypes || []).map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={PIE_COLORS[index % PIE_COLORS.length]}
-                          />
-                        ))}
+                        {(reportData?.roomTypes || []).map((entry, index) => {
+                          const isSelected =
+                            selectedCategory === 'ALL' || selectedCategory === entry.categoryName;
+                          return (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                              opacity={isSelected ? 1 : 0.25}
+                              stroke={selectedCategory === entry.categoryName ? '#000000' : 'none'}
+                              strokeWidth={selectedCategory === entry.categoryName ? 2 : 0}
+                            />
+                          );
+                        })}
                       </Pie>
                       {/* Tooltip hiển thị giá trị tiền tệ và tỷ lệ % */}
                       <Tooltip
@@ -560,29 +716,43 @@ export const ReportStatisticsPage = () => {
                 </div>
               </div>
 
-              {/* Danh sách chú giải theo màu */}
+              {/* Danh sách chú giải theo màu (Nhấp để lọc nhanh loại phòng) */}
               <div className="space-y-1.5 pt-3 border-t border-stone-100 text-xs">
-                {(reportData?.roomTypes || []).slice(0, 4).map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between text-[11px]"
-                  >
-                    <div className="flex items-center gap-2 truncate pr-2">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{
-                          backgroundColor: PIE_COLORS[index % PIE_COLORS.length],
-                        }}
-                      ></span>
-                      <span className="text-stone-700 truncate font-medium">
-                        {item.categoryName}
+                {(reportData?.roomTypes || []).slice(0, 5).map((item, index) => {
+                  const isSelected = selectedCategory === item.categoryName;
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() =>
+                        setSelectedCategory(isSelected ? 'ALL' : item.categoryName)
+                      }
+                      className={`w-full flex items-center justify-between text-[11px] p-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        isSelected ? 'bg-amber-50 font-bold' : 'hover:bg-stone-50'
+                      }`}
+                      title="Nhấn để lọc theo loại phòng này"
+                    >
+                      <div className="flex items-center gap-2 truncate pr-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{
+                            backgroundColor: PIE_COLORS[index % PIE_COLORS.length],
+                          }}
+                        ></span>
+                        <span
+                          className={`truncate ${
+                            isSelected ? 'text-amber-900 font-bold' : 'text-stone-700 font-medium'
+                          }`}
+                        >
+                          {item.categoryName}
+                        </span>
+                      </div>
+                      <span className="font-bold text-stone-900 shrink-0">
+                        {item.percentage}%
                       </span>
-                    </div>
-                    <span className="font-bold text-stone-900 shrink-0">
-                      {item.percentage}%
-                    </span>
-                  </div>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -775,6 +945,141 @@ export const ReportStatisticsPage = () => {
                       {reportData?.metrics?.mostBookedRoomType || '—'}
                     </td>
                   </tr>
+
+                  {/* 7. Thông số chi tiết nếu đang lọc theo một loại phòng cụ thể */}
+                  {selectedCategory !== 'ALL' && selectedCategoryItem && (
+                    <>
+                      <tr className="bg-amber-50/60 hover:bg-amber-50/80 transition-colors border-t-2 border-amber-300">
+                        <td className="py-3.5 px-6 font-bold text-amber-900 flex items-center gap-2">
+                          <BedDouble size={14} className="text-amber-800" />
+                          <span>Doanh thu riêng loại phòng "{selectedCategory}"</span>
+                        </td>
+                        <td className="py-3.5 px-6 text-right font-serif text-base font-bold text-amber-900">
+                          {formatVND(selectedCategoryItem.revenue)}
+                        </td>
+                      </tr>
+                      <tr className="bg-amber-50/30 hover:bg-amber-50/50 transition-colors">
+                        <td className="py-3 px-6 font-semibold text-stone-700 pl-10">
+                          ↳ Số đơn hoàn tất ({selectedCategory})
+                        </td>
+                        <td className="py-3 px-6 text-right font-bold text-stone-900">
+                          {selectedCategoryItem.bookingCount} đơn
+                        </td>
+                      </tr>
+                      <tr className="bg-amber-50/30 hover:bg-amber-50/50 transition-colors">
+                        <td className="py-3 px-6 font-semibold text-stone-700 pl-10">
+                          ↳ Tỷ trọng trong tổng doanh thu khách sạn
+                        </td>
+                        <td className="py-3 px-6 text-right font-bold text-amber-800">
+                          {selectedCategoryItem.percentage}%
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Bảng Chi tiết Doanh thu theo từng Loại phòng */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/90 shadow-2xs overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-100 mb-4">
+              <div>
+                <span className="text-[10px] font-bold tracking-[0.2em] text-amber-800 uppercase block">
+                  CHI TIẾT THEO HẠNG PHÒNG
+                </span>
+                <h3 className="font-serif text-lg font-bold text-stone-900">
+                  Thống kê Doanh thu & Lượt đặt theo từng Loại phòng
+                </h3>
+              </div>
+              {selectedCategory !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('ALL')}
+                  className="self-start sm:self-auto text-xs text-stone-600 hover:text-stone-900 font-semibold px-3.5 py-1.5 rounded-full bg-stone-100 hover:bg-stone-200 transition-colors cursor-pointer"
+                >
+                  Hiển thị tất cả loại phòng
+                </button>
+              )}
+            </div>
+
+            <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+              <table className="w-full min-w-[620px] text-left text-xs">
+                <thead>
+                  <tr className="bg-stone-50/70 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
+                    <th className="py-3 px-6">LOẠI PHÒNG (ROOM CATEGORY)</th>
+                    <th className="py-3 px-4 text-center">SỐ ĐƠN HOÀN TẤT</th>
+                    <th className="py-3 px-6 text-right">DOANH THU (₫)</th>
+                    <th className="py-3 px-6">TỶ TRỌNG (%)</th>
+                    <th className="py-3 px-4 text-center">THAO TÁC LỌC</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100 font-medium">
+                  {(reportData?.roomTypes || []).map((cat, idx) => {
+                    const isSelected = selectedCategory === cat.categoryName;
+                    return (
+                      <tr
+                        key={cat.categoryName || idx}
+                        className={`transition-colors ${
+                          isSelected ? 'bg-amber-50/50' : 'hover:bg-stone-50/60'
+                        }`}
+                      >
+                        <td className="py-3.5 px-6 font-bold text-stone-900 flex items-center gap-2.5">
+                          <span
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{
+                              backgroundColor: PIE_COLORS[idx % PIE_COLORS.length],
+                            }}
+                          ></span>
+                          <span className="text-xs">{cat.categoryName}</span>
+                          {cat.categoryName === reportData?.metrics?.mostBookedRoomType && (
+                            <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/60">
+                              Đặt nhiều nhất
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-semibold text-stone-800">
+                          {cat.bookingCount} đơn
+                        </td>
+                        <td className="py-3.5 px-6 text-right font-serif text-sm font-bold text-stone-900">
+                          {formatVND(cat.revenue)}
+                        </td>
+                        <td className="py-3.5 px-6">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden max-w-[140px]">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${Math.min(100, cat.percentage)}%`,
+                                  backgroundColor: PIE_COLORS[idx % PIE_COLORS.length],
+                                }}
+                              ></div>
+                            </div>
+                            <span className="text-[11px] font-bold text-stone-700 w-12 text-right">
+                              {cat.percentage}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedCategory(
+                                isSelected ? 'ALL' : cat.categoryName
+                              )
+                            }
+                            className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-900 text-white shadow-xs'
+                                : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                            }`}
+                          >
+                            {isSelected ? 'Đang lọc' : 'Lọc loại này'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

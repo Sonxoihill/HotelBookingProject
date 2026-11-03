@@ -19,12 +19,18 @@ import {
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import roomService from '../../services/roomService';
+import { bookingService } from '../../services/bookingService';
 import CleaningStatusModal from '../../components/receptionist/CleaningStatusModal';
 
 // Chuẩn hóa dữ liệu RoomGridResponse trả về từ API Backend
 const normalizeRoom = (r) => {
   const code = r.roomNumber || r.roomCode || String(r.id || '');
-  const status = r.status === 'CLEANING' ? 'DIRTY' : (r.status || 'AVAILABLE');
+  let status = r.status === 'CLEANING' ? 'DIRTY' : (r.status || 'AVAILABLE');
+  if (r.bookingStatus === 'CHECKED_IN' || r.status === 'OCCUPIED') {
+    status = 'OCCUPIED';
+  } else if (r.bookingStatus === 'CONFIRMED' && status === 'AVAILABLE') {
+    status = 'RESERVED';
+  }
   const floorNumber = typeof r.floor === 'number' ? r.floor : parseInt(r.floor, 10) || 1;
   const floorStr = `Tầng ${floorNumber}`;
 
@@ -36,7 +42,18 @@ const normalizeRoom = (r) => {
     floor: floorStr,
     floorNumber,
     status,
-    statusLabel: r.statusLabel || (status === 'AVAILABLE' ? 'Trống' : status === 'OCCUPIED' ? 'Đang sử dụng' : status === 'DIRTY' ? 'Cần dọn' : status === 'RESERVED' ? 'Đã giữ' : 'Bảo trì'),
+    statusLabel:
+      status === 'OCCUPIED'
+        ? 'Đang sử dụng'
+        : status === 'AVAILABLE'
+        ? 'Trống'
+        : status === 'DIRTY'
+        ? 'Cần dọn'
+        : status === 'RESERVED'
+        ? 'Đã giữ'
+        : status === 'MAINTENANCE'
+        ? 'Bảo trì'
+        : (r.statusLabel || 'Trống'),
     category: r.categoryName || r.type || 'Tiêu chuẩn',
     name: `${r.categoryName || 'Phòng'} ${code}`,
     fullName: `${r.categoryName || 'Phòng'} ${code}`,
@@ -49,9 +66,11 @@ const normalizeRoom = (r) => {
     bookingStatus: r.bookingStatus,
     checkIn: r.checkIn,
     checkOut: r.checkOut,
+    checkOutDate: r.checkOut || r.checkOutDate,
     actualCheckIn: r.actualCheckIn,
     totalAmount: r.totalAmount,
     paidAmount: r.paidAmount,
+    membership: r.guestTier === 'GUEST' ? 'CUSTOMER' : (r.guestTier || 'CUSTOMER'),
   };
 };
 
@@ -73,23 +92,50 @@ export const RoomMatrixPage = () => {
     setTimeout(() => setToastMessage(''), 3500);
   };
 
-  // Gọi API GET /api/v1/receptionist/rooms/grid kèm query params Tầng & Trạng thái
-  const fetchRoomGrid = useCallback(async () => {
+  // Tải sơ đồ buồng phòng từ Backend API và đồng bộ 100% với đơn khách CHECKED_IN trên trang Dịch vụ
+  const fetchRoomGrid = useCallback(async (isManualRefresh = false) => {
     setIsLoading(true);
     try {
-      const params = {};
-      if (selectedFloor !== 'ALL') {
-        params.floor = Number(selectedFloor);
-      }
-      if (selectedStatus !== 'ALL') {
-        params.status = selectedStatus;
-      }
+      // Luôn tải toàn bộ lưới phòng và danh sách đơn CHECKED_IN để đồng bộ dữ liệu và giữ nguyên số liệu thống kê ở các thẻ KPI
+      const [gridRes, bookingsRes] = await Promise.allSettled([
+        roomService.getRoomGrid(),
+        bookingService.getAllBookings({ status: 'CHECKED_IN' }),
+      ]);
 
-      const res = await roomService.getRoomGrid(params);
-      const data = res?.data || res;
+      const rawGrid = gridRes.status === 'fulfilled' ? (gridRes.value?.data || gridRes.value) : [];
+      const checkedInPage = bookingsRes.status === 'fulfilled' ? (bookingsRes.value?.data || bookingsRes.value) : [];
+      const checkedInList = checkedInPage?.items || checkedInPage?.content || (Array.isArray(checkedInPage) ? checkedInPage : []);
 
-      if (Array.isArray(data)) {
-        const mapped = data.map(normalizeRoom);
+      if (Array.isArray(rawGrid)) {
+        const mapped = rawGrid.map((r) => {
+          const roomNorm = normalizeRoom(r);
+          // Tìm đơn CHECKED_IN tương ứng theo roomNumber hoặc roomId
+          const matchedBooking = checkedInList.find(
+            (b) =>
+              String(b.roomNumber || b.roomCode || b.roomId) === String(roomNorm.roomCode || roomNorm.roomNumber || roomNorm.id) ||
+              String(b.roomId) === String(roomNorm.id)
+          );
+
+          if (matchedBooking) {
+            return {
+              ...roomNorm,
+              status: 'OCCUPIED',
+              statusLabel: 'Đang sử dụng',
+              guestName: matchedBooking.guestName || roomNorm.guestName,
+              guestPhone: matchedBooking.guestPhone || roomNorm.guestPhone,
+              bookingId: matchedBooking.id || roomNorm.bookingId,
+              bookingStatus: 'CHECKED_IN',
+              checkIn: matchedBooking.checkIn || roomNorm.checkIn,
+              checkOut: matchedBooking.checkOut || roomNorm.checkOut,
+              checkOutDate: matchedBooking.checkOut || roomNorm.checkOutDate,
+              totalAmount: matchedBooking.totalAmount != null ? matchedBooking.totalAmount : roomNorm.totalAmount,
+              paidAmount: matchedBooking.paidAmount != null ? matchedBooking.paidAmount : roomNorm.paidAmount,
+              membership: matchedBooking.guestTier === 'GUEST' ? 'CUSTOMER' : (matchedBooking.guestTier || roomNorm.membership || 'CUSTOMER'),
+            };
+          }
+          return roomNorm;
+        });
+
         setRooms(mapped);
         if (mapped.length > 0) {
           setSelectedRoomId((prev) => (mapped.some((x) => x.id === prev) ? prev : mapped[0].id));
@@ -97,19 +143,23 @@ export const RoomMatrixPage = () => {
       } else {
         setRooms([]);
       }
+
+      if (isManualRefresh) {
+        showToast('Đã làm mới dữ liệu sơ đồ buồng phòng thành công!');
+      }
     } catch (err) {
       console.error('API GET /api/v1/receptionist/rooms/grid lỗi kết nối:', err);
       showToast('Không thể tải sơ đồ phòng từ API máy chủ');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedFloor, selectedStatus]);
+  }, []);
 
   useEffect(() => {
     fetchRoomGrid();
   }, [fetchRoomGrid]);
 
-  // Đồng bộ thời gian thực: Khi lễ tân hoàn tất Check-out trên ReceptionistBookingsPage, phòng chuyển sang DIRTY (Cần dọn) ngay lập tức
+  // Đồng bộ thời gian thực với các nghiệp vụ Check-in, Check-out, Dịch vụ, Dọn phòng và Click Logo
   useEffect(() => {
     const handleCheckoutCompleted = (e) => {
       const { roomId } = e.detail || {};
@@ -132,9 +182,26 @@ export const RoomMatrixPage = () => {
       fetchRoomGrid();
     };
 
+    const handleSyncEvents = () => {
+      fetchRoomGrid();
+    };
+
+    const handleDashboardRefresh = () => {
+      fetchRoomGrid(true);
+    };
+
     window.addEventListener('hotel_checkout_completed', handleCheckoutCompleted);
+    window.addEventListener('hotel_checkin_completed', handleSyncEvents);
+    window.addEventListener('hotel_folio_updated', handleSyncEvents);
+    window.addEventListener('hotel_room_cleaned', handleSyncEvents);
+    window.addEventListener('hotel_dashboard_refresh', handleDashboardRefresh);
+
     return () => {
       window.removeEventListener('hotel_checkout_completed', handleCheckoutCompleted);
+      window.removeEventListener('hotel_checkin_completed', handleSyncEvents);
+      window.removeEventListener('hotel_folio_updated', handleSyncEvents);
+      window.removeEventListener('hotel_room_cleaned', handleSyncEvents);
+      window.removeEventListener('hotel_dashboard_refresh', handleDashboardRefresh);
     };
   }, [fetchRoomGrid]);
 
@@ -460,9 +527,10 @@ export const RoomMatrixPage = () => {
 
           <button
             type="button"
-            onClick={fetchRoomGrid}
+            onClick={() => fetchRoomGrid(true)}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 text-stone-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+            title="Tải lại toàn bộ dữ liệu buồng phòng từ máy chủ"
           >
             <RefreshCw size={13} className={isLoading ? 'animate-spin text-stone-500' : 'text-stone-400'} />
             <span>Làm mới dữ liệu</span>
@@ -473,7 +541,13 @@ export const RoomMatrixPage = () => {
       {/* 2. 5 KPI Metric Cards đồng bộ chính xác Enum Backend */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Tổng số phòng */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs flex items-center justify-between">
+        <div
+          onClick={() => setSelectedStatus('ALL')}
+          className={`bg-white rounded-2xl p-4 sm:p-5 border transition-all cursor-pointer shadow-2xs flex items-center justify-between ${
+            selectedStatus === 'ALL' ? 'border-stone-900 ring-2 ring-stone-900/10' : 'border-stone-200/90 hover:border-stone-400'
+          }`}
+          title="Xem tất cả phòng"
+        >
           <div>
             <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
               TỔNG SỐ PHÒNG

@@ -14,6 +14,7 @@ import {
   XCircle,
   Star,
   CheckCircle2,
+  Check,
   FileText,
   Building,
 } from 'lucide-react';

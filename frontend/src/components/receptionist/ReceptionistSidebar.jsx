@@ -47,19 +47,31 @@ export const ReceptionistSidebar = ({ onClose }) => {
     <aside className="w-64 bg-white text-stone-700 flex flex-col shrink-0 min-h-screen border-r border-stone-200/90 shadow-2xs select-none">
       {/* 1. Brand Header */}
       <div className="p-5 border-b border-stone-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs">
+        <button
+          type="button"
+          onClick={() => {
+            if (onClose) onClose();
+            if (window.location.pathname === '/receptionist') {
+              window.dispatchEvent(new CustomEvent('hotel_dashboard_refresh'));
+            } else {
+              navigate('/receptionist');
+            }
+          }}
+          className="flex items-center gap-3 text-left cursor-pointer group focus:outline-none transition-opacity hover:opacity-85"
+          title="Quay về Dashboard & Tải lại dữ liệu"
+        >
+          <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs group-hover:bg-stone-800 transition-colors">
             É
           </div>
           <div className="flex flex-col">
-            <span className="font-serif text-lg font-bold tracking-tight text-stone-900 leading-tight">
+            <span className="font-serif text-lg font-bold tracking-tight text-stone-900 leading-tight group-hover:text-amber-800 transition-colors">
               L'Étoile
             </span>
             <span className="text-[9px] tracking-[0.25em] text-stone-400 uppercase font-semibold">
               HOSPITALITY PMS
             </span>
           </div>
-        </div>
+        </button>
         {onClose && (
           <button
             type="button"

@@ -65,9 +65,10 @@ export const StaffManagementPage = () => {
     [loggedInAdmin]
   );
 
-  // Hiển thị Badge riêng biệt cho từng vai trò theo yêu cầu
+  // Hiển thị Badge riêng biệt cho từng vai trò (chỉ có ADMIN, RECEPTIONIST, CUSTOMER, không có GUEST)
   const getRoleBadge = (role) => {
-    const r = (role || '').toUpperCase();
+    let r = (role || '').toUpperCase();
+    if (r === 'GUEST' || !r) r = 'CUSTOMER';
     switch (r) {
       case 'ADMIN':
         return (
@@ -84,26 +85,46 @@ export const StaffManagementPage = () => {
           </span>
         );
       case 'CUSTOMER':
+      default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200/80">
             <User size={10} className="text-emerald-600" />
             CUSTOMER
           </span>
         );
-      case 'GUEST':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200/80">
-            <Users size={10} className="text-amber-600" />
-            GUEST
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-200/80">
-            {r || 'CHƯA GÁN'}
-          </span>
-        );
     }
+  };
+
+  // Phân rõ Department: Quản lý (ADMIN), Quầy Lễ tân (RECEPTIONIST), Khách hàng (CUSTOMER)
+  const getDepartmentBadge = (user) => {
+    let role = (user?.role || '').toUpperCase();
+    if (role === 'GUEST' || !role) role = 'CUSTOMER';
+
+    if (role === 'ADMIN') {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs text-stone-800 font-medium bg-stone-100/90 px-2.5 py-1 rounded-lg border border-stone-200/80">
+          <Building2 size={12} className="text-purple-600" />
+          <span>Quản lý</span>
+        </span>
+      );
+    }
+
+    if (role === 'RECEPTIONIST') {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs text-stone-800 font-medium bg-stone-100/90 px-2.5 py-1 rounded-lg border border-stone-200/80">
+          <Building2 size={12} className="text-blue-600" />
+          <span>Quầy Lễ tân</span>
+        </span>
+      );
+    }
+
+    // CUSTOMER
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-stone-800 font-medium bg-stone-100/90 px-2.5 py-1 rounded-lg border border-stone-200/80">
+        <User size={12} className="text-emerald-600" />
+        <span>Khách hàng</span>
+      </span>
+    );
   };
 
   // =========================================================================
@@ -221,16 +242,30 @@ export const StaffManagementPage = () => {
         pages = Math.ceil(total / pageSize) || 1;
       }
 
-      setUsersList(list);
+      // Chuẩn hóa danh sách: chỉ có CUSTOMER, RECEPTIONIST, ADMIN; Department phân rõ Quản lý, Quầy Lễ tân, Khách hàng
+      const normalizedList = list.map((u) => {
+        let role = (u.role || '').toUpperCase();
+        if (role === 'GUEST' || !role) role = 'CUSTOMER';
+
+        let department = 'Khách hàng';
+        if (role === 'ADMIN') {
+          department = 'Quản lý';
+        } else if (role === 'RECEPTIONIST') {
+          department = 'Quầy Lễ tân';
+        } else {
+          department = 'Khách hàng';
+        }
+
+        return {
+          ...u,
+          role,
+          department,
+        };
+      });
+
+      setUsersList(normalizedList);
       setTotalElements(total);
       setTotalPages(pages);
-
-      // Khởi tạo state chọn role cho các dòng tương ứng với vai trò hiện tại
-      const initialRoles = {};
-      list.forEach((u) => {
-        initialRoles[u.id] = u.role || '';
-      });
-      setSelectedRoles(initialRoles);
     } catch (err) {
       console.error('Lỗi khi tải danh sách người dùng:', err);
       setListError(
@@ -316,9 +351,10 @@ export const StaffManagementPage = () => {
     setIsCreatingAccount(true);
     try {
       const deptMap = {
-        'Quầy Lễ tân': 'FRONT_DESK',
-        'Buồng phòng': 'HOUSEKEEPING',
         'Quản lý': 'MANAGEMENT',
+        'Quầy Lễ tân': 'FRONT_DESK',
+        'Khách hàng': 'CUSTOMER',
+        'Buồng phòng': 'HOUSEKEEPING',
       };
       const payload = {
         fullName: formData.fullName.trim(),
@@ -769,7 +805,7 @@ export const StaffManagementPage = () => {
               )}
             </div>
 
-            {/* 4. Select Role (RECEPTIONIST, ADMIN) */}
+            {/* 4. Select Role (ADMIN, RECEPTIONIST, CUSTOMER) */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
                 Quyền hạn (Select Role) <span className="text-rose-500">*</span>
@@ -778,15 +814,18 @@ export const StaffManagementPage = () => {
                 <Shield size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
                 <select
                   value={formData.role}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, role: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    const newRole = e.target.value;
+                    let newDept = 'Quầy Lễ tân';
+                    if (newRole === 'ADMIN') newDept = 'Quản lý';
+                    else if (newRole === 'CUSTOMER') newDept = 'Khách hàng';
+                    setFormData((prev) => ({ ...prev, role: newRole, department: newDept }));
+                  }}
                   className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-stone-200/90 bg-stone-50/40 text-xs font-medium text-stone-800 focus:outline-none focus:border-stone-900 focus:bg-white transition-all shadow-2xs appearance-none cursor-pointer"
                 >
                   <option value="ADMIN">ADMIN (Quản trị viên toàn hệ thống)</option>
                   <option value="RECEPTIONIST">RECEPTIONIST (Lễ tân ca trực)</option>
                   <option value="CUSTOMER">CUSTOMER (Khách hàng)</option>
-                  <option value="GUEST">GUEST (Khách vãng lai)</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-stone-400">
                   ▼
@@ -794,7 +833,7 @@ export const StaffManagementPage = () => {
               </div>
             </div>
 
-            {/* 5. Select Department (Quầy Lễ tân, Buồng phòng, Quản lý) */}
+            {/* 5. Select Department (Quản lý, Quầy Lễ tân, Khách hàng) */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
                 Bộ phận công tác (Select Department) <span className="text-rose-500">*</span>
@@ -808,9 +847,9 @@ export const StaffManagementPage = () => {
                   }
                   className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-stone-200/90 bg-stone-50/40 text-xs font-medium text-stone-800 focus:outline-none focus:border-stone-900 focus:bg-white transition-all shadow-2xs appearance-none cursor-pointer"
                 >
-                  <option value="Quầy Lễ tân">Quầy Lễ tân</option>
-                  <option value="Buồng phòng">Buồng phòng</option>
                   <option value="Quản lý">Quản lý</option>
+                  <option value="Quầy Lễ tân">Quầy Lễ tân</option>
+                  <option value="Khách hàng">Khách hàng</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-stone-400">
                   ▼
@@ -871,7 +910,6 @@ export const StaffManagementPage = () => {
               <option value="ADMIN">ADMIN (Quản trị viên)</option>
               <option value="RECEPTIONIST">RECEPTIONIST (Lễ tân)</option>
               <option value="CUSTOMER">CUSTOMER (Khách hàng)</option>
-              <option value="GUEST">GUEST (Khách vãng lai)</option>
             </select>
 
             {/* Ô Search tìm theo tên/email có Debounce 400ms */}
@@ -907,7 +945,7 @@ export const StaffManagementPage = () => {
                 <th className="py-3.5 px-6">STAFF NAME</th>
                 <th className="py-3.5 px-4">EMAIL</th>
                 <th className="py-3.5 px-4">DEPARTMENT</th>
-                <th className="py-3.5 px-4">ROLE (DROPDOWN)</th>
+                <th className="py-3.5 px-4">ROLE</th>
                 <th className="py-3.5 px-4 text-center">STATUS</th>
                 <th className="py-3.5 px-6 text-right">THAO TÁC / ACTIONS</th>
               </tr>
@@ -1000,57 +1038,15 @@ export const StaffManagementPage = () => {
                         </span>
                       </td>
 
-                      {/* 3. DEPARTMENT */}
+                      {/* 3. DEPARTMENT (Phân rõ Quản lý, Quầy Lễ tân, Khách hàng) */}
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-stone-800 font-medium bg-stone-100/80 px-2.5 py-1 rounded-lg border border-stone-200/70">
-                          <Building2 size={12} className="text-stone-500" />
-                          <span>{({'FRONT_DESK': 'Quầy Lễ tân', 'HOUSEKEEPING': 'Buồng phòng', 'MANAGEMENT': 'Quản lý'}[user.department]) || user.department || 'Quầy Lễ tân'}</span>
-                        </span>
+                        {getDepartmentBadge(user)}
                       </td>
 
-                      {/* 4. ROLE (DROPDOWN) */}
+                      {/* 4. ROLE (Cố định, hiển thị Badge màu riêng biệt) */}
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-1.5">
-                          <div>
-                            {getRoleBadge(user.role)}
-                          </div>
-                          <div className="relative inline-block w-44">
-                            <select
-                              value={currentSelectedRole}
-                              onChange={(e) =>
-                                handleRoleSelectChange(user.id, e.target.value)
-                              }
-                              disabled={isSelf || isSavingRole}
-                              className={`w-full pl-3 pr-7 py-1.5 rounded-xl border text-xs font-semibold appearance-none transition-colors ${
-                                isSelf
-                                  ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed opacity-80'
-                                  : 'bg-white border-stone-200 text-stone-800 hover:border-stone-400 focus:outline-none focus:border-stone-900 cursor-pointer shadow-2xs'
-                              }`}
-                            >
-                              <option value="ADMIN">ADMIN</option>
-                              <option value="RECEPTIONIST">RECEPTIONIST</option>
-                              <option value="CUSTOMER">CUSTOMER</option>
-                              <option value="GUEST">GUEST</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-stone-400">
-                              ▼
-                            </div>
-                          </div>
-
-                          {/* Ghi chú bảo vệ nếu là chính tài khoản Admin đang đăng nhập */}
-                          {isSelf && (
-                            <span className="text-[10px] text-amber-800/80 font-medium mt-1">
-                              (Tài khoản của bạn - Không thể tự đổi)
-                            </span>
-                          )}
-
-                          {/* Hiển thị lỗi ngay trên UI nếu bấm Save Permissions mà chưa đổi vai trò */}
-                          {rowErrors[user.id] && (
-                            <p className="text-[11px] text-rose-600 font-bold mt-1 flex items-center gap-1 animate-fade-in">
-                              <AlertCircle size={11} className="shrink-0" />
-                              <span>{rowErrors[user.id]}</span>
-                            </p>
-                          )}
+                        <div className="inline-flex items-center">
+                          {getRoleBadge(user.role)}
                         </div>
                       </td>
 
@@ -1069,38 +1065,9 @@ export const StaffManagementPage = () => {
                         )}
                       </td>
 
-                      {/* 6. THAO TÁC / ACTIONS (Save Permissions & Lock/Unlock) */}
+                      {/* 6. THAO TÁC / ACTIONS (Khóa / Mở khóa tài khoản) */}
                       <td className="py-4 px-6 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-2">
-                          {/* Nút Save Permissions */}
-                          <button
-                            type="button"
-                            onClick={() => handleSavePermissions(user)}
-                            disabled={isSelf || isSavingRole}
-                            title={
-                              isSelf
-                                ? 'Không thể tự đổi quyền tài khoản đang đăng nhập'
-                                : 'Lưu quyền hạn mới'
-                            }
-                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                              isSelf
-                                ? 'bg-stone-100 text-stone-300 border border-stone-200 cursor-not-allowed'
-                                : 'bg-stone-900 hover:bg-black text-white cursor-pointer shadow-xs hover:shadow-sm'
-                            }`}
-                          >
-                            {isSavingRole ? (
-                              <>
-                                <Loader2 size={12} className="animate-spin text-amber-400" />
-                                <span>Đang lưu...</span>
-                              </>
-                            ) : (
-                              <>
-                                <ShieldCheck size={13} />
-                                <span>Save Permissions</span>
-                              </>
-                            )}
-                          </button>
-
+                        <div className="inline-flex items-center justify-end gap-2">
                           {/* Nút Lock / Unlock */}
                           <button
                             type="button"
@@ -1245,7 +1212,7 @@ export const StaffManagementPage = () => {
                   {lockModal.user.email}
                 </p>
                 <p className="text-[10px] font-semibold text-amber-800">
-                  Vai trò: {lockModal.user.role || 'Chưa gán'} • {lockModal.user.department || 'Quầy Lễ tân'}
+                  Vai trò: {lockModal.user.role === 'ADMIN' ? 'ADMIN' : lockModal.user.role === 'RECEPTIONIST' ? 'RECEPTIONIST' : 'CUSTOMER'} • {lockModal.user.role === 'ADMIN' ? 'Quản lý' : lockModal.user.role === 'RECEPTIONIST' ? 'Quầy Lễ tân' : 'Khách hàng'}
                 </p>
               </div>
 

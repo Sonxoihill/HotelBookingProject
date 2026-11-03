@@ -66,18 +66,6 @@ export const AdminNavbar = ({ breadcrumbSub = 'Bàn Quản Trị Trung Tâm', on
         >
           <HelpCircle size={16} />
         </button>
-
-        {/* Switch to Receptionist PMS */}
-        <button
-          onClick={() => navigate('/receptionist')}
-          title="Chuyển sang Quầy Lễ Tân"
-          className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#0E1524] hover:bg-stone-800 text-white text-xs font-semibold tracking-wide shadow-xs transition-colors cursor-pointer"
-        >
-          <ExternalLink size={13} />
-          <span className="hidden sm:inline">LỄ TÂN PMS</span>
-          <span className="sm:hidden">Lễ tân</span>
-        </button>
-
         {/* Logout Button */}
         <button
           onClick={handleLogout}

@@ -31,8 +31,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME:vtruong1628@gmail.com}
-    password: ${MAIL_PASSWORD:sceizoqtzavsfcyk}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -59,7 +59,7 @@ logging:
     org.flywaydb: INFO
 
 jwt:
-  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours (86,400,000 ms)
 
 springdoc:
@@ -75,8 +75,8 @@ springdoc:
     filter: true
 
 vnpay:
-  tmn-code: ${VNPAY_TMN_CODE:CGXZLS0Z}
-  hash-secret: ${VNPAY_HASH_SECRET:XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN}
+  tmn-code: ${VNPAY_TMN_CODE}
+  hash-secret: ${VNPAY_HASH_SECRET}
   pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
   return-url: ${VNPAY_RETURN_URL:http://localhost:5173/api/v1/payment/vnpay-return}
   allowed-ips: ${VNPAY_ALLOWED_IPS:113.160.92.202,113.52.45.78,203.205.69.100,103.220.87.101,103.220.86.4,127.0.0.1,0:0:0:0:0:0:0:1,localhost}

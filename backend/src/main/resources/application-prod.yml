@@ -7,7 +7,7 @@ spring:
   datasource:
     url: ${PROD_DB_URL:jdbc:mysql://mysql-free-db-mysql-project.d.aivencloud.com:23328/defaultdb?sslmode=REQUIRED&useSSL=true&serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8}
     username: ${PROD_DB_USERNAME:avnadmin}
-    password: ${PROD_DB_PASSWORD:AVNS_nDiHf×N3SGFJMRtoF1G}
+    password: ${PROD_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: ${PROD_DB_MAX_POOL_SIZE:5}

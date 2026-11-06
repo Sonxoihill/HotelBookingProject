@@ -31,3 +31,11 @@ target/
 ### Others ###
 *.log
 .DS_Store
+
+# Environment Variables & Backups
+.env
+.env.local
+.env.*.local
+*.sql.gz
+production_backup*.sql
+

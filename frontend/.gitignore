@@ -10,7 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
+# Environment variables & Backups
+.env
+.env.local
+.env.*.local
+*.sql.gz
+production_backup*.sql
+!.env.example
+
 
 # Editor directories and files
 .vscode/*

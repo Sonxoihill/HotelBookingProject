@@ -55,14 +55,14 @@ Hệ thống đã được thiết lập sẵn các giá trị mặc định t�
    - Tự động chạy Flyway Migration (V1 đến V4).
 
 2. **Cổng thanh toán điện tử VNPay (Sandbox)**:
-   - `TMN Code`: `CGXZLS0Z`
-   - `Hash Secret`: `XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN`
+   - `TMN Code`: Được cấu hình qua biến môi trường `VNPAY_TMN_CODE`
+   - `Hash Secret`: Được cấu hình qua biến môi trường `VNPAY_HASH_SECRET`
    - `Return URL`: `http://localhost:5173/api/v1/payment/vnpay-return`
    - Whitelist IPs: IP Sandbox VNPay và Localhost.
 
 3. **Dịch vụ Email (Gmail SMTP)**:
-   - `MAIL_USERNAME`: `vtruong1628@gmail.com`
-   - `MAIL_PASSWORD`: `sceizoqtzavsfcyk`
+   - `MAIL_USERNAME`: Được cấu hình qua biến môi trường `MAIL_USERNAME`
+   - `MAIL_PASSWORD`: Cấu hình qua biến môi trường `MAIL_PASSWORD` (App Password 16 ký tự của Google)
    - Gửi email xác nhận đặt phòng và mã OTP.
 
 4. **Bảo mật & Phân quyền (JWT)**:

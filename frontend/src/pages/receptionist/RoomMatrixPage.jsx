@@ -15,15 +15,22 @@ import {
   Layers,
   Coins,
   Receipt,
+  X,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import roomService from '../../services/roomService';
+import { bookingService } from '../../services/bookingService';
 import CleaningStatusModal from '../../components/receptionist/CleaningStatusModal';
 
 // Chuẩn hóa dữ liệu RoomGridResponse trả về từ API Backend
 const normalizeRoom = (r) => {
   const code = r.roomNumber || r.roomCode || String(r.id || '');
-  const status = r.status === 'CLEANING' ? 'DIRTY' : (r.status || 'AVAILABLE');
+  let status = r.status === 'CLEANING' ? 'DIRTY' : (r.status || 'AVAILABLE');
+  if (r.bookingStatus === 'CHECKED_IN' || r.status === 'OCCUPIED') {
+    status = 'OCCUPIED';
+  } else if (r.bookingStatus === 'CONFIRMED' && status === 'AVAILABLE') {
+    status = 'RESERVED';
+  }
   const floorNumber = typeof r.floor === 'number' ? r.floor : parseInt(r.floor, 10) || 1;
   const floorStr = `Tầng ${floorNumber}`;
 
@@ -35,7 +42,18 @@ const normalizeRoom = (r) => {
     floor: floorStr,
     floorNumber,
     status,
-    statusLabel: r.statusLabel || (status === 'AVAILABLE' ? 'Trống' : status === 'OCCUPIED' ? 'Đang sử dụng' : status === 'DIRTY' ? 'Cần dọn' : status === 'RESERVED' ? 'Đã giữ' : 'Bảo trì'),
+    statusLabel:
+      status === 'OCCUPIED'
+        ? 'Đang sử dụng'
+        : status === 'AVAILABLE'
+        ? 'Trống'
+        : status === 'DIRTY'
+        ? 'Cần dọn'
+        : status === 'RESERVED'
+        ? 'Đã giữ'
+        : status === 'MAINTENANCE'
+        ? 'Bảo trì'
+        : (r.statusLabel || 'Trống'),
     category: r.categoryName || r.type || 'Tiêu chuẩn',
     name: `${r.categoryName || 'Phòng'} ${code}`,
     fullName: `${r.categoryName || 'Phòng'} ${code}`,
@@ -48,9 +66,11 @@ const normalizeRoom = (r) => {
     bookingStatus: r.bookingStatus,
     checkIn: r.checkIn,
     checkOut: r.checkOut,
+    checkOutDate: r.checkOut || r.checkOutDate,
     actualCheckIn: r.actualCheckIn,
     totalAmount: r.totalAmount,
     paidAmount: r.paidAmount,
+    membership: r.guestTier === 'GUEST' ? 'CUSTOMER' : (r.guestTier || 'CUSTOMER'),
   };
 };
 
@@ -65,29 +85,57 @@ export const RoomMatrixPage = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCleaningModalOpen, setIsCleaningModalOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3500);
   };
 
-  // Gọi API GET /api/v1/receptionist/rooms/grid kèm query params Tầng & Trạng thái
-  const fetchRoomGrid = useCallback(async () => {
+  // Tải sơ đồ buồng phòng từ Backend API và đồng bộ 100% với đơn khách CHECKED_IN trên trang Dịch vụ
+  const fetchRoomGrid = useCallback(async (isManualRefresh = false) => {
     setIsLoading(true);
     try {
-      const params = {};
-      if (selectedFloor !== 'ALL') {
-        params.floor = Number(selectedFloor);
-      }
-      if (selectedStatus !== 'ALL') {
-        params.status = selectedStatus;
-      }
+      // Luôn tải toàn bộ lưới phòng và danh sách đơn CHECKED_IN để đồng bộ dữ liệu và giữ nguyên số liệu thống kê ở các thẻ KPI
+      const [gridRes, bookingsRes] = await Promise.allSettled([
+        roomService.getRoomGrid(),
+        bookingService.getAllBookings({ status: 'CHECKED_IN' }),
+      ]);
 
-      const res = await roomService.getRoomGrid(params);
-      const data = res?.data || res;
+      const rawGrid = gridRes.status === 'fulfilled' ? (gridRes.value?.data || gridRes.value) : [];
+      const checkedInPage = bookingsRes.status === 'fulfilled' ? (bookingsRes.value?.data || bookingsRes.value) : [];
+      const checkedInList = checkedInPage?.items || checkedInPage?.content || (Array.isArray(checkedInPage) ? checkedInPage : []);
 
-      if (Array.isArray(data)) {
-        const mapped = data.map(normalizeRoom);
+      if (Array.isArray(rawGrid)) {
+        const mapped = rawGrid.map((r) => {
+          const roomNorm = normalizeRoom(r);
+          // Tìm đơn CHECKED_IN tương ứng theo roomNumber hoặc roomId
+          const matchedBooking = checkedInList.find(
+            (b) =>
+              String(b.roomNumber || b.roomCode || b.roomId) === String(roomNorm.roomCode || roomNorm.roomNumber || roomNorm.id) ||
+              String(b.roomId) === String(roomNorm.id)
+          );
+
+          if (matchedBooking) {
+            return {
+              ...roomNorm,
+              status: 'OCCUPIED',
+              statusLabel: 'Đang sử dụng',
+              guestName: matchedBooking.guestName || roomNorm.guestName,
+              guestPhone: matchedBooking.guestPhone || roomNorm.guestPhone,
+              bookingId: matchedBooking.id || roomNorm.bookingId,
+              bookingStatus: 'CHECKED_IN',
+              checkIn: matchedBooking.checkIn || roomNorm.checkIn,
+              checkOut: matchedBooking.checkOut || roomNorm.checkOut,
+              checkOutDate: matchedBooking.checkOut || roomNorm.checkOutDate,
+              totalAmount: matchedBooking.totalAmount != null ? matchedBooking.totalAmount : roomNorm.totalAmount,
+              paidAmount: matchedBooking.paidAmount != null ? matchedBooking.paidAmount : roomNorm.paidAmount,
+              membership: matchedBooking.guestTier === 'GUEST' ? 'CUSTOMER' : (matchedBooking.guestTier || roomNorm.membership || 'CUSTOMER'),
+            };
+          }
+          return roomNorm;
+        });
+
         setRooms(mapped);
         if (mapped.length > 0) {
           setSelectedRoomId((prev) => (mapped.some((x) => x.id === prev) ? prev : mapped[0].id));
@@ -95,19 +143,23 @@ export const RoomMatrixPage = () => {
       } else {
         setRooms([]);
       }
+
+      if (isManualRefresh) {
+        showToast('Đã làm mới dữ liệu sơ đồ buồng phòng thành công!');
+      }
     } catch (err) {
       console.error('API GET /api/v1/receptionist/rooms/grid lỗi kết nối:', err);
       showToast('Không thể tải sơ đồ phòng từ API máy chủ');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedFloor, selectedStatus]);
+  }, []);
 
   useEffect(() => {
     fetchRoomGrid();
   }, [fetchRoomGrid]);
 
-  // Đồng bộ thời gian thực: Khi lễ tân hoàn tất Check-out trên ReceptionistBookingsPage, phòng chuyển sang DIRTY (Cần dọn) ngay lập tức
+  // Đồng bộ thời gian thực với các nghiệp vụ Check-in, Check-out, Dịch vụ, Dọn phòng và Click Logo
   useEffect(() => {
     const handleCheckoutCompleted = (e) => {
       const { roomId } = e.detail || {};
@@ -130,9 +182,26 @@ export const RoomMatrixPage = () => {
       fetchRoomGrid();
     };
 
+    const handleSyncEvents = () => {
+      fetchRoomGrid();
+    };
+
+    const handleDashboardRefresh = () => {
+      fetchRoomGrid(true);
+    };
+
     window.addEventListener('hotel_checkout_completed', handleCheckoutCompleted);
+    window.addEventListener('hotel_checkin_completed', handleSyncEvents);
+    window.addEventListener('hotel_folio_updated', handleSyncEvents);
+    window.addEventListener('hotel_room_cleaned', handleSyncEvents);
+    window.addEventListener('hotel_dashboard_refresh', handleDashboardRefresh);
+
     return () => {
       window.removeEventListener('hotel_checkout_completed', handleCheckoutCompleted);
+      window.removeEventListener('hotel_checkin_completed', handleSyncEvents);
+      window.removeEventListener('hotel_folio_updated', handleSyncEvents);
+      window.removeEventListener('hotel_room_cleaned', handleSyncEvents);
+      window.removeEventListener('hotel_dashboard_refresh', handleDashboardRefresh);
     };
   }, [fetchRoomGrid]);
 
@@ -242,6 +311,189 @@ export const RoomMatrixPage = () => {
     return Array.from(map.values());
   }, [filteredRooms]);
 
+  const renderDetailCardContent = (isMobile = false) => (
+    <div className={`space-y-5 ${isMobile ? '' : 'bg-white rounded-3xl p-6 border border-stone-200/90 shadow-md'}`}>
+      {/* Header: Room Code & Status Badge */}
+      <div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-serif text-3xl font-bold text-stone-900">
+              {selectedRoom.roomCode || '---'}
+            </span>
+
+            <span
+              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                selectedRoom.status === 'OCCUPIED'
+                  ? 'bg-rose-600 text-white border-rose-600'
+                  : selectedRoom.status === 'AVAILABLE'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : selectedRoom.status === 'DIRTY'
+                  ? 'bg-[#FDF4E7] text-amber-800 border-amber-300'
+                  : selectedRoom.status === 'RESERVED'
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-stone-100 text-stone-700 border-stone-200'
+              }`}
+            >
+              {selectedRoom.status === 'OCCUPIED' && 'Đang sử dụng (OCCUPIED)'}
+              {selectedRoom.status === 'AVAILABLE' && 'Trống (AVAILABLE)'}
+              {selectedRoom.status === 'DIRTY' && 'Cần dọn (DIRTY)'}
+              {selectedRoom.status === 'RESERVED' && 'Đã giữ (RESERVED)'}
+              {selectedRoom.status === 'MAINTENANCE' && 'Bảo trì (MAINTENANCE)'}
+            </span>
+          </div>
+
+          <span className="text-[11px] font-semibold text-amber-900 bg-[#FAF5EE] border border-amber-200/80 px-2.5 py-0.5 rounded-md">
+            {selectedRoom.floor || 'Tầng ---'}
+          </span>
+        </div>
+        <p className="text-xs text-stone-500 mt-1 font-medium">
+          {selectedRoom.fullName || selectedRoom.name}
+        </p>
+      </div>
+
+      {/* Block 1: Khách lưu trú hoặc Tình trạng phòng */}
+      {selectedRoom.status === 'OCCUPIED' ? (
+        <div>
+          <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
+            KHÁCH LƯU TRÚ
+          </span>
+          <p className="text-base font-bold text-stone-900">
+            {selectedRoom.guestName}
+          </p>
+          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 mt-0.5">
+            <span>◆</span>
+            <span>{selectedRoom.membership || 'VIP Member'}</span>
+          </div>
+        </div>
+      ) : selectedRoom.status === 'DIRTY' ? (
+        <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
+          <span className="text-[10px] font-bold tracking-wider uppercase text-amber-900 flex items-center gap-1">
+            <AlertTriangle size={12} className="text-amber-600" />
+            PHÒNG CẦN DỌN DẸP VỆ SINH
+          </span>
+          <p className="text-xs text-amber-950 font-medium">
+            {selectedRoom.specialNotes || 'Phòng sau trả phòng cần được vệ sinh, thay ga gối và khử khuẩn trước khi đón khách.'}
+          </p>
+        </div>
+      ) : selectedRoom.status === 'AVAILABLE' ? (
+        <div>
+          <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
+            TÌNH TRẠNG PHÒNG
+          </span>
+          <p className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
+            <ShieldCheck size={16} />
+            <span>Phòng sạch đã kiểm định • Sẵn sàng đón khách</span>
+          </p>
+          <p className="text-xs text-stone-400 mt-0.5">
+            Đơn giá niêm yết: {formatVND(selectedRoom.pricePerNight || 8500000)} / đêm
+          </p>
+        </div>
+      ) : selectedRoom.status === 'RESERVED' ? (
+        <div>
+          <span className="text-[10px] font-bold tracking-wider uppercase text-blue-700 block mb-1">
+            THÔNG TIN ĐẶT PHÒNG
+          </span>
+          <p className="text-sm font-bold text-blue-900">
+            {selectedRoom.guestName}
+          </p>
+          <p className="text-xs text-stone-500 mt-0.5">
+            {selectedRoom.dateRange || 'Chờ khách check-in theo lịch đặt'}
+          </p>
+        </div>
+      ) : (
+        <div>
+          <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
+            BẢO TRÌ THIẾT BỊ
+          </span>
+          <p className="text-sm font-bold text-stone-700">
+            Đang tiến hành bảo dưỡng kỹ thuật
+          </p>
+        </div>
+      )}
+
+      {/* Block 2: Thời gian lưu trú */}
+      <div className="bg-[#F8F9FA] rounded-2xl p-3.5 border border-stone-200/70">
+        <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
+          THỜI GIAN LƯU TRÚ / VẬN HÀNH
+        </span>
+        <p className="text-xs font-semibold text-stone-800">
+          {selectedRoom.checkIn && selectedRoom.checkOut
+            ? `${selectedRoom.checkIn} → ${selectedRoom.checkOut}`
+            : (selectedRoom.dateRange || 'Chưa có thông tin lưu trú')}
+        </p>
+        {selectedRoom.guestPhone && (
+          <p className="text-[11px] text-stone-500 mt-1">
+            SĐT: <span className="font-mono text-stone-700">{selectedRoom.guestPhone}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Block 3: Tạm tính Folio */}
+      <div className="pt-1 flex items-baseline justify-between">
+        <span className="text-xs font-medium text-stone-500">Tạm tính Folio</span>
+        <div className="font-serif text-2xl font-bold text-stone-900">
+          {selectedRoom.totalAmount ? formatVND(selectedRoom.totalAmount) : (selectedRoom.folioAmount ? formatVND(selectedRoom.folioAmount) : '0 đ')}
+        </div>
+      </div>
+
+      {/* Block 4: Ghi chú phục vụ */}
+      <div>
+        <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1.5">
+          GHI CHÚ PHỤC VỤ & VỆ SINH
+        </span>
+        <div className="bg-[#FAF5EE] rounded-2xl p-3.5 border border-amber-200/70">
+          <p className="font-serif italic text-xs text-amber-950 leading-relaxed">
+            "{selectedRoom.specialNotes || 'Phòng tiêu chuẩn 5 sao L\'Étoile Retreat.'}"
+          </p>
+        </div>
+      </div>
+
+      {/* Block 5: Action Buttons */}
+      <div className="space-y-2 pt-2">
+        {selectedRoom.status === 'DIRTY' && (
+          <button
+            type="button"
+            onClick={() => handleCleanRoom(selectedRoom)}
+            className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+          >
+            <CheckCircle2 size={16} />
+            <span>Xác nhận đã dọn xong</span>
+          </button>
+        )}
+
+        {selectedRoom.status === 'OCCUPIED' && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => navigate('/receptionist/services')}
+              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+            >
+              <Coins size={15} />
+              <span>Nạp Dịch vụ & Minibar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/receptionist/bookings')}
+              className="w-full py-2.5 rounded-xl bg-[#0E1524] hover:bg-stone-800 text-white text-xs font-semibold tracking-wide transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+            >
+              <Receipt size={15} />
+              <span>Xem Folio / Trả phòng</span>
+            </button>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setIsCleaningModalOpen(true)}
+          className="w-full py-2.5 rounded-xl bg-[#F0F4F8] hover:bg-[#E2EAF2] text-stone-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+        >
+          <Sparkles size={14} className="text-amber-600" />
+          <span>Mở Popup Cập nhật Buồng phòng</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-6 sm:p-8 space-y-6 pb-12 max-w-[1600px] mx-auto select-none">
       {/* Toast Alert */}
@@ -275,9 +527,10 @@ export const RoomMatrixPage = () => {
 
           <button
             type="button"
-            onClick={fetchRoomGrid}
+            onClick={() => fetchRoomGrid(true)}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 text-stone-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+            title="Tải lại toàn bộ dữ liệu buồng phòng từ máy chủ"
           >
             <RefreshCw size={13} className={isLoading ? 'animate-spin text-stone-500' : 'text-stone-400'} />
             <span>Làm mới dữ liệu</span>
@@ -288,7 +541,13 @@ export const RoomMatrixPage = () => {
       {/* 2. 5 KPI Metric Cards đồng bộ chính xác Enum Backend */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Tổng số phòng */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs flex items-center justify-between">
+        <div
+          onClick={() => setSelectedStatus('ALL')}
+          className={`bg-white rounded-2xl p-4 sm:p-5 border transition-all cursor-pointer shadow-2xs flex items-center justify-between ${
+            selectedStatus === 'ALL' ? 'border-stone-900 ring-2 ring-stone-900/10' : 'border-stone-200/90 hover:border-stone-400'
+          }`}
+          title="Xem tất cả phòng"
+        >
           <div>
             <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
               TỔNG SỐ PHÒNG
@@ -372,7 +631,7 @@ export const RoomMatrixPage = () => {
         </div>
 
         {/* Card 5: RESERVED & MAINTENANCE */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="col-span-2 sm:col-span-1 lg:col-span-1 bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold tracking-wider uppercase text-blue-700 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
@@ -487,7 +746,7 @@ export const RoomMatrixPage = () => {
       {/* 4. Main 2-Column Layout: Room Matrix Grid (Left 8 cols) + Sticky Detail Card (Right 4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left: Room Grid Groups */}
-        <div className="lg:col-span-8 space-y-7">
+        <div className="w-full lg:col-span-8 space-y-7 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           {groups.length === 0 ? (
             <div className="bg-white rounded-3xl border border-stone-200 p-12 text-center space-y-3 shadow-2xs">
               <Building size={36} className="mx-auto text-stone-300" />
@@ -524,7 +783,7 @@ export const RoomMatrixPage = () => {
                 </div>
 
                 {/* Room Cards Grid (3 cards per row) */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 min-w-[520px] sm:min-w-0">
                   {group.rooms.map((room) => {
                     const isSelected = room.id === selectedRoomId;
                     const isOccupied = room.status === 'OCCUPIED';
@@ -536,7 +795,10 @@ export const RoomMatrixPage = () => {
                     return (
                       <div
                         key={room.id}
-                        onClick={() => setSelectedRoomId(room.id)}
+                        onClick={() => {
+                          setSelectedRoomId(room.id);
+                          setIsMobileDrawerOpen(true);
+                        }}
                         className={`bg-white rounded-2xl p-4 border transition-all cursor-pointer relative flex flex-col justify-between min-h-[148px] shadow-2xs ${
                           isSelected
                             ? 'border-stone-900 ring-2 ring-stone-900/15 shadow-sm'
@@ -655,191 +917,50 @@ export const RoomMatrixPage = () => {
           )}
         </div>
 
-        {/* Right: Sticky Selected Room Detail Card (4 cols) */}
-        <div className="lg:col-span-4 sticky top-20">
-          <div className="bg-white rounded-3xl p-6 border border-stone-200/90 shadow-md space-y-5">
-            {/* Header: Room Code & Status Badge */}
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-serif text-3xl font-bold text-stone-900">
-                    {selectedRoom.roomCode || '---'}
-                  </span>
+        {/* Right: Sticky Selected Room Detail Card (4 cols) - Desktop only */}
+        <div className="hidden lg:block lg:col-span-4 sticky top-20">
+          {renderDetailCardContent(false)}
+        </div>
+      </div>
 
-                  <span
-                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                      selectedRoom.status === 'OCCUPIED'
-                        ? 'bg-rose-600 text-white border-rose-600'
-                        : selectedRoom.status === 'AVAILABLE'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : selectedRoom.status === 'DIRTY'
-                        ? 'bg-[#FDF4E7] text-amber-800 border-amber-300'
-                        : selectedRoom.status === 'RESERVED'
-                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : 'bg-stone-100 text-stone-700 border-stone-200'
-                    }`}
-                  >
-                    {selectedRoom.status === 'OCCUPIED' && 'Đang sử dụng (OCCUPIED)'}
-                    {selectedRoom.status === 'AVAILABLE' && 'Trống (AVAILABLE)'}
-                    {selectedRoom.status === 'DIRTY' && 'Cần dọn (DIRTY)'}
-                    {selectedRoom.status === 'RESERVED' && 'Đã giữ (RESERVED)'}
-                    {selectedRoom.status === 'MAINTENANCE' && 'Bảo trì (MAINTENANCE)'}
-                  </span>
-                </div>
+      {/* Drawer xem chi tiết phòng: Trên Mobile (< 768px / < lg) bung rộng thành Modal toàn màn hình */}
+      {isMobileDrawerOpen && selectedRoom && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
 
-                <span className="text-[11px] font-semibold text-amber-900 bg-[#FAF5EE] border border-amber-200/80 px-2.5 py-0.5 rounded-md">
-                  {selectedRoom.floor || 'Tầng ---'}
+          {/* Full-screen Sheet modal */}
+          <div className="fixed inset-0 sm:inset-y-0 sm:right-0 sm:left-auto sm:w-full sm:max-w-md bg-white shadow-2xl flex flex-col z-50 animate-in slide-in-from-bottom sm:slide-in-from-right duration-300 overflow-hidden">
+            {/* Header với nút X to ở góc trên bên phải */}
+            <div className="p-4 sm:p-5 border-b border-stone-200 flex items-center justify-between shrink-0 bg-stone-50/90">
+              <div className="flex items-center gap-2">
+                <span className="font-serif text-2xl font-bold text-stone-900">
+                  Phòng {selectedRoom.roomCode}
+                </span>
+                <span className="text-[10px] font-semibold text-amber-900 bg-[#FAF5EE] border border-amber-200/80 px-2 py-0.5 rounded-md">
+                  {selectedRoom.floor}
                 </span>
               </div>
-              <p className="text-xs text-stone-500 mt-1 font-medium">
-                {selectedRoom.fullName || selectedRoom.name}
-              </p>
-            </div>
-
-            {/* Block 1: Khách lưu trú hoặc Tình trạng phòng */}
-            {selectedRoom.status === 'OCCUPIED' ? (
-              <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-                  KHÁCH LƯU TRÚ
-                </span>
-                <p className="text-base font-bold text-stone-900">
-                  {selectedRoom.guestName}
-                </p>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 mt-0.5">
-                  <span>◆</span>
-                  <span>{selectedRoom.membership || 'VIP Member'}</span>
-                </div>
-              </div>
-            ) : selectedRoom.status === 'DIRTY' ? (
-              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
-                <span className="text-[10px] font-bold tracking-wider uppercase text-amber-900 flex items-center gap-1">
-                  <AlertTriangle size={12} className="text-amber-600" />
-                  PHÒNG CẦN DỌN DẸP VỆ SINH
-                </span>
-                <p className="text-xs text-amber-950 font-medium">
-                  {selectedRoom.specialNotes || 'Phòng sau trả phòng cần được vệ sinh, thay ga gối và khử khuẩn trước khi đón khách.'}
-                </p>
-              </div>
-            ) : selectedRoom.status === 'AVAILABLE' ? (
-              <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-                  TÌNH TRẠNG PHÒNG
-                </span>
-                <p className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
-                  <ShieldCheck size={16} />
-                  <span>Phòng sạch đã kiểm định • Sẵn sàng đón khách</span>
-                </p>
-                <p className="text-xs text-stone-400 mt-0.5">
-                  Đơn giá niêm yết: {formatVND(selectedRoom.pricePerNight || 8500000)} / đêm
-                </p>
-              </div>
-            ) : selectedRoom.status === 'RESERVED' ? (
-              <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-blue-700 block mb-1">
-                  THÔNG TIN ĐẶT PHÒNG
-                </span>
-                <p className="text-sm font-bold text-blue-900">
-                  {selectedRoom.guestName}
-                </p>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  {selectedRoom.dateRange || 'Chờ khách check-in theo lịch đặt'}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-                  BẢO TRÌ THIẾT BỊ
-                </span>
-                <p className="text-sm font-bold text-stone-700">
-                  Đang tiến hành bảo dưỡng kỹ thuật
-                </p>
-              </div>
-            )}
-
-            {/* Block 2: Thời gian lưu trú */}
-            <div className="bg-[#F8F9FA] rounded-2xl p-3.5 border border-stone-200/70">
-              <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1">
-                THỜI GIAN LƯU TRÚ / VẬN HÀNH
-              </span>
-              <p className="text-xs font-semibold text-stone-800">
-                {selectedRoom.checkIn && selectedRoom.checkOut
-                  ? `${selectedRoom.checkIn} → ${selectedRoom.checkOut}`
-                  : (selectedRoom.dateRange || 'Chưa có thông tin lưu trú')}
-              </p>
-              {selectedRoom.guestPhone && (
-                <p className="text-[11px] text-stone-500 mt-1">
-                  SĐT: <span className="font-mono text-stone-700">{selectedRoom.guestPhone}</span>
-                </p>
-              )}
-            </div>
-
-            {/* Block 3: Tạm tính Folio */}
-            <div className="pt-1 flex items-baseline justify-between">
-              <span className="text-xs font-medium text-stone-500">Tạm tính Folio</span>
-              <div className="font-serif text-2xl font-bold text-stone-900">
-                {selectedRoom.totalAmount ? formatVND(selectedRoom.totalAmount) : (selectedRoom.folioAmount ? formatVND(selectedRoom.folioAmount) : '0 đ')}
-              </div>
-            </div>
-
-            {/* Block 4: Ghi chú phục vụ */}
-            <div>
-              <span className="text-[10px] font-bold tracking-wider uppercase text-stone-400 block mb-1.5">
-                GHI CHÚ PHỤC VỤ & VỆ SINH
-              </span>
-              <div className="bg-[#FAF5EE] rounded-2xl p-3.5 border border-amber-200/70">
-                <p className="font-serif italic text-xs text-amber-950 leading-relaxed">
-                  "{selectedRoom.specialNotes || 'Phòng tiêu chuẩn 5 sao L\'Étoile Retreat.'}"
-                </p>
-              </div>
-            </div>
-
-            {/* Block 5: Action Buttons */}
-            <div className="space-y-2 pt-2">
-              {/* Nút hành động nổi bật khi phòng DIRTY (Theo yêu cầu Plase 1) */}
-              {selectedRoom.status === 'DIRTY' && (
-                <button
-                  type="button"
-                  onClick={() => handleCleanRoom(selectedRoom)}
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-md flex items-center justify-center gap-1.5"
-                >
-                  <CheckCircle2 size={16} />
-                  <span>Xác nhận đã dọn xong</span>
-                </button>
-              )}
-
-              {selectedRoom.status === 'OCCUPIED' && (
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/receptionist/services')}
-                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
-                  >
-                    <Coins size={15} />
-                    <span>Nạp Dịch vụ & Minibar</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/receptionist/bookings')}
-                    className="w-full py-2.5 rounded-xl bg-[#0E1524] hover:bg-stone-800 text-white text-xs font-semibold tracking-wide transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
-                  >
-                    <Receipt size={15} />
-                    <span>Xem Folio / Trả phòng</span>
-                  </button>
-                </div>
-              )}
-
               <button
                 type="button"
-                onClick={() => setIsCleaningModalOpen(true)}
-                className="w-full py-2.5 rounded-xl bg-[#F0F4F8] hover:bg-[#E2EAF2] text-stone-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="w-10 h-10 rounded-full bg-stone-200/80 hover:bg-stone-300 text-stone-800 flex items-center justify-center transition-colors cursor-pointer"
+                title="Đóng chi tiết phòng"
               >
-                <Sparkles size={14} className="text-amber-600" />
-                <span>Mở Popup Cập nhật Buồng phòng</span>
+                <X size={22} />
               </button>
+            </div>
+
+            {/* Scrollable details content */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {renderDetailCardContent(true)}
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 5. Bottom Footer */}
       <footer className="pt-6 border-t border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-stone-400">

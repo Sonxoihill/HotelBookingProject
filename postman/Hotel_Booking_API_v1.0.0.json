@@ -1,0 +1,1411 @@
+{
+  "info": {
+    "_postman_id": "hotel-booking-api-collection-v1-0-0",
+    "name": "Hotel Booking Management System API - Final v1.0.0 (17 Use Cases)",
+    "description": "Bộ sưu tập kiểm thử Postman Collection v2.1 hoàn chỉnh cho 17 Use Case của Hệ thống Quản lý và Đặt phòng Khách sạn (Khách hàng, Lễ tân, Quản trị viên).\n\nTích hợp tự động hóa đồng bộ JWT Bearer Token (`{{jwt_token}}`) ở cấp độ Collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Khách Hàng (Customer)",
+      "description": "Phân hệ Khách hàng (UC01 - UC08): Đăng ký, Đăng nhập, Tìm kiếm phòng, Xem chi tiết phòng, Đặt phòng, Thanh toán VNPay, Lịch sử đơn, Hủy đơn và Đánh giá phòng.",
+      "item": [
+        {
+          "name": "POST /auth/register (Đăng ký tài khoản - UC01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    var token = jsonData.data ? jsonData.data.token : jsonData.token;",
+                  "    if (token) {",
+                  "        pm.environment.set(\"jwt_token\", token);",
+                  "        console.log(\"JWT Token synced: \" + token);",
+                  "    }",
+                  "}",
+                  "pm.test(\"Status code is 201 Created or 409 Conflict\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 409]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Khách\",\n  \"email\": \"khachhangmoi@gmail.com\",\n  \"password\": \"<YOUR_PASSWORD>\",\n  \"confirmPassword\": \"<YOUR_PASSWORD>\",\n  \"phone\": \"0912345678\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Đăng ký tài khoản khách hàng mới với vai trò mặc định CUSTOMER (UC01)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /auth/login (Đăng nhập Khách hàng - UC02)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    var token = jsonData.data ? jsonData.data.token : jsonData.token;",
+                  "    pm.environment.set(\"jwt_token\", token);",
+                  "    console.log(\"JWT Token synced: \" + token);",
+                  "}",
+                  "pm.test(\"Login Customer returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"guest@gmail.com\",\n  \"password\": \"<YOUR_PASSWORD>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Đăng nhập tài khoản Khách hàng và tự động lưu `jwt_token` vào Environment (UC02)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /rooms/search (Tìm phòng trống theo ngày & số khách - UC04)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Search rooms returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/search?checkIn=2026-12-10&checkOut=2026-12-12&guests=2&minPrice=500000&maxPrice=3000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rooms",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "checkIn",
+                  "value": "2026-12-10",
+                  "description": "Ngày nhận phòng (YYYY-MM-DD)"
+                },
+                {
+                  "key": "checkOut",
+                  "value": "2026-12-12",
+                  "description": "Ngày trả phòng (YYYY-MM-DD)"
+                },
+                {
+                  "key": "guests",
+                  "value": "2",
+                  "description": "Số lượng khách lưu trú"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "500000",
+                  "description": "Giá tối thiểu mỗi đêm (VNĐ)"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "3000000",
+                  "description": "Giá tối đa mỗi đêm (VNĐ)"
+                }
+              ]
+            },
+            "description": "Tìm kiếm và lọc danh sách phòng còn trống theo ngày nhận/trả phòng và số khách (UC04)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /rooms/{id} (Chi tiết phòng & Bảng giá - UC05)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get room detail returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rooms",
+                "1"
+              ]
+            },
+            "description": "Xem thông tin chi tiết phòng, tiện ích, bảng giá và danh sách đánh giá của khách hàng (UC05)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /bookings (Tạo đơn đặt phòng mới - UC06)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.environment.set(\"bookingId\", jsonData.data.id);",
+                  "    }",
+                  "}",
+                  "pm.test(\"Create booking returns HTTP 200/201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": 1,\n  \"checkIn\": \"2027-03-10\",\n  \"checkOut\": \"2027-03-12\",\n  \"paymentMethod\": \"VNPAY\",\n  \"specialRequests\": \"Phòng tầng cao, không hút thuốc\",\n  \"fullName\": \"Nguyễn Văn Khách\",\n  \"phone\": \"0903456789\",\n  \"email\": \"guest@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bookings"
+              ]
+            },
+            "description": "Tạo đơn đặt phòng mới kèm cơ chế Pessimistic Locking chống đặt trùng phòng (UC06)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /payment/create-vnpay-url (Tạo link thanh toán VNPay - UC06)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Create VNPay URL returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": {{bookingId}},\n  \"amount\": 1100000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment/create-vnpay-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment",
+                "create-vnpay-url"
+              ]
+            },
+            "description": "Tạo URL thanh toán VNPay Sandbox ký số HMAC-SHA512 cho đơn đặt phòng (UC06)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /bookings/my-bookings (Lịch sử đơn của tôi - UC06)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get my bookings returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bookings/my-bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bookings",
+                "my-bookings"
+              ]
+            },
+            "description": "Lấy danh sách lịch sử các đơn đặt phòng của khách hàng đang đăng nhập."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /bookings/{id}/cancel (Hủy đơn đặt phòng - UC08)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Cancel booking status check\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Thay đổi lịch trình công tác đột xuất\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings/{{bookingId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bookings",
+                "{{bookingId}}",
+                "cancel"
+              ]
+            },
+            "description": "Khách hàng hủy đơn đặt phòng hợp lệ trước giờ nhận phòng ít nhất 24 giờ (UC08)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /reviews (Gửi đánh giá sau khi trả phòng - UC07)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Create review returns HTTP 200 or 400 if already reviewed\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": 10,\n  \"roomId\": 1,\n  \"rating\": 5,\n  \"comment\": \"Phòng sạch sẽ, kỹ lưỡng, đồ ăn mỹ mãn, nhân viên dễ thương, nghỉ dưỡng tuyệt vời!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews"
+              ]
+            },
+            "description": "Gửi đánh giá 1-5 sao và nhận xét tiếng Việt UTF-8 cho đơn đặt phòng đã CHECKED_OUT (UC07)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Lễ Tân (Receptionist)",
+      "description": "Phân hệ Lễ tân (UC09 - UC12): Đăng nhập Lễ tân, Sơ đồ ma trận buồng phòng, Check-in nhận phòng, Thêm dịch vụ/minibar phát sinh, Lấy hóa đơn quyết toán, Check-out trả phòng và Xác nhận dọn phòng sạch.",
+      "item": [
+        {
+          "name": "POST /auth/login-receptionist (Đăng nhập Lễ tân)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    var token = jsonData.data ? jsonData.data.token : jsonData.token;",
+                  "    pm.environment.set(\"jwt_token\", token);",
+                  "    console.log(\"JWT Token synced: \" + token);",
+                  "}",
+                  "pm.test(\"Login Receptionist returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"receptionist@gmail.com\",\n  \"password\": \"<YOUR_PASSWORD>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login-receptionist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login-receptionist"
+              ]
+            },
+            "description": "Đăng nhập tài khoản Lễ tân (`ROLE_RECEPTIONIST`) và tự động đồng bộ `jwt_token`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /receptionist/rooms/matrix (Sơ đồ ma trận buồng phòng - UC09)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get room matrix returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/rooms/matrix",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "receptionist",
+                "rooms",
+                "matrix"
+              ]
+            },
+            "description": "Lấy sơ đồ ma trận buồng phòng thời gian thực theo tầng và trạng thái (UC09)."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /receptionist/bookings/{id}/check-in (Thực hiện Check-in nhận phòng - UC10)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Check-in booking status check\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/6/check-in",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "receptionist",
+                "bookings",
+                "6",
+                "check-in"
+              ]
+            },
+            "description": "Lễ tân xác nhận khách nhận phòng: chuyển đơn từ CONFIRMED sang CHECKED_IN và phòng sang OCCUPIED (UC10)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /receptionist/bookings/{id}/services (Thêm dịch vụ / minibar phát sinh - UC11)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Add extra services returns HTTP 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"serviceId\": 1,\n    \"quantity\": 2\n  },\n  {\n    \"serviceId\": 5,\n    \"quantity\": 3\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/2/services",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "receptionist",
+                "bookings",
+                "2",
+                "services"
+              ]
+            },
+            "description": "Ghi nhận dịch vụ phụ trợ / minibar phát sinh vào hóa đơn phòng đang lưu trú CHECKED_IN (UC11)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /receptionist/bookings/{id}/checkout-summary (Lấy hóa đơn quyết toán Check-out - UC10)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get checkout summary returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/2/checkout-summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "receptionist",
+                "bookings",
+                "2",
+                "checkout-summary"
+              ]
+            },
+            "description": "Lấy bảng kê chi tiết tiền phòng, dịch vụ phát sinh, tiền đã cọc và số tiền cần thanh toán thêm trước khi Check-out (UC10)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /receptionist/bookings/{id}/check-out (Xác nhận Check-out trả phòng - UC10)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Check-out booking status check\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentMethod\": \"CASH\",\n  \"notes\": \"Khách thanh toán đủ tiền mặt tại quầy lễ tân\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/bookings/7/check-out",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "receptionist",
+                "bookings",
+                "7",
+                "check-out"
+              ]
+            },
+            "description": "Xác nhận hoàn tất trả phòng Check-out: chuyển đơn sang CHECKED_OUT và phòng sang DIRTY (UC10)."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /receptionist/rooms/{id}/clean (Xác nhận phòng đã dọn xong DIRTY -> AVAILABLE - UC12)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Clean room status check\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/receptionist/rooms/4/clean",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "receptionist",
+                "rooms",
+                "4",
+                "clean"
+              ]
+            },
+            "description": "Xác nhận phòng đang ở trạng thái DIRTY đã được dọn dẹp sạch sẽ và chuyển về AVAILABLE (UC12)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Quản Trị Viên (Admin)",
+      "description": "Phân hệ Quản trị viên (UC13 - UC17): Đăng nhập Admin, CRUD Loại phòng, CRUD Phòng vật lý, CRUD Dịch vụ, CRUD Quy tắc giá linh hoạt, Quản lý Người dùng & Nhân sự, Báo cáo doanh thu và Xuất file Excel/PDF.",
+      "item": [
+        {
+          "name": "POST /auth/login-admin (Đăng nhập Quản trị viên)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    var token = jsonData.data ? jsonData.data.token : jsonData.token;",
+                  "    pm.environment.set(\"jwt_token\", token);",
+                  "    console.log(\"JWT Token synced: \" + token);",
+                  "}",
+                  "pm.test(\"Login Admin returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@gmail.com\",\n  \"password\": \"<YOUR_PASSWORD>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login-admin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login-admin"
+              ]
+            },
+            "description": "Đăng nhập tài khoản Quản trị viên (`ROLE_ADMIN`) và tự động lưu `jwt_token` vào Environment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/room-categories (Danh sách loại phòng - UC13b)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get room categories returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/room-categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "room-categories"
+              ]
+            },
+            "description": "Lấy danh sách tất cả loại phòng trong hệ thống (UC13b)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/room-categories (Tạo mới loại phòng - UC13b)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Create room category returns HTTP 201 or 409\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 409]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Presidential Ocean Suite\",\n  \"basePrice\": 3500000,\n  \"capacity\": 4,\n  \"bedCount\": 2,\n  \"area\": 85.0,\n  \"bedType\": \"2 Giường King size\",\n  \"description\": \"Phòng Tổng thống hướng biển toàn cảnh kèm phòng khách riêng\",\n  \"imageUrl\": \"https://images.unsplash.com/photo-1582719478250-c89cae4dc85b\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/room-categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "room-categories"
+              ]
+            },
+            "description": "Thêm mới danh mục loại phòng (UC13b)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/room-categories/{id} (Cập nhật loại phòng - UC13b)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Deluxe Double\",\n  \"basePrice\": 980000,\n  \"capacity\": 2,\n  \"bedCount\": 1,\n  \"area\": 35.0,\n  \"bedType\": \"1 Giường đôi King size\",\n  \"description\": \"Phòng Deluxe sang trọng với giường đôi và view thoáng đãng.\",\n  \"imageUrl\": \"https://images.unsplash.com/photo-1582719478250-c89cae4dc85b\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/room-categories/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "room-categories",
+                "2"
+              ]
+            },
+            "description": "Cập nhật thông tin loại phòng theo ID (UC13b)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/rooms (Danh sách phòng vật lý - UC13a)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get admin rooms returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms"
+              ]
+            },
+            "description": "Lấy danh sách toàn bộ phòng vật lý cho Quản trị viên (UC13a)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/rooms (Thêm mới phòng vật lý - UC13a)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomNumber\": \"401\",\n  \"floor\": 4,\n  \"categoryId\": 2,\n  \"status\": \"AVAILABLE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms"
+              ]
+            },
+            "description": "Tạo mới một phòng vật lý (UC13a)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/rooms/{id} (Cập nhật phòng vật lý - UC13a)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomNumber\": \"101\",\n  \"floor\": 1,\n  \"categoryId\": 1,\n  \"status\": \"AVAILABLE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms",
+                "1"
+              ]
+            },
+            "description": "Cập nhật thông tin phòng vật lý theo ID (UC13a)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/services (Danh mục dịch vụ - UC14)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get admin services returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/services",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "services"
+              ]
+            },
+            "description": "Lấy toàn bộ danh mục dịch vụ phụ trợ bao gồm ACTIVE và INACTIVE (UC14)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/services (Tạo mới dịch vụ - UC14)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bữa tối lãng mạn trên tầng thượng\",\n  \"price\": 450000,\n  \"unit\": \"Suất\",\n  \"description\": \"Thực đơn Âu 4 món kèm rượu vang\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/services",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "services"
+              ]
+            },
+            "description": "Thêm mới dịch vụ phụ trợ vào hệ thống (UC14)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/services/{id} (Cập nhật dịch vụ - UC14)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bữa sáng Buffet\",\n  \"price\": 120000,\n  \"unit\": \"Suất\",\n  \"description\": \"Bữa sáng tự chọn phong phú món Á - Âu\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/services/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "services",
+                "1"
+              ]
+            },
+            "description": "Cập nhật thông tin dịch vụ theo ID (UC14)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/pricing-rules (Danh sách quy tắc giá linh hoạt - UC15)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get pricing rules returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/pricing-rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "pricing-rules"
+              ]
+            },
+            "description": "Lấy danh sách các quy tắc giá linh hoạt (HOLIDAY, PEAK_SEASON, WEEKEND - UC15)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/pricing-rules (Tạo mới quy tắc giá linh hoạt - UC15)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lễ 30/4 - 1/5/2028 +25%\",\n  \"ruleType\": \"HOLIDAY\",\n  \"startDate\": \"2028-04-29\",\n  \"endDate\": \"2028-05-02\",\n  \"adjustmentPercent\": 25.0,\n  \"categoryId\": 2,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/pricing-rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "pricing-rules"
+              ]
+            },
+            "description": "Tạo quy tắc giá linh hoạt mới với kiểm tra chống chồng chéo thời gian (UC15)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/pricing-rules/{id} (Cập nhật quy tắc giá linh hoạt - UC15)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lễ 30/4 - 1/5/2028 +30%\",\n  \"ruleType\": \"HOLIDAY\",\n  \"startDate\": \"2028-04-29\",\n  \"endDate\": \"2028-05-02\",\n  \"adjustmentPercent\": 30.0,\n  \"categoryId\": 2,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/pricing-rules/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "pricing-rules",
+                "1"
+              ]
+            },
+            "description": "Cập nhật quy tắc giá linh hoạt theo ID (UC15)."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/pricing-rules/{id} (Xóa quy tắc giá linh hoạt - UC15)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/pricing-rules/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "pricing-rules",
+                "1"
+              ]
+            },
+            "description": "Xóa quy tắc giá linh hoạt theo ID (UC15)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/users (Danh sách người dùng & nhân sự - UC16)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get admin users returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "RECEPTIONIST",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lấy danh sách người dùng và nhân sự có phân trang, hỗ trợ lọc theo vai trò ADMIN, RECEPTIONIST, CUSTOMER, GUEST (UC16)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/users/staff (Cấp tài khoản nhân sự mới - UC16)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Hoàng Thị Lễ Tân\",\n  \"email\": \"letan.ca3@gmail.com\",\n  \"phone\": \"0918765432\",\n  \"role\": \"RECEPTIONIST\",\n  \"department\": \"FRONT_DESK\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/staff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "staff"
+              ]
+            },
+            "description": "Cấp tài khoản nhân sự mới, tự sinh mật khẩu ngẫu nhiên 8 ký tự gửi qua email và ghi Audit Log STAFF_CREATED (UC16)."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/users/{id}/role (Đổi vai trò người dùng - UC16)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"RECEPTIONIST\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/4/role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "4",
+                "role"
+              ]
+            },
+            "description": "Cập nhật vai trò người dùng (ADMIN, RECEPTIONIST, CUSTOMER, GUEST) và ghi Audit Log ROLE_CHANGED (UC16)."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/users/{id}/lock (Khóa / Mở khóa tài khoản - UC16)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/5/lock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "5",
+                "lock"
+              ]
+            },
+            "description": "Đảo trạng thái khóa tài khoản ACTIVE <-> LOCKED và ghi Audit Log ACCOUNT_LOCKED / ACCOUNT_UNLOCKED (UC16)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/reports/revenue (Báo cáo doanh thu & công suất phòng - UC17)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get revenue report returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/revenue?startDate=2026-05-01&endDate=2026-10-31&reportType=MONTHLY",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reports",
+                "revenue"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2026-05-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-10-31"
+                },
+                {
+                  "key": "reportType",
+                  "value": "MONTHLY"
+                }
+              ]
+            },
+            "description": "Thống kê KPI doanh thu, công suất lấp đầy phòng và tỷ trọng doanh thu theo hạng phòng (UC17)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/reports/export/excel (Xuất báo cáo Excel - UC17)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Export Excel report returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/export/excel?startDate=2026-05-01&endDate=2026-10-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reports",
+                "export",
+                "excel"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2026-05-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-10-31"
+                }
+              ]
+            },
+            "description": "Xuất báo cáo doanh thu ra file Excel (.xlsx) (UC17)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/reports/export/pdf (Xuất báo cáo PDF - UC17)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Export PDF report returns HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/export/pdf?startDate=2026-05-01&endDate=2026-10-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reports",
+                "export",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2026-05-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-10-31"
+                }
+              ]
+            },
+            "description": "Xuất báo cáo doanh thu tiếng Việt UTF-8 ra file PDF (.pdf) (UC17)."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
+

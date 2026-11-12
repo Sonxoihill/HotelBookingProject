@@ -13,6 +13,7 @@ import {
   Loader2,
   Calendar,
   Search,
+  X,
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters';
 import { roomService } from '../../services/roomService';
@@ -66,6 +67,7 @@ export const RoomsPage = () => {
   const [sortBy, setSortBy] = useState('DEFAULT');
   const [currentPage, setCurrentPage] = useState(1);
   const [roomsPerPage, setRoomsPerPage] = useState(3);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Cập nhật lại input tìm kiếm khi query params trên URL thay đổi
   useEffect(() => {
@@ -347,6 +349,206 @@ export const RoomsPage = () => {
     return filteredRooms.slice(startIndex, startIndex + roomsPerPage);
   }, [filteredRooms, startIndex, roomsPerPage]);
 
+  const renderFilterCard = () => (
+    <div className="bg-white rounded-3xl border border-stone-200/90 p-6 shadow-2xs space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+        <div className="flex items-center gap-2 text-stone-900">
+          <SlidersHorizontal size={16} />
+          <h3 className="font-semibold text-sm">Bộ lọc tìm kiếm</h3>
+        </div>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="text-xs text-stone-400 hover:text-stone-800 transition-colors cursor-pointer"
+        >
+          Đặt lại
+        </button>
+      </div>
+
+      {/* 1. Loại phòng (Động từ Database) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-stone-800 uppercase tracking-wider">
+            Loại phòng
+          </h4>
+          {selectedTypes.length > 0 && !selectedTypes.includes('Tất cả loại phòng') && (
+            <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
+              {selectedTypes.length} đã chọn
+            </span>
+          )}
+        </div>
+        <div className="space-y-2">
+          {roomTypes.map((type) => {
+            const isChecked = selectedTypes.includes(type);
+            return (
+              <label
+                key={type}
+                className="flex items-center gap-2.5 cursor-pointer text-xs text-stone-600 hover:text-stone-900 select-none"
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={isChecked}
+                  onChange={() => handleToggleType(type)}
+                />
+                <div
+                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    isChecked
+                      ? 'bg-black border-black text-white'
+                      : 'border-stone-300 bg-white'
+                  }`}
+                >
+                  {isChecked && <Check size={11} strokeWidth={3} />}
+                </div>
+                <span className={isChecked ? 'font-medium text-stone-900' : ''}>
+                  {type}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      <hr className="border-stone-100" />
+
+      {/* 2. Khoảng giá (Thanh trượt từ Database) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between text-xs">
+          <h4 className="font-semibold text-stone-800 uppercase tracking-wider">
+            Khoảng giá
+          </h4>
+          <span className="font-bold text-stone-900 font-mono">
+            {maxPrice >= maxAvailablePrice ? 'Tất cả mức giá' : `Tối đa ${formatVND(maxPrice)}`}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={minAvailablePrice}
+          max={maxAvailablePrice + 200000}
+          step="50000"
+          value={maxPrice}
+          onChange={(e) => {
+            setMaxPrice(Number(e.target.value));
+            setCurrentPage(1);
+          }}
+          className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-black"
+        />
+        <div className="flex justify-between text-[11px] text-stone-400 font-mono">
+          <span>{formatVND(minAvailablePrice)}</span>
+          <span>{formatVND(maxAvailablePrice)}+</span>
+        </div>
+      </div>
+
+      <hr className="border-stone-100" />
+
+      {/* 3. Tiện nghi (Lấy động từ đặc điểm phòng trong Database) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-stone-800 uppercase tracking-wider">
+            Tiện nghi
+          </h4>
+          {selectedAmenities.length > 0 && (
+            <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
+              {selectedAmenities.length} đã chọn
+            </span>
+          )}
+        </div>
+        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          {availableAmenities.length === 0 ? (
+            <span className="text-xs text-stone-400 italic">Đang tải tiện nghi...</span>
+          ) : (
+            availableAmenities.map((amenity) => {
+              const isChecked = selectedAmenities.includes(amenity);
+              return (
+                <label
+                  key={amenity}
+                  className="flex items-center gap-2.5 cursor-pointer text-xs text-stone-600 hover:text-stone-900 select-none"
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={isChecked}
+                    onChange={() => handleToggleAmenity(amenity)}
+                  />
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      isChecked
+                        ? 'bg-black border-black text-white'
+                        : 'border-stone-300 bg-white'
+                    }`}
+                  >
+                    {isChecked && <Check size={11} strokeWidth={3} />}
+                  </div>
+                  <span className={isChecked ? 'font-medium text-stone-900' : ''}>
+                    {amenity}
+                  </span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <hr className="border-stone-100" />
+
+      {/* 4. Dịch vụ (Lấy trực tiếp từ bảng services trong Database) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-stone-800 uppercase tracking-wider">
+            Dịch vụ
+          </h4>
+          {selectedServices.length > 0 && (
+            <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
+              {selectedServices.length} đã chọn
+            </span>
+          )}
+        </div>
+        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          {services.length === 0 ? (
+            <span className="text-xs text-stone-400 italic">Đang tải dịch vụ...</span>
+          ) : (
+            services.map((service) => {
+              const isChecked = selectedServices.includes(service.name);
+              return (
+                <label
+                  key={service.id}
+                  className="flex items-center justify-between gap-2 p-1 rounded-lg hover:bg-stone-50 cursor-pointer text-xs text-stone-600 hover:text-stone-900 select-none transition-colors"
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={isChecked}
+                      onChange={() => handleToggleService(service.name)}
+                    />
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                        isChecked
+                          ? 'bg-black border-black text-white'
+                          : 'border-stone-300 bg-white'
+                      }`}
+                    >
+                      {isChecked && <Check size={11} strokeWidth={3} />}
+                    </div>
+                    <span className={`truncate ${isChecked ? 'font-medium text-stone-900' : ''}`}>
+                      {service.name}
+                    </span>
+                  </div>
+                  {service.price && (
+                    <span className="text-[10px] text-stone-400 font-mono shrink-0">
+                      +{formatVND(service.price)}
+                    </span>
+                  )}
+                </label>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-12 pb-24 bg-[#FAF8F5]">
       {/* 1. HERO BANNER SECTION */}
@@ -375,13 +577,13 @@ export const RoomsPage = () => {
         {/* =================================================================== */}
         {/* BỘ UI INPUT TÌM KIẾM NGÀY THÁNG TRÊN CÙNG (CHECKIN, CHECKOUT, GUESTS) */}
         {/* =================================================================== */}
-        <div className="absolute -bottom-10 left-0 right-0 max-w-5xl mx-auto px-4 z-20">
+        <div className="absolute -bottom-24 sm:-bottom-16 lg:-bottom-10 left-0 right-0 max-w-5xl mx-auto px-4 z-20">
           <form
             onSubmit={handleSearchSubmit}
-            className="bg-white rounded-2xl md:rounded-full p-2.5 sm:p-3 shadow-xl border border-stone-200/90 flex flex-col md:flex-row items-center justify-between gap-3 text-stone-900"
+            className="bg-white rounded-2xl lg:rounded-full p-3 sm:p-3.5 shadow-xl border border-stone-200/90 flex flex-col lg:flex-row items-center justify-between gap-2.5 lg:gap-3 text-stone-900"
           >
             {/* Field 1: Ngày Check-in */}
-            <div className="flex-1 w-full px-5 py-1 text-left border-b md:border-b-0 md:border-r border-stone-200">
+            <div className="flex-1 w-full px-4 sm:px-5 py-1.5 text-left border-b lg:border-b-0 lg:border-r border-stone-200">
               <label htmlFor="rooms-checkin" className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
                 Ngày Check-in
               </label>
@@ -399,7 +601,7 @@ export const RoomsPage = () => {
             </div>
 
             {/* Field 2: Ngày Check-out */}
-            <div className="flex-1 w-full px-5 py-1 text-left border-b md:border-b-0 md:border-r border-stone-200">
+            <div className="flex-1 w-full px-4 sm:px-5 py-1.5 text-left border-b lg:border-b-0 lg:border-r border-stone-200">
               <label htmlFor="rooms-checkout" className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
                 Ngày Check-out
               </label>
@@ -417,7 +619,7 @@ export const RoomsPage = () => {
             </div>
 
             {/* Field 3: Khách lưu trú (Sức chứa phòng) */}
-            <div className="flex-1 w-full px-5 py-1 text-left">
+            <div className="flex-1 w-full px-4 sm:px-5 py-1.5 text-left">
               <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
                 Khách lưu trú
               </span>
@@ -439,10 +641,10 @@ export const RoomsPage = () => {
             </div>
 
             {/* Nút Tìm kiếm */}
-            <div className="w-full md:w-auto shrink-0">
+            <div className="w-full lg:w-auto shrink-0">
               <button
                 type="submit"
-                className="w-full md:w-auto bg-black hover:bg-stone-800 text-white rounded-full px-7 py-3.5 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
+                className="w-full lg:w-auto min-h-[44px] bg-black hover:bg-stone-800 text-white rounded-xl lg:rounded-full px-7 py-3 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
               >
                 <Search size={14} />
                 <span>Tìm kiếm</span>
@@ -465,203 +667,10 @@ export const RoomsPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* =================================================================== */}
-          {/* CỘT TRÁI: BỘ LỌC TÌM KIẾM (lg:col-span-4)                           */}
+          {/* CỘT TRÁI: BỘ LỌC TÌM KIẾM (lg:col-span-4) - ẨN TRÊN MOBILE          */}
           {/* =================================================================== */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white rounded-3xl border border-stone-200/90 p-6 shadow-2xs space-y-6">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-                <div className="flex items-center gap-2 text-stone-900">
-                  <SlidersHorizontal size={16} />
-                  <h3 className="font-semibold text-sm">Bộ lọc tìm kiếm</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="text-xs text-stone-400 hover:text-stone-800 transition-colors cursor-pointer"
-                >
-                  Đặt lại
-                </button>
-              </div>
-
-              {/* 1. Loại phòng (Động từ Database) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-stone-800 uppercase tracking-wider">
-                    Loại phòng
-                  </h4>
-                  {selectedTypes.length > 0 && !selectedTypes.includes('Tất cả loại phòng') && (
-                    <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
-                      {selectedTypes.length} đã chọn
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {roomTypes.map((type) => {
-                    const isChecked = selectedTypes.includes(type);
-                    return (
-                      <label
-                        key={type}
-                        className="flex items-center gap-2.5 cursor-pointer text-xs text-stone-600 hover:text-stone-900 select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={isChecked}
-                          onChange={() => handleToggleType(type)}
-                        />
-                        <div
-                          className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked
-                              ? 'bg-black border-black text-white'
-                              : 'border-stone-300 bg-white'
-                            }`}
-                        >
-                          {isChecked && <Check size={11} strokeWidth={3} />}
-                        </div>
-                        <span className={isChecked ? 'font-medium text-stone-900' : ''}>
-                          {type}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <hr className="border-stone-100" />
-
-              {/* 2. Khoảng giá (Thanh trượt từ Database) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <h4 className="font-semibold text-stone-800 uppercase tracking-wider">
-                    Khoảng giá
-                  </h4>
-                  <span className="font-bold text-stone-900 font-mono">
-                    {maxPrice >= maxAvailablePrice ? 'Tất cả mức giá' : `Tối đa ${formatVND(maxPrice)}`}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={minAvailablePrice}
-                  max={maxAvailablePrice + 200000}
-                  step="50000"
-                  value={maxPrice}
-                  onChange={(e) => {
-                    setMaxPrice(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-black"
-                />
-                <div className="flex justify-between text-[11px] text-stone-400 font-mono">
-                  <span>{formatVND(minAvailablePrice)}</span>
-                  <span>{formatVND(maxAvailablePrice)}+</span>
-                </div>
-              </div>
-
-              <hr className="border-stone-100" />
-
-              {/* 3. Tiện nghi (Lấy động từ đặc điểm phòng trong Database) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-stone-800 uppercase tracking-wider">
-                    Tiện nghi
-                  </h4>
-                  {selectedAmenities.length > 0 && (
-                    <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
-                      {selectedAmenities.length} đã chọn
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {availableAmenities.length === 0 ? (
-                    <span className="text-xs text-stone-400 italic">Đang tải tiện nghi...</span>
-                  ) : (
-                    availableAmenities.map((amenity) => {
-                      const isChecked = selectedAmenities.includes(amenity);
-                      return (
-                        <label
-                          key={amenity}
-                          className="flex items-center gap-2.5 cursor-pointer text-xs text-stone-600 hover:text-stone-900 select-none"
-                        >
-                          <input
-                            type="checkbox"
-                            className="sr-only"
-                            checked={isChecked}
-                            onChange={() => handleToggleAmenity(amenity)}
-                          />
-                          <div
-                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked
-                                ? 'bg-black border-black text-white'
-                                : 'border-stone-300 bg-white'
-                              }`}
-                          >
-                            {isChecked && <Check size={11} strokeWidth={3} />}
-                          </div>
-                          <span className={isChecked ? 'font-medium text-stone-900' : ''}>
-                            {amenity}
-                          </span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <hr className="border-stone-100" />
-
-              {/* 4. Dịch vụ (Lấy trực tiếp từ bảng services trong Database) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-stone-800 uppercase tracking-wider">
-                    Dịch vụ
-                  </h4>
-                  {selectedServices.length > 0 && (
-                    <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
-                      {selectedServices.length} đã chọn
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {services.length === 0 ? (
-                    <span className="text-xs text-stone-400 italic">Đang tải dịch vụ...</span>
-                  ) : (
-                    services.map((service) => {
-                      const isChecked = selectedServices.includes(service.name);
-                      return (
-                        <label
-                          key={service.id}
-                          className="flex items-center justify-between gap-2 p-1 rounded-lg hover:bg-stone-50 cursor-pointer text-xs text-stone-600 hover:text-stone-900 select-none transition-colors"
-                        >
-                          <div className="flex items-center gap-2.5 truncate">
-                            <input
-                              type="checkbox"
-                              className="sr-only"
-                              checked={isChecked}
-                              onChange={() => handleToggleService(service.name)}
-                            />
-                            <div
-                              className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isChecked
-                                  ? 'bg-black border-black text-white'
-                                  : 'border-stone-300 bg-white'
-                                }`}
-                            >
-                              {isChecked && <Check size={11} strokeWidth={3} />}
-                            </div>
-                            <span className={`truncate ${isChecked ? 'font-medium text-stone-900' : ''}`}>
-                              {service.name}
-                            </span>
-                          </div>
-                          {service.price && (
-                            <span className="text-[10px] text-stone-400 font-mono shrink-0">
-                              +{formatVND(service.price)}
-                            </span>
-                          )}
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
+          <div className="hidden lg:block lg:col-span-4 space-y-6">
+            {renderFilterCard()}
 
             {/* Thẻ Callout hỗ trợ */}
             <div className="bg-[#101726] rounded-3xl p-6 text-white space-y-3 shadow-md border border-stone-800">
@@ -678,9 +687,29 @@ export const RoomsPage = () => {
           </div>
 
           {/* =================================================================== */}
-          {/* CỘT PHẢI: DANH SÁCH PHÒNG TỪ DATABASE (lg:col-span-8)               */}
+          {/* CỘT PHẢI: DANH SÁCH PHÒNG TỪ DATABASE (w-full lg:col-span-8)       */}
           {/* =================================================================== */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="w-full lg:col-span-8 space-y-6">
+            {/* Nút bấm "Bộ lọc phòng" hiển thị ở trên cùng trên Mobile (< 1024px) */}
+            <div className="lg:hidden flex items-center justify-between bg-white rounded-2xl p-3 sm:p-4 border border-stone-200/90 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-stone-900 hover:bg-black text-white text-xs font-semibold shadow-xs cursor-pointer min-h-[44px]"
+              >
+                <SlidersHorizontal size={14} />
+                <span>Bộ lọc phòng</span>
+                {(selectedTypes.filter((t) => t !== 'Tất cả loại phòng').length > 0 ||
+                  selectedAmenities.length > 0 ||
+                  selectedServices.length > 0 ||
+                  maxPrice < maxAvailablePrice) && (
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                )}
+              </button>
+              <span className="text-xs text-stone-500 font-medium">
+                {filteredRooms.length} phòng khả dụng
+              </span>
+            </div>
 
             {/* Banner hiển thị tiêu chí tìm kiếm từ ngày tháng */}
             {queryCheckIn && queryCheckOut && (
@@ -779,7 +808,7 @@ export const RoomsPage = () => {
                       className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col md:flex-row"
                     >
                       {/* Photo on Left */}
-                      <div className="relative md:w-80 aspect-[16/11] md:aspect-auto shrink-0 bg-stone-100 overflow-hidden">
+                      <div className="relative md:w-80 aspect-[16/10] md:aspect-auto shrink-0 bg-stone-100 overflow-hidden">
                         <img
                           src={imageUrl}
                           alt={roomName}
@@ -928,6 +957,59 @@ export const RoomsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* 3. Mobile Slide-over Drawer cho Bộ lọc phòng */}
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
+            onClick={() => setIsMobileFilterOpen(false)}
+          />
+
+          {/* Drawer trượt từ cạnh phải */}
+          <div className="fixed inset-y-0 right-0 w-full max-w-sm sm:max-w-md bg-[#FAF8F5] shadow-2xl flex flex-col z-50 animate-in slide-in-from-right duration-300">
+            {/* Drawer Header */}
+            <div className="p-4 sm:p-5 bg-white border-b border-stone-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 text-stone-900">
+                <SlidersHorizontal size={16} />
+                <h3 className="font-serif font-bold text-base">Bộ lọc tìm kiếm</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="p-2 rounded-full hover:bg-stone-100 text-stone-500 hover:text-stone-900 transition-colors cursor-pointer"
+                title="Đóng bộ lọc"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Drawer Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6">
+              {renderFilterCard()}
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-4 bg-white border-t border-stone-200 flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex-1 py-3 rounded-full border border-stone-300 text-xs font-semibold text-stone-700 hover:bg-stone-100 cursor-pointer min-h-[44px]"
+              >
+                Đặt lại
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="flex-1 py-3 rounded-full bg-black text-white text-xs font-semibold shadow-md hover:bg-stone-800 cursor-pointer min-h-[44px]"
+              >
+                Áp dụng ({filteredRooms.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

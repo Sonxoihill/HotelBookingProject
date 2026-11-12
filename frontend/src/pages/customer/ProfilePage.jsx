@@ -47,7 +47,7 @@ export const ProfilePage = () => {
             fullName: profile.fullName || '',
             email: profile.email || '',
             phone: profile.phone || '',
-            role: profile.role || 'GUEST',
+            role: profile.role === 'GUEST' ? 'CUSTOMER' : (profile.role || 'CUSTOMER'),
             status: profile.status || 'ACTIVE',
           });
           // Cập nhật lại thông tin đồng bộ trong localStorage
@@ -57,7 +57,7 @@ export const ProfilePage = () => {
             fullName: profile.fullName,
             email: profile.email,
             phone: profile.phone,
-            role: profile.role,
+            role: profile.role === 'GUEST' ? 'CUSTOMER' : profile.role,
           });
         }
       } catch (err) {

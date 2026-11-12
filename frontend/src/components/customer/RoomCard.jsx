@@ -26,7 +26,7 @@ export const RoomCard = ({ room }) => {
   return (
     <div className="bg-white rounded-3xl border border-stone-200/90 shadow-2xs hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group">
       {/* Image & Badges */}
-      <div className="relative aspect-[16/11] overflow-hidden bg-stone-100">
+      <div className="relative aspect-[16/10] overflow-hidden bg-stone-100">
         <img
           src={imageUrl}
           alt={name}
@@ -50,7 +50,7 @@ export const RoomCard = ({ room }) => {
           </h3>
 
           {description && (
-            <p className="text-xs text-stone-500 line-clamp-2 font-light leading-relaxed">
+            <p className="text-xs text-stone-600 line-clamp-2 font-sans font-normal leading-relaxed">
               {description}
             </p>
           )}

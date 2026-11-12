@@ -38,8 +38,16 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Database Backups
+# Database Backups & Dumps
 backups/
 *.sql.gz
 *.sql.zip
+production_backup*.sql
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
 

@@ -21,7 +21,7 @@ import java.util.Date;
 @Component
 public class JwtUtils {
 
-    @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}")
+    @Value("${jwt.secret:dev_staging_jwt_secret_key_minimum_32_bytes_random_hex_for_local_testing_only_123456}")
     private String jwtSecret;
 
     @Value("${jwt.expiration-ms:86400000}")
@@ -34,6 +34,9 @@ public class JwtUtils {
     }
 
     private SecretKey getSigningKey() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException("JWT Secret is not configured. Please set the JWT_SECRET environment variable.");
+        }
         byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
         return Keys.hmacShaKeyFor(keyBytes);
     }

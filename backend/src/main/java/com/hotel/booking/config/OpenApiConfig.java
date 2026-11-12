@@ -23,21 +23,25 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Hotel Booking Management System API")
-                        .description("Tài liệu API hệ thống Quản lý và Đặt phòng Khách sạn (Spring Boot 3 + Springdoc OpenAPI).\n\n"
-                                + "Bao gồm đầy đủ các module nghiệp vụ:\n"
-                                + "- **Room Management**: Tìm kiếm & lọc phòng (UC04), xem chi tiết phòng (UC05), danh sách phòng\n"
-                                + "- **Authentication**: Đăng ký, đăng nhập, lấy thông tin cá nhân, phân quyền RBAC\n"
-                                + "- **Bookings**: Đặt phòng (giữ chỗ ON_HOLD, pessimistic locking), hủy phòng trước 24h (UC08), xem lịch sử đặt phòng\n"
-                                + "- **Payment & VNPay Sandbox**: Tích hợp cổng thanh toán VNPay Sandbox (SCRUM-94), tạo URL thanh toán, xử lý Webhook IPN và Return URL\n"
-                                + "- **Confirmation Email**: Tự động gửi email xác nhận đặt phòng kèm chi tiết hóa đơn qua Google SMTP bất đồng bộ (SCRUM-95)\n"
-                                + "- **Reviews**: Đánh giá phòng sau lưu trú (UC07) - Kiểm tra trạng thái CHECKED_OUT và ngăn chặn đánh giá trùng lặp\n"
-                                + "- **Receptionist Room Grid & Housekeeping**: Sơ đồ phòng thời gian thực (UC09) và xác nhận dọn dẹp phòng DIRTY -> AVAILABLE (UC12)\n"
-                                + "- **Receptionist Booking Lifecycle**: Quản lý đơn tại quầy Lễ tân (UC10) - Danh sách & lọc, Duyệt (CONFIRMED/RESERVED), Hủy (CANCELLED/AVAILABLE), Check-in (CHECKED_IN/OCCUPIED), Tóm tắt hóa đơn trước Check-out, và Check-out (CHECKED_OUT/DIRTY)\n"
-                                + "- **Receptionist Extra Services**: Ghi nhận dịch vụ phát sinh vào Folio phòng đang lưu trú (UC11) và cập nhật tổng tiền hóa đơn tự động\n"
-                                + "- **Services & Catalog**: Danh mục dịch vụ khách sạn có đơn vị tính\n"
-                                + "- **Users**: Quản lý hồ sơ cá nhân, đổi mật khẩu\n"
-                                + "- **Health**: Kiểm tra trạng thái hoạt động hệ thống")
-                        .version("1.1.0")
+                        .description("Tài liệu đặc tả API chuẩn quốc tế OpenAPI 3.0 cho Hệ thống Quản lý và Đặt phòng Khách sạn (Spring Boot 3 + Springdoc OpenAPI) bao phủ toàn bộ 17 Use Case thuộc 3 phân hệ:\n\n"
+                                + "### 1. Phân hệ Khách hàng (Customer / Guest)\n"
+                                + "- **Authentication (UC01, UC02)**: Đăng ký tài khoản mới, đăng nhập nhận JWT Token, kiểm tra phiên đăng nhập.\n"
+                                + "- **User Profile (UC03)**: Xem hồ sơ cá nhân, cập nhật thông tin liên hệ và đổi mật khẩu.\n"
+                                + "- **Room Search & Detail (UC04, UC05)**: Tìm kiếm & lọc phòng trống theo ngày nhận/trả, số lượng khách, mức giá; xem chi tiết phòng, tiện ích, đánh giá và báo giá linh hoạt.\n"
+                                + "- **Booking & Concurrency (UC06, UC08)**: Tạo đơn đặt phòng với khóa bi quan (Pessimistic Locking) chống trùng phòng, xem lịch sử đặt phòng cá nhân, hủy đơn trước 24 giờ.\n"
+                                + "- **Payment VNPay Sandbox (UC06)**: Tạo URL thanh toán VNPay HMAC-SHA512, xử lý Webhook IPN (whitelist IP) và Return URL.\n"
+                                + "- **Review Management (UC07)**: Gửi đánh giá & nhận xét tiếng Việt UTF-8 sau khi hoàn tất trả phòng (`CHECKED_OUT`).\n\n"
+                                + "### 2. Phân hệ Lễ tân (Receptionist)\n"
+                                + "- **Room Matrix / Grid & Housekeeping (UC09, UC12)**: Xem sơ đồ ma trận buồng phòng thời gian thực theo tầng/trạng thái; xác nhận dọn phòng sạch (`DIRTY` -> `AVAILABLE`).\n"
+                                + "- **Receptionist Booking Lifecycle (UC10)**: Tra cứu đơn đặt phòng, duyệt đơn (`CONFIRMED`), hủy đơn, làm thủ tục Check-in (`CHECKED_IN`/`OCCUPIED`), xem bảng kê quyết toán và xác nhận Check-out (`CHECKED_OUT`/`DIRTY`).\n"
+                                + "- **Extra Services / Minibar (UC11)**: Ghi nhận dịch vụ phát sinh vào Folio phòng đang lưu trú và tự động cộng dồn hóa đơn.\n\n"
+                                + "### 3. Phân hệ Quản trị viên (Admin)\n"
+                                + "- **Admin Room Categories & Rooms (UC13a, UC13b)**: Quản lý CRUD danh mục hạng phòng và danh sách phòng vật lý.\n"
+                                + "- **Admin Services (UC14)**: Quản lý CRUD danh mục dịch vụ phụ trợ (xóa mềm nếu đã phát sinh giao dịch).\n"
+                                + "- **Admin Pricing Rules (UC15)**: Quản lý CRUD quy tắc giá linh hoạt (`HOLIDAY`, `PEAK_SEASON`, `WEEKEND`) có kiểm tra chống chồng chéo thời gian.\n"
+                                + "- **Admin User & Staff Management (UC16)**: Tìm kiếm/lọc người dùng theo vai trò (`ADMIN`, `RECEPTIONIST`, `CUSTOMER`, `GUEST`), cấp tài khoản nhân sự mới gửi qua email, phân quyền vai trò, khóa/mở khóa tài khoản kèm Audit Log.\n"
+                                + "- **Admin Revenue Reports (UC17)**: Thống kê KPI doanh thu, công suất lấp đầy phòng và xuất báo cáo định dạng Excel (`.xlsx`) / PDF (`.pdf`).")
+                        .version("1.0.0")
                         .contact(new Contact()
                                 .name("Hotel Booking Engineering Team")
                                 .email("support@hotelbooking.com"))
@@ -45,10 +49,10 @@ public class OpenApiConfig {
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0")))
                 .servers(List.of(
-                        new Server().url("/api/v1").description("Local Context Path Server (/api/v1)"),
-                        new Server().url("/").description("Direct Root Server (/)"),
-                        new Server().url("https://hotelbookingproject-backend2-63bf.onrender.com/api/v1").description("Staging Server (Render - develop)"),
-                        new Server().url("https://hotelbookingproject-backend-cxau.onrender.com/api/v1").description("Production Server (Render - main)")
+                        new Server().url("http://localhost:8080/api/v1").description("Local Development Server (http://localhost:8080/api/v1)"),
+                        new Server().url("/api/v1").description("Relative Context Path Server (/api/v1)"),
+                        new Server().url("https://hotelbookingproject-l6ru.onrender.com/api/v1").description("Cloud Render Server (https://hotelbookingproject-l6ru.onrender.com/api/v1)"),
+                        new Server().url("https://hotelbookingproject-backend-cxau.onrender.com/api/v1").description("Production Render Server (main)")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()

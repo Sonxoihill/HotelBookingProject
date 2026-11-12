@@ -33,6 +33,7 @@ export const AddServiceModal = ({
 
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -86,14 +87,22 @@ export const AddServiceModal = ({
     });
     if (unitErr) newErrors.unit = unitErr;
 
-    // 4. Đơn giá: Số hợp lệ > 0
+    // 4. Đơn giá: Số hợp lệ, khác 0, không âm, không quá nhỏ (< 1.000 VND), không quá lớn (> 1.000.000.000 VND)
     const rawPrice = String(formData.price ?? '').trim();
     if (!rawPrice) {
-      newErrors.price = 'Đơn giá dịch vụ không được để trống.';
+      newErrors.price = 'Giá dịch vụ không được để trống';
     } else {
       const priceNum = Number(rawPrice);
-      if (isNaN(priceNum) || priceNum <= 0) {
-        newErrors.price = 'Đơn giá dịch vụ phải là số lớn hơn 0 VND.';
+      if (isNaN(priceNum)) {
+        newErrors.price = 'Giá dịch vụ phải là số hợp lệ';
+      } else if (priceNum < 0) {
+        newErrors.price = 'Đơn giá dịch vụ không được là số âm';
+      } else if (priceNum === 0) {
+        newErrors.price = 'Giá dịch vụ phải lớn hơn 0';
+      } else if (priceNum < 1000) {
+        newErrors.price = 'Đơn giá dịch vụ quá nhỏ (tối thiểu 1.000 VND)';
+      } else if (priceNum > 1000000000) {
+        newErrors.price = 'Đơn giá dịch vụ quá lớn (tối đa 1.000.000.000 VND)';
       }
     }
 
@@ -109,7 +118,7 @@ export const AddServiceModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -125,10 +134,21 @@ export const AddServiceModal = ({
       slaTime: formData.slaTime,
     };
 
-    if (onSave) {
-      onSave(payload);
-    } else if (onAddService) {
-      onAddService(payload);
+    setIsSubmitting(true);
+    try {
+      if (onSave) {
+        await onSave(payload);
+      } else if (onAddService) {
+        await onAddService(payload);
+      }
+    } catch (err) {
+      console.error('Lỗi khi gửi dữ liệu dịch vụ:', err);
+      const serverErrs = err?.errors || err?.response?.data?.errors;
+      if (serverErrs && typeof serverErrs === 'object') {
+        setErrors((prev) => ({ ...prev, ...serverErrs }));
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -159,7 +179,7 @@ export const AddServiceModal = ({
         </div>
 
         {/* Body Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {/* Section 1: Tên & Phân loại */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div className="sm:col-span-2">
@@ -275,8 +295,7 @@ export const AddServiceModal = ({
               </label>
               <input
                 type="number"
-                step="10000"
-                min="1"
+                step="any"
                 placeholder="Ví dụ: 150000"
                 value={formData.price}
                 onChange={(e) => {
@@ -348,15 +367,24 @@ export const AddServiceModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-full border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer disabled:opacity-50"
               >
                 Hủy
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs"
+                disabled={isSubmitting}
+                className="px-6 py-2 rounded-full bg-black text-white text-xs font-semibold hover:bg-stone-800 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
               >
-                {isEditing ? 'Lưu thay đổi' : 'Lưu dịch vụ vào hệ thống'}
+                {isSubmitting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <span>{isEditing ? 'Lưu thay đổi' : 'Lưu dịch vụ vào hệ thống'}</span>
+                )}
               </button>
             </div>
           </div>

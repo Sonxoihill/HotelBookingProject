@@ -18,16 +18,17 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
-@Tag(name = "User Management", description = "Các API quản lý thông tin cá nhân và thay đổi mật khẩu")
+@Tag(name = "7. Khách hàng - Hồ sơ Cá nhân (User Profile)", description = "Các API quản lý thông tin hồ sơ cá nhân và đổi mật khẩu tài khoản (UC03)")
 @SecurityRequirement(name = "bearerAuth")
 public class UserController {
 
     private final UserService userService;
     private final JwtUtil jwtUtil;
 
-    @Operation(summary = "Lấy thông tin hồ sơ cá nhân", description = "Trả về thông tin chi tiết tài khoản của người dùng đang đăng nhập.")
+    @Operation(summary = "Lấy thông tin hồ sơ cá nhân (UC03)", description = "Trả về thông tin chi tiết tài khoản của người dùng đang đăng nhập.")
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy thông tin hồ sơ thành công")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy thông tin hồ sơ thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Chưa đăng nhập hoặc JWT Token hết hạn")
     })
     @GetMapping("/profile")
     public ApiResponse<UserProfileResponse> getProfile(
@@ -39,9 +40,11 @@ public class UserController {
         return ApiResponse.success("Lấy thông tin hồ sơ thành công", profile);
     }
 
-    @Operation(summary = "Cập nhật thông tin hồ sơ", description = "Cập nhật họ tên, số điện thoại, địa chỉ cá nhân.")
+    @Operation(summary = "Cập nhật thông tin hồ sơ cá nhân (UC03)", description = "Cập nhật họ tên và số điện thoại liên hệ của người dùng đang đăng nhập.")
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật hồ sơ thành công")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật hồ sơ thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Họ tên hoặc số điện thoại không đúng định dạng"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Chưa đăng nhập hoặc JWT Token hết hạn")
     })
     @PutMapping("/profile")
     public ApiResponse<UserProfileResponse> updateProfile(
@@ -54,10 +57,11 @@ public class UserController {
         return ApiResponse.success("Cập nhật hồ sơ thành công", updated);
     }
 
-    @Operation(summary = "Đổi mật khẩu", description = "Thay đổi mật khẩu đăng nhập với việc xác thực mật khẩu cũ.")
+    @Operation(summary = "Đổi mật khẩu đăng nhập (UC03)", description = "Thay đổi mật khẩu đăng nhập sau khi xác thực mật khẩu hiện tại trùng khớp.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đổi mật khẩu thành công"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Mật khẩu cũ không chính xác hoặc mật khẩu mới không hợp lệ")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Mật khẩu hiện tại không chính xác hoặc mật khẩu mới không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Chưa đăng nhập hoặc JWT Token hết hạn")
     })
     @PutMapping("/change-password")
     public ApiResponse<Void> changePassword(

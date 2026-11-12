@@ -27,33 +27,33 @@ import java.util.List;
 @RestController
 @RequestMapping("/rooms")
 @RequiredArgsConstructor
-@Tag(name = "Room Management", description = "Các API tìm kiếm, lọc và xem thông tin chi tiết phòng khách sạn (Subtask 1.2 - UC04 & Subtask 1.3 - UC05)")
+@Tag(name = "2. Khách hàng - Tìm kiếm & Chi tiết Phòng (Rooms)", description = "Các API tìm kiếm phòng trống theo ngày/số khách (UC04), xem chi tiết phòng & đánh giá (UC05) và tính báo giá linh hoạt")
 public class RoomController {
 
     private final RoomService roomService;
 
     @Operation(
-            summary = "Tìm kiếm & Lọc phòng trống (UC04)",
-            description = "Tìm kiếm danh sách các phòng còn trống theo khoảng thời gian nhận/trả phòng, mức giá, hạng phòng và sức chứa. Hệ thống tự động loại bỏ các phòng đã có người đặt trong thời gian yêu cầu."
+            summary = "Tìm kiếm & Lọc phòng trống theo ngày và số khách (UC04)",
+            description = "Tìm kiếm danh sách các phòng còn trống theo khoảng thời gian nhận/trả phòng (checkIn, checkOut), sức chứa (capacity / guests), khoảng giá (minPrice, maxPrice) và hạng phòng (categoryId). Hệ thống tự động loại trừ các phòng đã được đặt trong khoảng thời gian yêu cầu."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "Tìm kiếm phòng thành công",
+                    description = "Tìm kiếm phòng trống thành công",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "Tham số tìm kiếm không hợp lệ (Ví dụ: Ngày trả phòng trước ngày nhận phòng, ngày trong quá khứ)",
+                    description = "Tham số tìm kiếm không hợp lệ (ngày trả phòng trước ngày nhận phòng hoặc định dạng sai)",
                     content = @Content(mediaType = "application/json")
             )
     })
     @GetMapping("/search")
     public ApiResponse<List<RoomSearchResponse>> searchRooms(
-            @Parameter(description = "Ngày nhận phòng (Định dạng YYYY-MM-DD)", example = "2026-10-10")
+            @Parameter(description = "Ngày nhận phòng (Định dạng YYYY-MM-DD)", example = "2026-12-10")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
 
-            @Parameter(description = "Ngày trả phòng (Định dạng YYYY-MM-DD)", example = "2026-10-12")
+            @Parameter(description = "Ngày trả phòng (Định dạng YYYY-MM-DD)", example = "2026-12-12")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
 
             @Parameter(description = "Khoảng giá tối thiểu mỗi đêm (VNĐ)", example = "500000")
@@ -66,29 +66,38 @@ public class RoomController {
             @RequestParam(required = false) Long categoryId,
 
             @Parameter(description = "Sức chứa tối thiểu (số lượng khách)", example = "2")
-            @RequestParam(required = false) Integer capacity) {
+            @RequestParam(required = false) Integer capacity,
 
+            @Parameter(description = "Số lượng khách lưu trú (alias của capacity)", example = "2")
+            @RequestParam(required = false) Integer guests) {
+
+        Integer effectiveCapacity = (capacity != null) ? capacity : guests;
         RoomSearchRequest request = RoomSearchRequest.builder()
                 .checkIn(checkIn)
                 .checkOut(checkOut)
                 .minPrice(minPrice)
                 .maxPrice(maxPrice)
                 .categoryId(categoryId)
-                .capacity(capacity)
+                .capacity(effectiveCapacity)
                 .build();
         List<RoomSearchResponse> rooms = roomService.searchRooms(request);
         return ApiResponse.success("Tìm kiếm phòng thành công", rooms);
     }
 
     @Operation(
-            summary = "Xem chi tiết phòng (UC05)",
-            description = "Lấy đầy đủ thông tin chi tiết của một phòng cụ thể bao gồm: tiện ích, hình ảnh, giá mỗi đêm, đánh giá trung bình và danh sách nhận xét của khách hàng."
+            summary = "Xem chi tiết phòng & Bảng giá (UC05)",
+            description = "Lấy đầy đủ thông tin chi tiết của một phòng cụ thể bao gồm: hạng phòng, diện tích, loại giường, tiện ích, hình ảnh, giá cơ bản mỗi đêm, điểm đánh giá trung bình và danh sách nhận xét tiếng Việt UTF-8 của khách hàng."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
                     description = "Lấy thông tin chi tiết phòng thành công",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "ID phòng không đúng định dạng số",
+                    content = @Content(mediaType = "application/json")
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
@@ -105,9 +114,12 @@ public class RoomController {
     }
 
     @Operation(
-            summary = "Lấy danh sách phòng công khai (Public)",
-            description = "Lấy danh sách các phòng khả dụng có phân trang (mặc định 6 phòng/trang) cho trang chủ."
+            summary = "Lấy danh sách phòng nổi bật công khai (Public)",
+            description = "Lấy danh sách các phòng khả dụng có phân trang (mặc định 6 phòng/trang) để hiển thị trên trang chủ."
     )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách phòng công khai thành công")
+    })
     @GetMapping("/public")
     public ApiResponse<Page<Room>> getPublicRooms(
             @Parameter(hidden = true)
@@ -117,9 +129,12 @@ public class RoomController {
     }
 
     @Operation(
-            summary = "Lấy toàn bộ danh sách phòng",
+            summary = "Lấy toàn bộ danh sách phòng khách sạn",
             description = "Lấy danh sách phòng có phân trang (mặc định 12 phòng/trang)."
     )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách phòng thành công")
+    })
     @GetMapping
     public ApiResponse<Page<Room>> getRooms(
             @Parameter(hidden = true)
@@ -129,9 +144,14 @@ public class RoomController {
     }
 
     @Operation(
-            summary = "Xem trước báo giá phòng theo ngày lưu trú (Public)",
-            description = "Hệ thống tự động áp dụng các quy tắc giá linh hoạt (cuối tuần, lễ tết, mùa cao điểm) cho từng đêm và tính 10% VAT."
+            summary = "Xem trước báo giá phòng theo ngày lưu trú (Dynamic Pricing Quote)",
+            description = "Hệ thống tự động áp dụng các quy tắc giá linh hoạt (HOLIDAY, PEAK_SEASON, WEEKEND) cho từng đêm lưu trú và tính thuế GTGT 10% VAT."
     )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tính báo giá phòng thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Khoảng ngày nhận/trả phòng không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy phòng theo ID")
+    })
     @GetMapping("/{id}/price-quote")
     public ApiResponse<com.hotel.booking.dto.response.PriceQuote> getPriceQuote(
             @Parameter(description = "ID phòng cần tính giá", example = "1", required = true)

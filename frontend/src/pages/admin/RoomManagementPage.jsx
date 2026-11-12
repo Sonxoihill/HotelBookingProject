@@ -111,6 +111,7 @@ export const RoomManagementPage = () => {
       const status = err.response?.status || err.status;
       const msg = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi lưu phòng.';
       showToast(msg, 'error');
+      throw err;
     }
   };
 
@@ -435,9 +436,8 @@ export const RoomManagementPage = () => {
       </div>
 
       {/* 4. Table: ID, NAME, DESCRIPTION, PRICE/UNIT, STATUS, ACTIONS (✏️, 🗑️) */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+      <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white shadow-2xs">
+        <table className="w-full min-w-[850px] text-left text-xs">
             <thead>
               <tr className="bg-stone-50/60 text-[10px] font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100">
                 <th className="py-3.5 px-6">ID</th>
@@ -604,7 +604,6 @@ export const RoomManagementPage = () => {
               )}
             </tbody>
           </table>
-        </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">

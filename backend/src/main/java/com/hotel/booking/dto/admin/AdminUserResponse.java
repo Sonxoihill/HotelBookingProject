@@ -1,5 +1,6 @@
 package com.hotel.booking.dto.admin;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.hotel.booking.entity.User;
 import com.hotel.booking.enums.Department;
 import com.hotel.booking.enums.UserRole;
@@ -14,7 +15,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Thông tin tài khoản người dùng dành cho Quản trị viên (không trả mật khẩu)")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "Thông tin tài khoản người dùng dành cho Quản trị viên")
 public class AdminUserResponse {
 
     @Schema(description = "ID người dùng", example = "1")
@@ -41,6 +43,9 @@ public class AdminUserResponse {
     @Schema(description = "Thời điểm khởi tạo")
     private LocalDateTime createdAt;
 
+    @Schema(description = "Mật khẩu tạm thời (chỉ trả về một lần khi Quản trị viên khởi tạo tài khoản mới)")
+    private String temporaryPassword;
+
     public static AdminUserResponse fromEntity(User user) {
         if (user == null) return null;
         return AdminUserResponse.builder()
@@ -48,7 +53,7 @@ public class AdminUserResponse {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .role(user.getRole())
+                .role(user.getRole() != null ? user.getRole() : UserRole.GUEST)
                 .department(user.getDepartment())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())

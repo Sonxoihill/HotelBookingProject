@@ -648,8 +648,8 @@ export const BookingHistoryPage = () => {
                                 />
                               ))}
                             </div>
-                            <span className="font-semibold text-xs font-sans">Đã đánh giá: {b.review.rating} sao</span>
-                            <span className="italic text-stone-700 text-xs font-normal truncate max-w-[200px] sm:max-w-none font-sans">
+                            <span className="font-semibold text-xs font-sans text-amber-900">Đã đánh giá: {b.review.rating} sao</span>
+                            <span className="font-sans text-stone-700 font-normal text-xs truncate max-w-[200px] sm:max-w-none">
                               - "{b.review.comment}"
                             </span>
                           </div>

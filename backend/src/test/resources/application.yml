@@ -1,0 +1,17 @@
+# Cấu hình kiểm thử tự động (Unit / Integration Tests)
+# Sử dụng các giá trị giả lập an toàn, tuyệt đối không chứa thông tin nhạy cảm thật.
+spring:
+  profiles:
+    active: staging
+  mail:
+    username: test@example.com
+    password: test_dummy_mail_password
+
+jwt:
+  secret: testSecretKeyForUnitTestingOnly12345678901234567890123456789012
+  expiration-ms: 3600000
+
+vnpay:
+  tmn-code: TEST_TMN_CODE
+  hash-secret: TEST_HASH_SECRET_FOR_UNIT_TESTING_PURPOSES_ONLY
+

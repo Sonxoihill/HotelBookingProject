@@ -89,7 +89,7 @@ export const ReceptionistServicesPage = () => {
         roomNumber: b.roomNumber || b.roomCode,
         roomName: b.roomCategory || `Phòng ${b.roomNumber || b.roomId}`,
         guestName: b.guestName || 'Khách lưu trú',
-        guestTier: b.guestTier || 'VIP Member',
+        guestTier: b.guestTier === 'GUEST' ? 'CUSTOMER' : (b.guestTier || 'CUSTOMER'),
         guestPhone: b.guestPhone,
         checkInDate: b.checkIn || '---',
         checkOutDate: b.checkOut || '---',
@@ -576,8 +576,8 @@ export const ReceptionistServicesPage = () => {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              <div className="w-full overflow-x-auto border border-stone-200 rounded-2xl bg-white">
+                <table className="w-full min-w-[500px] text-left text-xs">
                   <thead>
                     <tr className="border-b border-stone-100 text-stone-400 font-semibold uppercase tracking-wider text-[10px]">
                       <th className="py-2.5 px-3">Phòng & Khách</th>

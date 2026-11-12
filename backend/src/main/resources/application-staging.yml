@@ -8,7 +8,7 @@ spring:
 
   datasource:
     # URL Database Staging
-    url: ${STAGING_DB_URL:${DB_URL:jdbc:mysql://localhost:3308/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8}}
+    url: ${STAGING_DB_URL:${DB_URL:jdbc:mysql://localhost:3308/hotel_booking?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8}}
     username: ${STAGING_DB_USERNAME:${DB_USERNAME:root}}
     password: ${STAGING_DB_PASSWORD:${DB_PASSWORD:123456}}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -18,6 +18,17 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 20000
+
+  mail:
+    username: ${MAIL_USERNAME:dev.hotelbooking.notification@gmail.com}
+    password: ${MAIL_PASSWORD:dev_placeholder_mail_app_password}
+
+jwt:
+  secret: ${JWT_SECRET:dev_staging_jwt_secret_key_minimum_32_bytes_random_hex_for_local_testing_only_123456}
+
+vnpay:
+  tmn-code: ${VNPAY_TMN_CODE:DEV_SANDBOX_TMN}
+  hash-secret: ${VNPAY_HASH_SECRET:DEV_SANDBOX_HASH_SECRET_FOR_LOCAL_ONLY_12345}
 
 cors:
   # Cấu hình CORS cho phép domain Frontend Staging & Local
@@ -31,3 +42,7 @@ logging:
 
 vnpay:
   return-url: ${VNPAY_RETURN_URL:${STAGING_VNPAY_RETURN_URL:https://hotelbookingproject-fontend-l6ru.onrender.com/api/v1/payment/vnpay-return}}
+
+app:
+  frontend:
+    url: ${STAGING_FRONTEND_URL:${FRONTEND_URL:https://hotelbookingproject-fontend-l6ru.onrender.com}}

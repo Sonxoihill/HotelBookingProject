@@ -17,12 +17,15 @@ import java.util.List;
 @RestController
 @RequestMapping("/services")
 @RequiredArgsConstructor
-@Tag(name = "Hotel Services", description = "Các API truy xuất danh sách dịch vụ bổ sung của khách sạn (Spa, đưa đón sân bay, buffet...)")
+@Tag(name = "3. Khách hàng - Danh mục Dịch vụ (Hotel Services)", description = "Các API truy xuất danh sách dịch vụ phụ trợ đang hoạt động của khách sạn (Bữa sáng Buffet, Đưa đón sân bay, Spa, Giặt là, Minibar...)")
 public class ServiceController {
 
     private final ServiceRepository serviceRepository;
 
-    @Operation(summary = "Lấy danh sách dịch vụ khách sạn", description = "Lấy toàn bộ các dịch vụ đang khả dụng (ACTIVE) kèm theo đơn giá và mô tả.")
+    @Operation(
+            summary = "Lấy danh sách dịch vụ khách sạn đang hoạt động",
+            description = "Lấy toàn bộ các dịch vụ đang khả dụng (status = ACTIVE) kèm theo đơn giá, đơn vị tính và mô tả chi tiết."
+    )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách dịch vụ thành công")
     })

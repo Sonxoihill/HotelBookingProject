@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   Layers,
@@ -8,10 +8,13 @@ import {
   BadgePercent,
   Users,
   Server,
+  LogOut,
+  X,
 } from 'lucide-react';
 import { tokenStorage } from '../../utils/tokenStorage';
 
-export const AdminSidebar = () => {
+export const AdminSidebar = ({ onClose }) => {
+  const navigate = useNavigate();
   const currentUser = tokenStorage.getUser();
   const userRole = tokenStorage.getUserRole();
   const fullName = currentUser?.fullName || currentUser?.name || 'Quản trị viên';
@@ -23,6 +26,12 @@ export const AdminSidebar = () => {
       : userRole === 'RECEPTIONIST'
       ? 'LỄ TÂN'
       : (userRole || 'QUẢN TRỊ VIÊN');
+
+  const handleLogout = () => {
+    tokenStorage.clearAuth();
+    if (onClose) onClose();
+    navigate('/login', { state: { toast: 'Đã đăng xuất' }, replace: true });
+  };
 
   const navItems = [
     {
@@ -60,22 +69,42 @@ export const AdminSidebar = () => {
   return (
     <aside className="w-64 bg-white text-stone-700 flex flex-col shrink-0 min-h-screen border-r border-stone-200/90 shadow-2xs select-none">
       {/* 1. Brand Header */}
-      <div className="p-5 border-b border-stone-100 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-[#0E1524] text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs">
-          É
-        </div>
-        <div className="flex flex-col">
-          <span className="font-serif text-lg font-bold tracking-tight text-stone-900 leading-tight">
-            L'Étoile
-          </span>
-          <span className="text-[9px] tracking-[0.22em] text-stone-400 uppercase font-semibold">
-            HOSPITALITY PMS
-          </span>
-        </div>
+      <div className="p-5 border-b border-stone-100 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => {
+            if (onClose) onClose();
+            navigate('/admin/dashboard');
+          }}
+          className="flex items-center gap-3 text-left cursor-pointer group focus:outline-none transition-opacity hover:opacity-85"
+          title="Quay về Dashboard Quản trị"
+        >
+          <div className="w-10 h-10 rounded-xl bg-[#0E1524] text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs group-hover:bg-stone-800 transition-colors">
+            É
+          </div>
+          <div className="flex flex-col">
+            <span className="font-serif text-lg font-bold tracking-tight text-stone-900 leading-tight group-hover:text-amber-800 transition-colors">
+              L'Étoile
+            </span>
+            <span className="text-[9px] tracking-[0.22em] text-stone-400 uppercase font-semibold">
+              HOSPITALITY PMS
+            </span>
+          </div>
+        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+            title="Đóng menu"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* 2. Navigation Menu */}
-      <div className="flex-1 p-3.5 space-y-1.5">
+      <div className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
         <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 px-3 py-1.5">
           QUẢN TRỊ HỆ THỐNG
         </div>
@@ -85,6 +114,9 @@ export const AdminSidebar = () => {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={() => {
+                if (onClose) onClose();
+              }}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                   isActive
@@ -130,12 +162,20 @@ export const AdminSidebar = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-1 border-t border-stone-200/60 text-[11px] text-stone-500">
+          <div className="flex items-center justify-between pt-2 border-t border-stone-200/60 text-[11px] text-stone-500">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
               Máy chủ: Đang kết nối
             </span>
-            <Server size={13} className="text-stone-400" />
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Đăng xuất nhanh"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs"
+            >
+              <LogOut size={12} />
+              <span>Đăng xuất</span>
+            </button>
           </div>
         </div>
       </div>

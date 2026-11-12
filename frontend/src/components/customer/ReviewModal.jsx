@@ -164,7 +164,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
 
         {/* Thẻ cảm xúc / nhận xét nhanh */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-stone-700 block font-sans">
+          <label className="text-xs font-sans text-stone-700 font-normal block">
             Những điểm bạn thích nhất:
           </label>
           <div className="flex flex-wrap gap-1.5">
@@ -175,10 +175,10 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
                   key={tag}
                   type="button"
                   onClick={() => toggleTag(tag)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium font-sans transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-full text-xs font-sans text-stone-700 font-normal transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#C59D5F] text-white shadow-2xs'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200/80'
+                      ? '!bg-[#C59D5F] !text-white shadow-2xs'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200/80 border border-stone-200/60'
                   }`}
                 >
                   {tag}
@@ -190,7 +190,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
 
         {/* Text feedback */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-stone-700 block font-sans">
+          <label className="text-xs font-sans text-stone-700 font-normal block">
             Nội dung bình luận & đóng góp ý kiến:
           </label>
           <textarea
@@ -198,7 +198,7 @@ export const ReviewModal = ({ isOpen, onClose, booking, onSubmit }) => {
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Chia sẻ trải nghiệm của bạn về không gian phòng, dịch vụ, thái độ nhân viên..."
-            className="w-full text-xs font-sans border border-stone-200 rounded-xl p-3 text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#C59D5F]/30 focus:border-[#C59D5F] resize-none bg-white leading-relaxed"
+            className="w-full text-xs font-sans text-stone-700 font-normal border border-stone-200 rounded-xl p-3 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#C59D5F]/30 focus:border-[#C59D5F] resize-none bg-white leading-relaxed"
           />
         </div>
       </form>

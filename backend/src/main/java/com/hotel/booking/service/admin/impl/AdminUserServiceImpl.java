@@ -93,8 +93,10 @@ public class AdminUserServiceImpl implements AdminUserService {
         // Gửi email bất đồng bộ kèm thông tin đăng nhập
         emailService.sendStaffAccountEmail(savedUser, rawPassword);
 
-        // Không trả mật khẩu trong response
-        return AdminUserResponse.fromEntity(savedUser);
+        // Trả response kèm temporaryPassword cho Quản trị viên (chỉ 1 lần khi tạo)
+        AdminUserResponse response = AdminUserResponse.fromEntity(savedUser);
+        response.setTemporaryPassword(rawPassword);
+        return response;
     }
 
     @Override
@@ -116,20 +118,21 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
 
         UserRole oldRole = targetUser.getRole();
+        String oldRoleName = oldRole != null ? oldRole.name() : UserRole.GUEST.name();
         targetUser.setRole(request.getRole());
         User updatedUser = userRepository.save(targetUser);
 
         log.info("Admin {} đã đổi vai trò của {} từ {} sang {}",
-                currentAdminEmail, targetUser.getEmail(), oldRole, request.getRole());
+                currentAdminEmail, targetUser.getEmail(), oldRoleName, request.getRole());
 
         // Ghi Audit Log: ROLE_CHANGED
         AuditLog auditLog = AuditLog.builder()
                 .actor(currentAdmin)
                 .targetUser(updatedUser)
                 .action("ROLE_CHANGED")
-                .oldValue(oldRole.name())
+                .oldValue(oldRoleName)
                 .newValue(updatedUser.getRole().name())
-                .description("Thay đổi vai trò người dùng " + updatedUser.getEmail() + " từ " + oldRole.name() + " sang " + updatedUser.getRole().name())
+                .description("Thay đổi vai trò người dùng " + updatedUser.getEmail() + " từ " + oldRoleName + " sang " + updatedUser.getRole().name())
                 .build();
         auditLogRepository.save(auditLog);
 

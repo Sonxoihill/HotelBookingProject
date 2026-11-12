@@ -29,6 +29,12 @@ public class EmailServiceImpl implements EmailService {
     @Value("${spring.mail.username}")
     private String fromEmail;
 
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
+    @Value("${resend.api-key:}")
+    private String resendApiKey;
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final Locale VIETNAMESE_LOCALE = Locale.of("vi", "VN");
 
@@ -60,14 +66,22 @@ public class EmailServiceImpl implements EmailService {
 
         try {
             long startTime = System.currentTimeMillis();
+            String htmlContent = buildBookingEmailHtml(targetBooking);
+            String subject = "[L'ÉTOILE] Xác nhận đặt phòng & thanh toán thành công - Mã đơn #" + targetBooking.getId();
+
+            if (sendViaResend(recipientEmail, subject, htmlContent)) {
+                long duration = System.currentTimeMillis() - startTime;
+                log.info("Đã gửi email xác nhận đặt phòng #{} qua Resend HTTP API thành công tới {} trong {}ms",
+                        targetBooking.getId(), recipientEmail, duration);
+                return;
+            }
+
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             helper.setFrom(fromEmail, "Khách sạn L'ÉTOILE");
             helper.setTo(recipientEmail);
-            helper.setSubject("[L'ÉTOILE] Xác nhận đặt phòng & thanh toán thành công - Mã đơn #" + targetBooking.getId());
-
-            String htmlContent = buildBookingEmailHtml(targetBooking);
+            helper.setSubject(subject);
             helper.setText(htmlContent, true);
 
             mailSender.send(mimeMessage);
@@ -191,26 +205,38 @@ public class EmailServiceImpl implements EmailService {
 
         try {
             log.info("Bắt đầu gửi email cấp tài khoản nhân sự tới: {}", user.getEmail());
+            String subject = "[L'ÉTOILE] Thông tin tài khoản nhân sự & quyền truy cập hệ thống";
+            String content = buildStaffAccountEmailContent(user, rawPassword);
+
+            // 1. Thử gửi qua Resend HTTP API (Port 443) nếu được cấu hình (phù hợp môi trường Cloud chặn cổng SMTP)
+            if (sendViaResend(user.getEmail(), subject, content)) {
+                log.info("Gửi email cấp tài khoản nhân sự qua Resend HTTP API thành công tới: {}", user.getEmail());
+                return;
+            }
+
+            // 2. Gửi qua SMTP truyền thống (Port 587/465)
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(fromEmail, "Khách sạn Nghỉ dưỡng Sonxoi Hill");
+            helper.setFrom(fromEmail, "Khách sạn L'ÉTOILE");
             helper.setTo(user.getEmail());
-            helper.setSubject("[Sonxoi Hill] Thông tin tài khoản nhân sự & quyền truy cập hệ thống");
-
-            String content = buildStaffAccountEmailContent(user, rawPassword);
+            helper.setSubject(subject);
             helper.setText(content, true);
 
             mailSender.send(message);
             log.info("Gửi email cấp tài khoản nhân sự thành công tới: {}", user.getEmail());
         } catch (Exception e) {
-            log.error("Lỗi khi gửi email cấp tài khoản tới {}: {}", user.getEmail(), e.getMessage());
+            log.error("Lỗi khi gửi email cấp tài khoản tới {}: {}", user.getEmail(), e.getMessage(), e);
+            log.warn("Lưu ý: Nếu chạy trên Render Free Tier, các cổng SMTP 25, 465, 587 bị chặn mặc định. Để gửi mail trên Cloud Free Tier, vui lòng cấu hình biến môi trường RESEND_API_KEY hoặc nâng cấp instance.");
         }
     }
 
     private String buildStaffAccountEmailContent(User user, String rawPassword) {
         String staffName = user.getFullName() != null ? user.getFullName() : "Nhân sự mới";
-        String loginUrl = "http://localhost:5173/login";
+        String normalizedFrontendUrl = (frontendUrl != null && !frontendUrl.trim().isEmpty())
+                ? frontendUrl.replaceAll("/+$", "")
+                : "http://localhost:5173";
+        String loginUrl = normalizedFrontendUrl + "/login";
         String departmentName = user.getDepartment() != null ? user.getDepartment().getDisplayName() : "Vận hành";
 
         return """
@@ -233,13 +259,13 @@ public class EmailServiceImpl implements EmailService {
             <body>
                 <div class="container">
                     <div class="header">
-                        <h1>SONXOI HILL RESORT</h1>
+                        <h1>L'ÉTOILE HOTEL & RESORT</h1>
                         <p style="margin: 5px 0 0; font-size: 14px; color: #cbd5e1;">HỆ THỐNG QUẢN TRỊ NỘI BỘ</p>
                     </div>
                     <div class="content">
                         <p style="font-size: 16px;">Kính gửi <strong>%s</strong>,</p>
                         <p style="font-size: 14px; line-height: 1.6;">
-                            Tài khoản nhân sự của bạn đã được Quản trị viên kích hoạt trên hệ thống Quản lý Khách sạn <strong>Sonxoi Hill</strong> với vai trò: <strong>%s</strong> (Phòng ban: %s).
+                            Tài khoản nhân sự của bạn đã được Quản trị viên kích hoạt trên hệ thống Quản lý Khách sạn <strong>L'ÉTOILE</strong> với vai trò: <strong>%s</strong> (Phòng ban: %s).
                         </p>
                         <div class="cred-box">
                             <div class="cred-item">📧 <strong>Email đăng nhập:</strong> %s</div>
@@ -253,12 +279,73 @@ public class EmailServiceImpl implements EmailService {
                         </div>
                     </div>
                     <div class="footer">
-                        Email này được gửi tự động từ hệ thống quản trị Sonxoi Hill. Vui lòng không trả lời email này.<br>
-                        &copy; 2026 Sonxoi Hill Resort & Spa. All rights reserved.
+                        Email này được gửi tự động từ hệ thống quản trị L'ÉTOILE. Vui lòng không trả lời email này.<br>
+                        &copy; 2026 L'ÉTOILE Hotel & Resort. All rights reserved.
                     </div>
                 </div>
             </body>
             </html>
             """.formatted(staffName, user.getRole(), departmentName, user.getEmail(), rawPassword, loginUrl);
+    }
+
+    private boolean sendViaResend(String to, String subject, String htmlContent) {
+        if (resendApiKey == null || resendApiKey.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            log.info("Đang gửi email qua Resend HTTP API (Port 443) tới: {}", to);
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+
+            String jsonPayload = String.format(
+                    "{\"from\":\"L'ETOILE <onboarding@resend.dev>\",\"to\":[\"%s\"],\"subject\":%s,\"html\":%s}",
+                    to,
+                    escapeJson(subject),
+                    escapeJson(htmlContent)
+            );
+
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("https://api.resend.com/emails"))
+                    .header("Authorization", "Bearer " + resendApiKey.trim())
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload, java.nio.charset.StandardCharsets.UTF_8))
+                    .build();
+
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("Gửi email qua Resend HTTP API thành công tới {}: {}", to, response.body());
+                return true;
+            } else {
+                log.warn("Resend API phản hồi mã lỗi {}: {}", response.statusCode(), response.body());
+                return false;
+            }
+        } catch (Exception ex) {
+            log.warn("Không thể gửi email qua Resend API: {}", ex.getMessage());
+            return false;
+        }
+    }
+
+    private String escapeJson(String text) {
+        if (text == null) return "\"\"";
+        StringBuilder sb = new StringBuilder("\"");
+        for (char c : text.toCharArray()) {
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < ' ') {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+        }
+        sb.append("\"");
+        return sb.toString();
     }
 }

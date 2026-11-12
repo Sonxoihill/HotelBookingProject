@@ -181,13 +181,13 @@ export const HomePage = () => {
         </div>
 
         {/* Thanh tìm kiếm phòng nổi trên Hero */}
-        <div className="absolute -bottom-10 left-0 right-0 max-w-5xl mx-auto px-4 z-20">
+        <div className="absolute -bottom-24 sm:-bottom-16 lg:-bottom-10 left-0 right-0 max-w-5xl mx-auto px-4 z-20">
           <form
             onSubmit={handleSearch}
-            className="bg-white rounded-2xl md:rounded-full p-2.5 sm:p-3 shadow-xl border border-stone-200/90 flex flex-col md:flex-row items-center justify-between gap-3 text-stone-900"
+            className="bg-white rounded-2xl lg:rounded-full p-3 sm:p-3.5 shadow-xl border border-stone-200/90 flex flex-col lg:flex-row items-center justify-between gap-2.5 lg:gap-3 text-stone-900"
           >
             {/* Field 1: Ngày Check-in */}
-            <div className="flex-1 w-full px-5 py-1 text-left border-b md:border-b-0 md:border-r border-stone-200">
+            <div className="flex-1 w-full px-4 sm:px-5 py-1.5 text-left border-b lg:border-b-0 lg:border-r border-stone-200">
               <label htmlFor="home-checkin" className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
                 Ngày Check-in
               </label>
@@ -205,7 +205,7 @@ export const HomePage = () => {
             </div>
 
             {/* Field 2: Ngày Check-out */}
-            <div className="flex-1 w-full px-5 py-1 text-left border-b md:border-b-0 md:border-r border-stone-200">
+            <div className="flex-1 w-full px-4 sm:px-5 py-1.5 text-left border-b lg:border-b-0 lg:border-r border-stone-200">
               <label htmlFor="home-checkout" className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
                 Ngày Check-out
               </label>
@@ -223,7 +223,7 @@ export const HomePage = () => {
             </div>
 
             {/* Field 3: Số lượng khách lưu trú (Số sức chứa của phòng trong database, tránh trùng lặp) */}
-            <div className="flex-1 w-full px-5 py-1 text-left">
+            <div className="flex-1 w-full px-4 sm:px-5 py-1.5 text-left">
               <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block mb-0.5">
                 Khách lưu trú
               </span>
@@ -248,10 +248,10 @@ export const HomePage = () => {
             </div>
 
             {/* Nút "Tìm kiếm" */}
-            <div className="w-full md:w-auto shrink-0">
+            <div className="w-full lg:w-auto shrink-0">
               <button
                 type="submit"
-                className="w-full md:w-auto bg-black hover:bg-stone-800 text-white rounded-full px-7 py-3.5 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
+                className="w-full lg:w-auto min-h-[44px] bg-black hover:bg-stone-800 text-white rounded-xl lg:rounded-full px-7 py-3 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
               >
                 <Search size={14} />
                 <span>Tìm kiếm</span>

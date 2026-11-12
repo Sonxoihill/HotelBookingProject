@@ -99,4 +99,34 @@ class EmailServiceTest {
 
         verify(mailSender, never()).send(any(MimeMessage.class));
     }
+
+    @Test
+    @DisplayName("UC16: Gửi email cấp tài khoản nhân sự thành công kèm mật khẩu khởi tạo")
+    void testSendStaffAccountEmail_Success() {
+        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        User staff = User.builder()
+                .email("receptionist@hotel.com")
+                .fullName("Trần Thị Lễ Tân")
+                .role(com.hotel.booking.enums.UserRole.RECEPTIONIST)
+                .department(com.hotel.booking.enums.Department.FRONT_DESK)
+                .build();
+
+        emailService.sendStaffAccountEmail(staff, "Pass1234");
+
+        verify(mailSender, times(1)).createMimeMessage();
+        verify(mailSender, times(1)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("UC16: Không gửi email cấp tài khoản nhân sự khi User là null hoặc email trống")
+    void testSendStaffAccountEmail_NullOrEmpty() {
+        emailService.sendStaffAccountEmail(null, "Pass1234");
+        verify(mailSender, never()).send(any(MimeMessage.class));
+
+        User staffWithoutEmail = User.builder().fullName("Không Email").build();
+        emailService.sendStaffAccountEmail(staffWithoutEmail, "Pass1234");
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
 }
